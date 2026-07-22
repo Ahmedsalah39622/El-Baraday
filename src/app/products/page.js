@@ -27,6 +27,7 @@ import {
   Tab,
   Switch,
   FormControlLabel,
+  Divider,
 } from '@mui/material';
 import {
   FastfoodOutlined,
@@ -37,6 +38,7 @@ import {
   ArrowDownwardOutlined,
   CloudUploadOutlined,
   LocalOfferOutlined,
+  AddShoppingCartOutlined,
 } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
 import { useProductStore } from '@/store/useProductStore';
@@ -84,8 +86,15 @@ export default function ProductsPage() {
     image: '/images/hawawshi_sade.png',
   });
 
+  // Offer Builder State (Selecting base products & quantities)
+  const [offerItemsList, setOfferItemsList] = useState([]);
+  const [selectedBaseProductId, setSelectedBaseProductId] = useState('');
+  const [baseProductQuantity, setBaseProductQuantity] = useState(1);
+
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
+
+  const baseProductsOnly = (products || []).filter((p) => p.categoryId !== '5' && !p.isOffer);
 
   const filteredProducts = (products || [])
     .filter((p) => {
@@ -103,18 +112,20 @@ export default function ProductsPage() {
         isOffer: product.isOffer || product.categoryId === '5',
         offerComponents: product.offerComponents || '',
       });
+      setOfferItemsList([]);
     } else if (isNewOffer) {
       setCurrentProduct({
         id: '',
         name: 'عرض جديد خيالي',
         categoryId: '5',
         price: 140,
-        originalPrice: 180,
+        originalPrice: 185,
         isOffer: true,
-        offerComponents: '2 حواوشي + 1 لتر بيبسي + بطاطس',
+        offerComponents: '2 حواوشي ميكس أجبان + 1 بيبسي كولا 1 لتر',
         size: 'عرض خاص',
         image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500&q=80',
       });
+      setOfferItemsList([]);
     } else {
       setCurrentProduct({
         id: '',
@@ -127,8 +138,52 @@ export default function ProductsPage() {
         size: 'كبير',
         image: '/images/hawawshi_sade.png',
       });
+      setOfferItemsList([]);
     }
     setDialogOpen(true);
+  };
+
+  const handleAddOfferItem = () => {
+    if (!selectedBaseProductId) return;
+    const baseProd = products.find((p) => p.id === selectedBaseProductId);
+    if (!baseProd) return;
+
+    const newItem = {
+      productId: baseProd.id,
+      name: baseProd.name,
+      price: baseProd.price,
+      quantity: Math.max(1, baseProductQuantity),
+    };
+
+    const updatedList = [...offerItemsList, newItem];
+    setOfferItemsList(updatedList);
+
+    // Auto-calculate components text string & original price sum
+    const componentsStr = updatedList.map((it) => `${it.quantity > 1 ? `${it.quantity} ` : ''}${it.name}`).join(' + ');
+    const calculatedOriginalTotal = updatedList.reduce((sum, it) => sum + (it.price * it.quantity), 0);
+
+    setCurrentProduct((prev) => ({
+      ...prev,
+      offerComponents: componentsStr,
+      originalPrice: calculatedOriginalTotal > 0 ? calculatedOriginalTotal : prev.originalPrice,
+    }));
+
+    setSelectedBaseProductId('');
+    setBaseProductQuantity(1);
+  };
+
+  const handleRemoveOfferItem = (index) => {
+    const updatedList = offerItemsList.filter((_, i) => i !== index);
+    setOfferItemsList(updatedList);
+
+    const componentsStr = updatedList.map((it) => `${it.quantity > 1 ? `${it.quantity} ` : ''}${it.name}`).join(' + ');
+    const calculatedOriginalTotal = updatedList.reduce((sum, it) => sum + (it.price * it.quantity), 0);
+
+    setCurrentProduct((prev) => ({
+      ...prev,
+      offerComponents: componentsStr,
+      originalPrice: calculatedOriginalTotal,
+    }));
   };
 
   const handleFileUpload = (event) => {
@@ -392,11 +447,11 @@ export default function ProductsPage() {
         </Table>
       </TableContainer>
 
-      {/* Add / Edit Product & Offer Modal */}
+      {/* Add / Edit Product & Interactive Offer Builder Modal */}
       <Dialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        maxWidth="sm"
+        maxWidth="md"
         fullWidth
         slotProps={{
           paper: {
@@ -413,7 +468,7 @@ export default function ProductsPage() {
             : (currentProduct.isOffer ? 'إضافة عرض خاص جديد 🏷️' : 'إضافة منتج جديد 🍔')}
         </DialogTitle>
 
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2.5, pb: 1, mt: 1 }}>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 2.5, pb: 1, mt: 1 }}>
           {/* Toggle Offer Mode */}
           <Paper sx={{ p: 1.5, borderRadius: '12px', bgcolor: currentProduct.isOffer ? '#FFFDF5' : '#FAFBFC', border: '1.5px solid', borderColor: currentProduct.isOffer ? '#F59E0B' : '#E5E7EB' }}>
             <FormControlLabel
@@ -439,6 +494,72 @@ export default function ProductsPage() {
               }
             />
           </Paper>
+
+          {/* Interactive Offer Builder Section (Selecting products & quantities) */}
+          {currentProduct.isOffer && (
+            <Paper sx={{ p: 2, borderRadius: '14px', bgcolor: '#FFFBEB', border: '1.5px dashed #F59E0B', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#B45309', display: 'flex', alignItems: 'center', gap: 1 }}>
+                🍱 تجميع مكونات العرض من أصناف المنيو الرئيسية:
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#92400E', fontSize: '0.78rem' }}>
+                اختر الصنف والكمية المطلوبة، وسيتم إضافتها تلقائياً إلى تفاصيل العرض وحساب سعرها الأصلي.
+              </Typography>
+
+              {/* Product Selector & Quantity Selector Row */}
+              <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+                <FormControl size="small" sx={{ flex: 1, minWidth: 200, bgcolor: '#FFF' }}>
+                  <InputLabel>اختر صنف من المنيو</InputLabel>
+                  <Select
+                    value={selectedBaseProductId}
+                    label="اختر صنف من المنيو"
+                    onChange={(e) => setSelectedBaseProductId(e.target.value)}
+                  >
+                    {baseProductsOnly.map((bp) => (
+                      <MenuItem key={bp.id} value={bp.id}>
+                        {bp.name} ({bp.price} ج.م)
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <TextField
+                  size="small"
+                  type="number"
+                  label="الكمية"
+                  value={baseProductQuantity}
+                  onChange={(e) => setBaseProductQuantity(parseInt(e.target.value) || 1)}
+                  sx={{ width: 90, bgcolor: '#FFF' }}
+                  inputProps={{ min: 1 }}
+                />
+
+                <Button
+                  variant="contained"
+                  startIcon={<AddShoppingCartOutlined />}
+                  onClick={handleAddOfferItem}
+                  disabled={!selectedBaseProductId}
+                  sx={{ bgcolor: '#D97706', '&:hover': { bgcolor: '#B45309' }, borderRadius: '10px', px: 2, fontWeight: 800 }}
+                >
+                  إضافة للعرض
+                </Button>
+              </Box>
+
+              {/* Selected Offer Items List Chips */}
+              {offerItemsList.length > 0 && (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, pt: 1 }}>
+                  {offerItemsList.map((item, idx) => (
+                    <Chip
+                      key={idx}
+                      label={`${item.quantity}× ${item.name} (${item.price * item.quantity} ج.م)`}
+                      onDelete={() => handleRemoveOfferItem(idx)}
+                      color="warning"
+                      variant="outlined"
+                      sx={{ fontWeight: 800, bgcolor: '#FFF', borderColor: '#F59E0B' }}
+                    />
+                  ))}
+                </Box>
+              )}
+            </Paper>
+          )}
 
           {/* Image Preview & Device File Upload */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#FAFCFF', p: 1.5, borderRadius: '14px', border: '1px solid #E2E8F0' }}>
@@ -520,7 +641,7 @@ export default function ProductsPage() {
               size="small"
               multiline
               rows={2}
-              label="📦 محتويات ومكونات العرض"
+              label="📦 محتويات ومكونات العرض (النص الظاهر بالكارت والفاتورة)"
               placeholder="مثال: 2 حواوشي ميكس أجبان كبير + بيبسي 1 لتر + 2 بطاطس"
               value={currentProduct.offerComponents || ''}
               onChange={(e) => setCurrentProduct({ ...currentProduct, offerComponents: e.target.value })}
