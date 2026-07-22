@@ -48,7 +48,7 @@ export const useProductStore = create(
           const res = await fetch('/api/products');
           if (!res.ok) throw new Error('Failed to fetch');
           const rows = await res.json();
-          if (rows.length > 0) {
+          if (Array.isArray(rows) && rows.length > 0) {
             set({ products: rows.map(mapProduct), loading: false });
           } else {
             set({ loading: false });
@@ -133,7 +133,7 @@ export const useProductStore = create(
       moveProductUp: async (id) => {
         const currentProducts = [...get().products];
         const index = currentProducts.findIndex((p) => p.id === id);
-        if (index <= 0) return; // Already at top
+        if (index <= 0) return;
 
         // Swap with previous item
         const temp = currentProducts[index];
@@ -144,13 +144,19 @@ export const useProductStore = create(
         const reordered = currentProducts.map((p, idx) => ({ ...p, sortOrder: idx + 1 }));
         set({ products: reordered });
 
-        // Save reorder to API
+        // Persist to Supabase PostgreSQL DB
         try {
-          await fetch('/api/products', {
+          const res = await fetch('/api/products', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(reordered.map((p) => ({ id: p.id, sort_order: p.sortOrder }))),
           });
+          if (res.ok) {
+            const rows = await res.json();
+            if (Array.isArray(rows) && rows.length > 0) {
+              set({ products: rows.map(mapProduct) });
+            }
+          }
         } catch (err) {
           console.warn('⚠️ Reorder saved locally:', err.message);
         }
@@ -160,7 +166,7 @@ export const useProductStore = create(
       moveProductDown: async (id) => {
         const currentProducts = [...get().products];
         const index = currentProducts.findIndex((p) => p.id === id);
-        if (index === -1 || index >= currentProducts.length - 1) return; // Already at bottom
+        if (index === -1 || index >= currentProducts.length - 1) return;
 
         // Swap with next item
         const temp = currentProducts[index];
@@ -171,13 +177,19 @@ export const useProductStore = create(
         const reordered = currentProducts.map((p, idx) => ({ ...p, sortOrder: idx + 1 }));
         set({ products: reordered });
 
-        // Save reorder to API
+        // Persist to Supabase PostgreSQL DB
         try {
-          await fetch('/api/products', {
+          const res = await fetch('/api/products', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(reordered.map((p) => ({ id: p.id, sort_order: p.sortOrder }))),
           });
+          if (res.ok) {
+            const rows = await res.json();
+            if (Array.isArray(rows) && rows.length > 0) {
+              set({ products: rows.map(mapProduct) });
+            }
+          }
         } catch (err) {
           console.warn('⚠️ Reorder saved locally:', err.message);
         }
@@ -189,7 +201,7 @@ export const useProductStore = create(
       },
     }),
     {
-      name: 'el-baraday-hawawshi-products-v4',
+      name: 'el-baraday-hawawshi-products-v5',
     }
   )
 );

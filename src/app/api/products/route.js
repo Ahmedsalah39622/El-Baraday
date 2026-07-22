@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const result = await query('SELECT * FROM products ORDER BY sort_order ASC, name ASC');
+    const result = await query('SELECT * FROM products ORDER BY sort_order ASC, created_at ASC');
     return NextResponse.json(result.rows || []);
   } catch (error) {
     return NextResponse.json([]);
@@ -41,16 +41,21 @@ export async function POST(request) {
   }
 }
 
+// Bulk update sort orders in PostgreSQL DB
 export async function PUT(request) {
   try {
     const items = await request.json(); // Array of { id, sort_order }
     if (Array.isArray(items)) {
       for (const item of items) {
-        await query('UPDATE products SET sort_order = $1 WHERE id = $2', [item.sort_order, item.id]);
+        if (item.id && typeof item.sort_order === 'number') {
+          await query('UPDATE products SET sort_order = $1 WHERE id = $2', [item.sort_order, item.id]);
+        }
       }
     }
-    return NextResponse.json({ success: true });
+    const updatedResult = await query('SELECT * FROM products ORDER BY sort_order ASC, created_at ASC');
+    return NextResponse.json(updatedResult.rows || []);
   } catch (error) {
+    console.error('❌ Error updating product sort orders:', error);
     return NextResponse.json({ success: true });
   }
 }
