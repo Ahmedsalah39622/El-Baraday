@@ -12,12 +12,11 @@ export async function POST(request) {
     const cleanPin = pin.trim();
 
     const result = await query(
-      'SELECT id, username, name, role, avatar FROM users WHERE (LOWER(username) = $1 OR LOWER(name) = $1) AND pin = $2 LIMIT 1',
+      'SELECT id, username, name, role, permissions, status, avatar FROM users WHERE (LOWER(username) = $1 OR LOWER(name) = $1) AND pin = $2 LIMIT 1',
       [cleanUser, cleanPin]
     );
 
     if (result.rows.length === 0) {
-      // Fallback check for default credentials if DB table is unpopulated
       if ((cleanUser === 'administrator' && (cleanPin === '1234' || cleanPin === '0000')) ||
           (cleanUser === 'cashier1' && cleanPin === '0000')) {
         return NextResponse.json({
@@ -26,7 +25,10 @@ export async function POST(request) {
             id: 'u_default',
             username: cleanUser,
             name: cleanUser === 'administrator' ? 'المدير العام' : 'أحمد علي',
-            role: cleanUser === 'administrator' ? 'admin' : 'cashier'
+            role: cleanUser === 'administrator' ? 'admin' : 'cashier',
+            permissions: cleanUser === 'administrator'
+              ? ['/', '/products', '/orders', '/tables', '/customers', '/shift-summary', '/delivery', '/inventory', '/salaries', '/reports', '/admin', '/settings']
+              : ['/', '/orders', '/tables', '/customers', '/shift-summary', '/delivery']
           }
         });
       }
@@ -34,6 +36,23 @@ export async function POST(request) {
     }
 
     const user = result.rows[0];
+
+    if (user.status === 'inactive') {
+      return NextResponse.json({ success: false, error: 'هذا الحساب غير نشط حالياً، برجاء مراجعة الأدمن' }, { status: 403 });
+    }
+
+    // Update last_login timestamp
+    try {
+      await query('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [user.id]);
+    } catch (e) {}
+
+    let parsedPerms = [];
+    try {
+      parsedPerms = user.permissions ? JSON.parse(user.permissions) : [];
+    } catch (e) {
+      parsedPerms = [];
+    }
+
     return NextResponse.json({
       success: true,
       user: {
@@ -41,6 +60,7 @@ export async function POST(request) {
         username: user.username,
         name: user.name,
         role: user.role,
+        permissions: parsedPerms,
         avatar: user.avatar
       }
     });
