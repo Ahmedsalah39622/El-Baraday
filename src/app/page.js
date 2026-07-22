@@ -143,7 +143,7 @@ export default function POSPage() {
         overflow: 'hidden',
         bgcolor: 'background.default',
         position: 'relative',
-        pb: { xs: 8, md: 0 },
+        pb: { xs: 16, md: 0 },
       }}
     >
       {/* Desktop Right Panel: Order Details (Hidden on mobile) */}
@@ -172,7 +172,7 @@ export default function POSPage() {
           overflow: 'hidden',
         }}
       >
-        {/* Header Bar: Home Title + SearchBar */}
+        {/* Header Bar: Home Title + Mobile Till Cash Pill + SearchBar */}
         <Box
           sx={{
             display: 'flex',
@@ -182,9 +182,32 @@ export default function POSPage() {
             gap: 1.5,
           }}
         >
-          <Typography variant="h4" sx={{ fontWeight: 800, color: '#1A1A2E', fontSize: { xs: '1.4rem', md: '2rem' } }}>
-            الرئيسية
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="h4" sx={{ fontWeight: 800, color: '#1A1A2E', fontSize: { xs: '1.2rem', md: '2rem' } }}>
+              الرئيسية
+            </Typography>
+
+            {/* Compact Mobile Till Cash Drawer Pill Badge (Always Visible & Never Hidden) */}
+            <Box
+              sx={{
+                display: { xs: 'flex', md: 'none' },
+                alignItems: 'center',
+                gap: 0.6,
+                bgcolor: '#ECFDF5',
+                border: '1.5px solid #10B981',
+                px: 1.2,
+                py: 0.4,
+                borderRadius: '20px',
+                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.15)',
+              }}
+            >
+              <AccountBalanceWallet sx={{ fontSize: 16, color: '#10B981' }} />
+              <Typography variant="caption" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.78rem' }}>
+                الخزنة: {currentTillCash.toFixed(0)} ج.م
+              </Typography>
+            </Box>
+          </Box>
+
           <SearchBar value={searchQuery} onChange={setSearchQuery} />
         </Box>
 
@@ -206,10 +229,10 @@ export default function POSPage() {
           categoryTitle={selectedCategory === 'all' ? 'الأكثر مبيعاً' : 'المنتجات'}
         />
 
-        {/* Bottom Footer Bar: Current Till Cash Drawer Badge */}
+        {/* Desktop Bottom Footer Bar: Current Till Cash Drawer Badge */}
         <Box
           sx={{
-            display: 'flex',
+            display: { xs: 'none', md: 'flex' },
             alignItems: 'center',
             justifyContent: 'flex-end',
             pt: 1.2,

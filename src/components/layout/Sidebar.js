@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Box, Tooltip, Paper, Divider } from '@mui/material';
+import { Box, Tooltip, Paper, Divider, Drawer, Typography, Grid, IconButton } from '@mui/material';
 import {
   Home,
   GridView,
@@ -18,7 +18,10 @@ import {
   AssessmentOutlined,
   AdminPanelSettingsOutlined,
   LogoutOutlined,
+  Close,
+  Menu,
 } from '@mui/icons-material';
+import { useAuthStore } from '@/store/useAuthStore';
 
 const navItems = [
   { id: 'home', label: 'الرئيسية', icon: Home, path: '/' },
@@ -34,32 +37,25 @@ const navItems = [
   { id: 'admin', label: 'الأدمن', icon: AdminPanelSettingsOutlined, path: '/admin' },
 ];
 
-// Mobile bottom bar shows only core 5 items
-const mobileNavItems = [
-  { id: 'home', label: 'الرئيسية', icon: Home, path: '/' },
-  { id: 'products', label: 'المنتجات', icon: FastfoodOutlined, path: '/products' },
-  { id: 'orders', label: 'الطلبات', icon: ListAlt, path: '/orders' },
-  { id: 'delivery', label: 'الدليفري', icon: DeliveryDining, path: '/delivery' },
-  { id: 'more', label: 'المزيد', icon: GridView, path: '/admin' },
-];
-
 const bottomItems = [
   { id: 'settings', label: 'الإعدادات', icon: SettingsOutlined, path: '/settings' },
   { id: 'logout', label: 'تسجيل خروج', icon: LogoutOutlined, path: '/login', isLogout: true },
 ];
-
-import { useAuthStore } from '@/store/useAuthStore';
 
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const { user, logout, hasPermission } = useAuthStore();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
 
   if (pathname === '/login') return null;
 
   const visibleNavItems = navItems.filter((item) => hasPermission(item.path));
   const visibleBottomItems = bottomItems.filter((item) => item.isLogout || hasPermission(item.path));
+
+  // All allowed items combined for the "More" drawer on mobile
+  const allAllowedItems = [...visibleNavItems, ...visibleBottomItems];
 
   const isActive = (path) => {
     if (path === '/') return pathname === '/';
@@ -67,6 +63,7 @@ export default function Sidebar() {
   };
 
   const handleNavClick = (item) => {
+    setMobileMoreOpen(false);
     if (item.isLogout) {
       logout();
       router.push('/login');
@@ -74,6 +71,14 @@ export default function Sidebar() {
       router.push(item.path);
     }
   };
+
+  const mobileNavItems = [
+    { id: 'home', label: 'الرئيسية', icon: Home, path: '/' },
+    { id: 'products', label: 'المنتجات', icon: FastfoodOutlined, path: '/products' },
+    { id: 'orders', label: 'الطلبات', icon: ListAlt, path: '/orders' },
+    { id: 'delivery', label: 'الدليفري', icon: DeliveryDining, path: '/delivery' },
+    { id: 'more', label: 'المزيد ☰', icon: Menu, isMore: true },
+  ];
 
   return (
     <>
@@ -249,30 +254,122 @@ export default function Sidebar() {
       >
         {mobileNavItems.map((item) => {
           const Icon = item.icon;
-          const active = isActive(item.path);
+          const active = !item.isMore && isActive(item.path);
+
           return (
             <Box
               key={item.id}
-              onClick={() => router.push(item.path)}
+              onClick={() => {
+                if (item.isMore) {
+                  setMobileMoreOpen(true);
+                } else {
+                  router.push(item.path);
+                }
+              }}
               sx={{
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: active ? '#4285F4' : '#9CA3AF',
+                color: active ? '#4285F4' : (item.isMore ? '#FF8C42' : '#9CA3AF'),
                 cursor: 'pointer',
                 flex: 1,
                 py: 0.5,
               }}
             >
               <Icon sx={{ fontSize: 20 }} />
-              <Box component="span" sx={{ fontSize: '0.6rem', fontWeight: active ? 700 : 500, mt: 0.2 }}>
+              <Box component="span" sx={{ fontSize: '0.62rem', fontWeight: active || item.isMore ? 800 : 500, mt: 0.2 }}>
                 {item.label}
               </Box>
             </Box>
           );
         })}
       </Paper>
+
+      {/* Sleek Mobile "المزيد" More Menu Sheet */}
+      <Drawer
+        anchor="bottom"
+        open={mobileMoreOpen}
+        onClose={() => setMobileMoreOpen(false)}
+        PaperProps={{
+          sx: {
+            borderTopLeftRadius: '24px',
+            borderTopRightRadius: '24px',
+            p: 2.5,
+            bgcolor: '#FAFCFF',
+            maxHeight: '80vh',
+            overflowY: 'auto',
+          },
+        }}
+      >
+        {/* Drawer Header */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, pb: 1, borderBottom: '1px solid #E5E7EB' }}>
+          <Typography variant="h6" sx={{ fontWeight: 800, color: '#1A1A2E' }}>
+            🌐 قـائـمـة الـمـزيـد (الصفحات والخدمات)
+          </Typography>
+          <IconButton size="small" onClick={() => setMobileMoreOpen(false)}>
+            <Close />
+          </IconButton>
+        </Box>
+
+        {/* Grid of allowed pages */}
+        <Grid container spacing={1.5}>
+          {allAllowedItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.path) && !item.isLogout;
+
+            return (
+              <Grid item xs={6} sm={4} key={item.id}>
+                <Paper
+                  onClick={() => handleNavClick(item)}
+                  sx={{
+                    p: 1.8,
+                    borderRadius: '16px',
+                    border: '1.5px solid',
+                    borderColor: item.isLogout ? '#FEE2E2' : (active ? '#4285F4' : '#E2E8F0'),
+                    bgcolor: item.isLogout ? '#FEF2F2' : (active ? '#F0F7FF' : '#FFFFFF'),
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 1,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    boxShadow: active ? '0 4px 12px rgba(66, 133, 244, 0.15)' : 'none',
+                    '&:active': { transform: 'scale(0.96)' },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '12px',
+                      bgcolor: item.isLogout ? '#EF444415' : (active ? '#4285F4' : 'rgba(66, 133, 244, 0.08)'),
+                      color: item.isLogout ? '#EF4444' : (active ? '#FFFFFF' : '#4285F4'),
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Icon sx={{ fontSize: 24 }} />
+                  </Box>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: 800,
+                      color: item.isLogout ? '#DC2626' : (active ? '#1E40AF' : '#1A1A2E'),
+                      fontSize: '0.85rem',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {item.label}
+                  </Typography>
+                </Paper>
+              </Grid>
+            );
+          })}
+        </Grid>
+      </Drawer>
     </>
   );
 }
