@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Box, Typography, Button, Drawer, Badge } from '@mui/material';
-import { ShoppingBagOutlined, Close } from '@mui/icons-material';
+import { ShoppingBagOutlined, AccountBalanceWallet } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
 import CategoryTabs from '@/components/pos/CategoryTabs';
 import ProductGrid from '@/components/pos/ProductGrid';
@@ -13,15 +13,17 @@ import { useCustomerStore } from '@/store/useCustomerStore';
 import { useTableStore } from '@/store/useTableStore';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { useShiftStore } from '@/store/useShiftStore';
 
 export default function POSPage() {
   const { products, fetchProducts } = useProductStore();
   const { items, addItem, updateQuantity, removeItem, clearOrder, orderType, setOrderType } = useOrderStore();
   const { fetchCustomers, fetchAreas, fetchDrivers } = useCustomerStore();
   const { fetchTables } = useTableStore();
-  const { fetchNextOrderNumber, fetchInvoices } = useInvoiceStore();
+  const { fetchNextOrderNumber, fetchInvoices, invoices } = useInvoiceStore();
   const { fetchSettings } = useSettingsStore();
-  
+  const { activeShift, fetchShifts } = useShiftStore();
+
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
@@ -35,8 +37,14 @@ export default function POSPage() {
     fetchNextOrderNumber();
     fetchInvoices();
     fetchSettings();
+    fetchShifts();
   }, []);
 
+  // Calculate current till cash drawer amount:
+  // Starting Cash + Total Sales from Invoices
+  const startCash = activeShift?.startAmount || 500;
+  const totalCashSales = (invoices || []).reduce((sum, inv) => sum + (parseFloat(inv.paidAmount || inv.total || 0)), 0);
+  const currentTillCash = startCash + totalCashSales;
 
   // Filter products by category & search
   const filteredProducts = (products || []).filter((product) => {
@@ -69,7 +77,7 @@ export default function POSPage() {
         overflow: 'hidden',
         bgcolor: 'background.default',
         position: 'relative',
-        pb: { xs: 8, md: 0 }, // padding for mobile bottom bar
+        pb: { xs: 8, md: 0 },
       }}
     >
       {/* Desktop Right Panel: Order Details (Hidden on mobile) */}
@@ -131,6 +139,55 @@ export default function POSPage() {
           onSelectProduct={handleSelectProduct}
           categoryTitle={selectedCategory === 'all' ? 'الأكثر مبيعاً' : 'المنتجات'}
         />
+
+        {/* Bottom Footer Bar: Current Till Cash Drawer Badge */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            pt: 1.2,
+            borderTop: '1px solid #E5E7EB',
+            width: '100%',
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              bgcolor: '#ECFDF5',
+              border: '1.5px solid #10B981',
+              px: 2.5,
+              py: 0.8,
+              borderRadius: '12px',
+              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.15)',
+            }}
+          >
+            <Box
+              sx={{
+                width: 34,
+                height: 34,
+                borderRadius: '8px',
+                bgcolor: '#10B981',
+                color: '#FFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <AccountBalanceWallet sx={{ fontSize: 20 }} />
+            </Box>
+            <Box sx={{ textAlign: 'right' }}>
+              <Typography variant="caption" sx={{ color: '#047857', fontWeight: 800, display: 'block', lineHeight: 1.1 }}>
+                المبلغ في الخزنة حالياً
+              </Typography>
+              <Typography variant="subtitle1" sx={{ color: '#065F46', fontWeight: 900, fontSize: '1.15rem', lineHeight: 1.2 }}>
+                {currentTillCash.toFixed(2)} ج.م
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
       </Box>
 
       {/* Mobile Floating Cart Action Bar */}
