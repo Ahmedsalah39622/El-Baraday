@@ -10,6 +10,8 @@ import { useCustomerStore } from '@/store/useCustomerStore';
 import DeliveryReceipts from './DeliveryReceipts';
 import { printThermalReceipt } from '@/lib/printReceipt';
 
+import { useAuthStore } from '@/store/useAuthStore';
+
 export default function OrderDetailsPanel({
   items = [],
   orderType = 'delivery',
@@ -23,6 +25,8 @@ export default function OrderDetailsPanel({
 }) {
   const { addInvoice, nextOrderNumber } = useInvoiceStore();
   const { customers = [], drivers = [], saveOrUpdateCustomer } = useCustomerStore();
+  const { user } = useAuthStore();
+  const activeCashierName = user?.name || user?.username || 'أحمد محمود';
 
   const [driverName, setDriverName] = useState('محمد علي الصوفي');
   const [customerName, setCustomerName] = useState(' ');
@@ -87,7 +91,7 @@ export default function OrderDetailsPanel({
       orderNumber: currentOrderNum,
       dateStr: new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
       driverName,
-      cashierName: 'administrator',
+      cashierName: activeCashierName,
       customerName,
       customerPhone,
       customerAddress,
@@ -108,6 +112,7 @@ export default function OrderDetailsPanel({
       orderType,
       customerName,
       customerPhone,
+      cashierName: activeCashierName,
       subtotal,
       deliveryFee: currentDeliveryFee,
       total: finalTotal,

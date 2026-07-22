@@ -23,10 +23,12 @@ import {
 import { Print, ExitToApp, CheckCircleOutlined } from '@mui/icons-material';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { useShiftStore } from '@/store/useShiftStore';
+import { useAuthStore } from '@/store/useAuthStore';
 
 export default function ShiftSummaryPage() {
   const { invoices, fetchInvoices } = useInvoiceStore();
   const { activeShift, fetchShifts, closeShift } = useShiftStore();
+  const { user } = useAuthStore();
 
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [actualDrawerCash, setActualDrawerCash] = useState('');
@@ -47,11 +49,14 @@ export default function ShiftSummaryPage() {
     alert('تم إغلاق الشيفت وتسوية الخزينة بنجاح!');
   };
 
+  const cashierDisplayName = user?.name || activeShift?.cashierName || 'أحمد محمود (المدير العام)';
+  const roleTitle = user?.role === 'admin' ? 'مدير النظام' : user?.role === 'cashier' ? 'كاشير' : user?.role === 'driver' ? 'طيار دليفري' : 'شيف مطبخ';
+
   return (
-    <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3, height: '100%', overflowY: 'auto' }}>
+    <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3, height: '100%', overflowY: 'auto', pb: { xs: 10, md: 4 } }}>
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-        <Typography variant="h4" sx={{ fontWeight: 800, color: '#1A1A2E' }}>
+        <Typography variant="h4" sx={{ fontWeight: 800, color: '#1A1A2E', fontSize: { xs: '1.4rem', md: '1.8rem' } }}>
           ملخص الوردية والشيفت الحالي
         </Typography>
 
@@ -75,12 +80,12 @@ export default function ShiftSummaryPage() {
         </Box>
       </Box>
 
-      {/* Cashier Info Banner */}
+      {/* Cashier & Active User Info Banner */}
       <Box
         sx={{
           display: 'flex',
           alignItems: 'center',
-          justify: 'space-between',
+          justifyContent: 'space-between',
           bgcolor: '#FFFFFF',
           p: 2.5,
           borderRadius: '16px',
@@ -90,118 +95,76 @@ export default function ShiftSummaryPage() {
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Avatar sx={{ bgcolor: '#4285F4', width: 52, height: 52, fontWeight: 800, fontSize: '1.2rem' }}>
-            {(activeShift?.cashierName || 'A')[0].toUpperCase()}
+            {cashierDisplayName[0]}
           </Avatar>
           <Box>
-            <Typography variant="h6" sx={{ fontWeight: 800, color: '#1A1A2E' }}>
-              الكاشير: {activeShift?.cashierName || 'administrator'}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+              <Typography variant="h6" sx={{ fontWeight: 800, color: '#1A1A2E' }}>
+                المستخدم الحالي: {cashierDisplayName}
+              </Typography>
+              <Chip
+                label={roleTitle}
+                size="small"
+                sx={{ bgcolor: '#DBEAFE', color: '#1E40AF', fontWeight: 800 }}
+              />
+            </Box>
             <Typography variant="body2" sx={{ color: '#6B7280', mt: 0.3 }}>
-              بداية الوردية: {activeShift?.startTime || '08:00 AM'} | حالة الوردية: {activeShift?.status === 'active' ? 'نشطة (جاري العمل)' : 'مغلقة'}
+              بداية الوردية: {activeShift?.startTime || '07:47 م'} | حالة الوردية: {activeShift?.status === 'active' ? 'نشطة (جاري العمل)' : 'مغلقة'}
             </Typography>
           </Box>
         </Box>
 
         <Chip
-          label={activeShift?.status === 'active' ? 'الوردية نشطة الان' : 'مغلقة'}
-          color={activeShift?.status === 'active' ? 'success' : 'default'}
-          sx={{ fontWeight: 800, px: 1 }}
+          label="شيفت مباشر"
+          color="success"
+          sx={{ fontWeight: 800, borderRadius: '8px' }}
         />
       </Box>
 
-      {/* 4 Stat Cards */}
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: 2,
-        }}
-      >
-        <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E5E7EB', bgcolor: '#F8FAFC' }}>
-          <Typography variant="body2" sx={{ color: '#6B7280', fontWeight: 700 }}>عهدة الدرج عند بداية الشيفت</Typography>
-          <Typography variant="h5" sx={{ fontWeight: 900, color: '#1A1A2E', mt: 0.5 }}>{startCash.toFixed(2)} ج.م</Typography>
-        </Paper>
-
-        <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E5E7EB', bgcolor: '#EFF6FF' }}>
-          <Typography variant="body2" sx={{ color: '#1D4ED8', fontWeight: 700 }}>إجمالي مبيعات الشيفت (كاش)</Typography>
-          <Typography variant="h5" sx={{ fontWeight: 900, color: '#1D4ED8', mt: 0.5 }}>{totalSales.toFixed(2)} ج.م</Typography>
+      {/* Stats Cards Grid */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2 }}>
+        <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E5E7EB', bgcolor: '#F0F7FF' }}>
+          <Typography variant="caption" sx={{ color: '#4285F4', fontWeight: 800 }}>بداية العهدة (النقدية الأولى)</Typography>
+          <Typography variant="h5" sx={{ fontWeight: 900, color: '#1E40AF', mt: 0.5 }}>{startCash.toFixed(2)} ج.م</Typography>
         </Paper>
 
         <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E5E7EB', bgcolor: '#ECFDF5' }}>
-          <Typography variant="body2" sx={{ color: '#047857', fontWeight: 700 }}>المفروض تواجده في الدرج حالياً</Typography>
-          <Typography variant="h5" sx={{ fontWeight: 900, color: '#047857', mt: 0.5 }}>{expectedDrawerCash.toFixed(2)} ج.م</Typography>
+          <Typography variant="caption" sx={{ color: '#10B981', fontWeight: 800 }}>مبيعات الوردية الحالية</Typography>
+          <Typography variant="h5" sx={{ fontWeight: 900, color: '#065F46', mt: 0.5 }}>{totalSales.toFixed(2)} ج.م</Typography>
         </Paper>
 
-        <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E5E7EB', bgcolor: '#FFF7ED' }}>
-          <Typography variant="body2" sx={{ color: '#C2410C', fontWeight: 700 }}>عدد فواتير الشيفت</Typography>
-          <Typography variant="h5" sx={{ fontWeight: 900, color: '#C2410C', mt: 0.5 }}>{invoices?.length || 0} فاتورة</Typography>
+        <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E5E7EB', bgcolor: '#FEF3C7' }}>
+          <Typography variant="caption" sx={{ color: '#D97706', fontWeight: 800 }}>المتوقع في الخزينة الآن</Typography>
+          <Typography variant="h5" sx={{ fontWeight: 900, color: '#92400E', mt: 0.5 }}>{expectedDrawerCash.toFixed(2)} ج.م</Typography>
+        </Paper>
+
+        <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E5E7EB', bgcolor: '#F3F4F6' }}>
+          <Typography variant="caption" sx={{ color: '#6B7280', fontWeight: 800 }}>عدد فواتير الوردية</Typography>
+          <Typography variant="h5" sx={{ fontWeight: 900, color: '#1F2937', mt: 0.5 }}>{invoices?.length || 0} فاتورة</Typography>
         </Paper>
       </Box>
 
-      {/* Orders Table */}
-      <Typography variant="h6" sx={{ fontWeight: 800, color: '#1A1A2E', mt: 1 }}>
-        فواتير الوردية الحالية
-      </Typography>
-
-      <TableContainer component={Paper} sx={{ borderRadius: '16px', border: '1px solid #E5E7EB' }}>
-        <Table>
-          <TableHead sx={{ bgcolor: '#F8FAFC' }}>
-            <TableRow>
-              <TableCell sx={{ fontWeight: 800 }}>رقم الطلب</TableCell>
-              <TableCell sx={{ fontWeight: 800 }}>نوع الطلب</TableCell>
-              <TableCell sx={{ fontWeight: 800 }}>العميل</TableCell>
-              <TableCell sx={{ fontWeight: 800 }}>الوقت</TableCell>
-              <TableCell sx={{ fontWeight: 800 }}>الإجمالي</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {(invoices || []).map((row) => (
-              <TableRow key={row.id} hover>
-                <TableCell sx={{ fontWeight: 800 }}>#{row.id}</TableCell>
-                <TableCell>
-                  <Chip
-                    label={row.orderType === 'delivery' ? 'دليفري' : row.orderType === 'takeaway' ? 'تيك أوي' : 'صالة'}
-                    size="small"
-                    sx={{ bgcolor: '#EFF6FF', color: '#1D4ED8', fontWeight: 800 }}
-                  />
-                </TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>{row.customerName || 'عميل محلي'}</TableCell>
-                <TableCell sx={{ color: '#6B7280' }}>{row.date}</TableCell>
-                <TableCell sx={{ fontWeight: 900, color: '#4285F4' }}>{(row.total || 0).toFixed(2)} ج.م</TableCell>
-              </TableRow>
-            ))}
-
-            {(invoices || []).length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5} align="center" sx={{ py: 4, color: '#9CA3AF' }}>
-                  لا توجد فواتير صادرة في الشيفت الحالي بعد
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
       {/* Close Shift Dialog */}
       <Dialog open={closeDialogOpen} onClose={() => setCloseDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800 }}>إغلاق وتسوية الشيفت</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1.5 }}>
-          <Typography variant="body2" sx={{ color: '#6B7280' }}>
-            المبلغ المتوقع بالدرج: <b>{expectedDrawerCash.toFixed(2)} ج.م</b> (عهدة {startCash} + مبيعات {totalSales.toFixed(0)})
+        <DialogTitle sx={{ fontWeight: 800, textAlign: 'center' }}>تسوية وإغلاق الوردية</DialogTitle>
+        <DialogContent sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Typography variant="body2" sx={{ color: '#4B5563' }}>
+            المبلغ المتوقع بالخزينة: <strong>{expectedDrawerCash.toFixed(2)} ج.م</strong>
           </Typography>
           <TextField
             fullWidth
             type="number"
-            size="small"
-            label="المبلغ المالي المتبقي الفعلي بالدرج (ج.م)"
+            label="المبلغ الجردي الفعلي بالخزينة"
+            placeholder={expectedDrawerCash.toString()}
             value={actualDrawerCash}
-            placeholder={expectedDrawerCash.toFixed(0)}
             onChange={(e) => setActualDrawerCash(e.target.value)}
           />
         </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setCloseDialogOpen(false)} variant="outlined">إلغاء</Button>
-          <Button onClick={handleConfirmCloseShift} variant="contained" sx={{ bgcolor: '#4285F4' }}>تأكيد وتسوية الشيفت</Button>
+        <DialogActions sx={{ p: 2, justifyContent: 'center' }}>
+          <Button onClick={() => setCloseDialogOpen(false)}>إلغاء</Button>
+          <Button variant="contained" onClick={handleConfirmCloseShift} sx={{ bgcolor: '#4285F4', borderRadius: '10px' }}>
+            تأكيد التسوية والإغلاق
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
