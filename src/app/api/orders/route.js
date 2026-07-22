@@ -8,15 +8,34 @@ export async function GET(request) {
     const status = searchParams.get('status');
     const date = searchParams.get('date');
 
-    let sql = 'SELECT * FROM orders';
+    let sql = `
+      SELECT o.*, 
+             COALESCE(
+               json_agg(
+                 json_build_object(
+                   'id', oi.id,
+                   'product_id', oi.product_id,
+                   'product_name', oi.product_name,
+                   'name', oi.product_name,
+                   'price', oi.price,
+                   'quantity', oi.quantity,
+                   'size', oi.size,
+                   'extras', oi.extras,
+                   'notes', oi.notes
+                 )
+               ) FILTER (WHERE oi.id IS NOT NULL), '[]'
+             ) as items
+      FROM orders o
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+    `;
     const params = [];
     const conditions = [];
 
-    if (status) { conditions.push(`status = $${params.length + 1}`); params.push(status); }
-    if (date) { conditions.push(`created_at::date = $${params.length + 1}`); params.push(date); }
+    if (status) { conditions.push(`o.status = $${params.length + 1}`); params.push(status); }
+    if (date) { conditions.push(`o.created_at::date = $${params.length + 1}`); params.push(date); }
 
     if (conditions.length > 0) sql += ' WHERE ' + conditions.join(' AND ');
-    sql += ` ORDER BY created_at DESC LIMIT $${params.length + 1}`;
+    sql += ` GROUP BY o.id ORDER BY o.created_at DESC LIMIT $${params.length + 1}`;
     params.push(limit);
 
     const result = await query(sql, params);
@@ -76,7 +95,10 @@ export async function POST(request) {
       }
     }
 
-    return NextResponse.json(order, { status: 201 });
+    return NextResponse.json({
+      ...order,
+      items: items || []
+    }, { status: 201 });
   } catch (error) {
     console.error('❌ Error creating order:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

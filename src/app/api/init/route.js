@@ -20,7 +20,29 @@ export async function GET() {
       query('SELECT * FROM drivers ORDER BY name'),
       query('SELECT * FROM restaurant_tables ORDER BY number'),
       query("SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders"),
-      query('SELECT * FROM orders ORDER BY created_at DESC LIMIT 50'),
+      query(`
+        SELECT o.*, 
+               COALESCE(
+                 json_agg(
+                   json_build_object(
+                     'id', oi.id,
+                     'product_id', oi.product_id,
+                     'product_name', oi.product_name,
+                     'name', oi.product_name,
+                     'price', oi.price,
+                     'quantity', oi.quantity,
+                     'size', oi.size,
+                     'extras', oi.extras,
+                     'notes', oi.notes
+                   )
+                 ) FILTER (WHERE oi.id IS NOT NULL), '[]'
+               ) as items
+        FROM orders o
+        LEFT JOIN order_items oi ON o.id = oi.order_id
+        GROUP BY o.id
+        ORDER BY o.created_at DESC
+        LIMIT 50
+      `),
       query('SELECT * FROM app_settings'),
       query('SELECT * FROM shifts ORDER BY start_time DESC LIMIT 20')
     ]);
