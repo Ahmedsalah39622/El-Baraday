@@ -13,20 +13,23 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, category_id, price, size, image_url, description, sort_order } = body;
+    const { name, category_id, price, original_price, is_offer, offer_components, size, image_url, description, sort_order } = body;
     
     const result = await query(
-      `INSERT INTO products (id, name, category_id, price, size, image_url, description, sort_order)
-       VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [name, category_id, price, size || 'كبير', image_url, description, sort_order || 0]
+      `INSERT INTO products (id, name, category_id, price, original_price, is_offer, offer_components, size, image_url, description, sort_order)
+       VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [name, category_id || '5', price, original_price || null, is_offer || false, offer_components || null, size || 'كبير', image_url, description, sort_order || 0]
     );
 
     if (result.isFallback || !result.rows || result.rows.length === 0) {
       return NextResponse.json({
         id: `p_${Date.now()}`,
         name,
-        category_id,
+        category_id: category_id || '5',
         price,
+        original_price: original_price || null,
+        is_offer: is_offer || false,
+        offer_components: offer_components || null,
         size: size || 'كبير',
         image_url,
         description,

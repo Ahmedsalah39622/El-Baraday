@@ -16,15 +16,19 @@ const defaultHawawshiProducts = [
   { id: 'p13', categoryId: '4', name: 'إضافة جبنة شيدر', price: 20, size: 'عادي', image: '/images/cheese_addition.png', sortOrder: 13 },
   { id: 'p14', categoryId: '3', name: 'بيبسي كولا 1 لتر', price: 30, size: '1L', image: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=300&q=80', sortOrder: 14 },
   { id: 'p15', categoryId: '3', name: 'مياه معدنية', price: 10, size: 'صغير', image: '/images/mineral_water.png', sortOrder: 15 },
+  { id: 'p16', categoryId: '5', name: 'عرض ميكس البردعي الفاخر', price: 140, originalPrice: 185, isOffer: true, offerComponents: '2 حواوشي ميكس أجبان + بيبسي 1 لتر', size: 'وجبة عائلية', image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500&q=80', sortOrder: 16 },
+  { id: 'p17', categoryId: '5', name: 'عرض الصحاب (4 حواوشي)', price: 220, originalPrice: 270, isOffer: true, offerComponents: '4 حواوشي فراخ/سجق + 2 بطاطس + بيبسي', size: 'وجبة 4 أفراد', image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&q=80', sortOrder: 17 },
 ];
 
-// Map DB row to frontend format
 function mapProduct(row) {
   return {
     id: row.id,
     categoryId: row.category_id,
     name: row.name,
     price: parseFloat(row.price),
+    originalPrice: row.original_price ? parseFloat(row.original_price) : null,
+    isOffer: row.is_offer || row.category_id === '5' || false,
+    offerComponents: row.offer_components || null,
     size: row.size,
     image: row.image_url,
     description: row.description,
@@ -38,7 +42,6 @@ export const useProductStore = create((set, get) => ({
   loading: false,
   error: null,
 
-  // Always fetch live products from API ordered by sort_order
   fetchProducts: async () => {
     try {
       const res = await fetch('/api/products');
@@ -56,7 +59,13 @@ export const useProductStore = create((set, get) => ({
   addProduct: async (product) => {
     const localId = Date.now().toString();
     const nextOrder = get().products.length + 1;
-    const newProduct = { ...product, id: localId, sortOrder: nextOrder };
+    const newProduct = {
+      ...product,
+      id: localId,
+      sortOrder: nextOrder,
+      isOffer: product.isOffer || product.categoryId === '5',
+    };
+
     set((state) => ({
       products: [...state.products, newProduct].sort((a, b) => a.sortOrder - b.sortOrder)
     }));
@@ -69,6 +78,9 @@ export const useProductStore = create((set, get) => ({
           name: product.name,
           category_id: product.categoryId,
           price: product.price,
+          original_price: product.originalPrice,
+          is_offer: product.isOffer || product.categoryId === '5',
+          offer_components: product.offerComponents,
           size: product.size,
           image_url: product.image,
           description: product.description,
@@ -96,6 +108,9 @@ export const useProductStore = create((set, get) => ({
           name: updates.name,
           category_id: updates.categoryId,
           price: updates.price,
+          original_price: updates.originalPrice,
+          is_offer: updates.isOffer || updates.categoryId === '5',
+          offer_components: updates.offerComponents,
           size: updates.size,
           image_url: updates.image,
           description: updates.description,
@@ -118,22 +133,18 @@ export const useProductStore = create((set, get) => ({
     }
   },
 
-  // Reorder product UP ⬆️
   moveProductUp: async (id) => {
     const currentProducts = [...get().products];
     const index = currentProducts.findIndex((p) => p.id === id);
     if (index <= 0) return;
 
-    // Swap with previous item
     const temp = currentProducts[index];
     currentProducts[index] = currentProducts[index - 1];
     currentProducts[index - 1] = temp;
 
-    // Re-index sortOrder for all
     const reordered = currentProducts.map((p, idx) => ({ ...p, sortOrder: idx + 1 }));
     set({ products: reordered });
 
-    // Persist to Supabase PostgreSQL DB
     try {
       const res = await fetch('/api/products', {
         method: 'PUT',
@@ -151,22 +162,18 @@ export const useProductStore = create((set, get) => ({
     }
   },
 
-  // Reorder product DOWN ⬇️
   moveProductDown: async (id) => {
     const currentProducts = [...get().products];
     const index = currentProducts.findIndex((p) => p.id === id);
     if (index === -1 || index >= currentProducts.length - 1) return;
 
-    // Swap with next item
     const temp = currentProducts[index];
     currentProducts[index] = currentProducts[index + 1];
     currentProducts[index + 1] = temp;
 
-    // Re-index sortOrder for all
     const reordered = currentProducts.map((p, idx) => ({ ...p, sortOrder: idx + 1 }));
     set({ products: reordered });
 
-    // Persist to Supabase PostgreSQL DB
     try {
       const res = await fetch('/api/products', {
         method: 'PUT',
