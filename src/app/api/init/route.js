@@ -19,7 +19,7 @@ export async function GET() {
       query('SELECT * FROM delivery_areas ORDER BY name'),
       query('SELECT * FROM drivers ORDER BY name'),
       query('SELECT * FROM restaurant_tables ORDER BY number'),
-      query('SELECT COALESCE(MAX(order_number), 0) + 1 as next FROM orders'),
+      query("SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders"),
       query('SELECT * FROM orders ORDER BY created_at DESC LIMIT 50'),
       query('SELECT * FROM app_settings'),
       query('SELECT * FROM shifts ORDER BY start_time DESC LIMIT 20')

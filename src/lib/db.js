@@ -1,15 +1,15 @@
 import { Pool } from 'pg';
 
-// Global singleton pool to prevent connection churn in Next.js / Serverless
+// Serverless-optimized PostgreSQL connection pool for Supabase
 let pool = global._pgPool;
 
 if (!pool) {
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
-    max: 20, // Increased pool limit for high concurrency
-    idleTimeoutMillis: 60000,
-    connectionTimeoutMillis: 5000,
+    max: 5, // Keep pool under Supabase session limit (max 15)
+    idleTimeoutMillis: 5000,
+    connectionTimeoutMillis: 3000,
   });
   global._pgPool = pool;
 }
@@ -43,8 +43,6 @@ export async function query(text, params = []) {
 
     return result;
   } catch (err) {
-    console.warn(`⚠️ DB pool notice (${err.message}). Using fallback cache if available.`);
-    
     // Return stale cache if DB is temporarily unreachable
     if (cacheKey && queryCache.has(cacheKey)) {
       return queryCache.get(cacheKey).result;
@@ -79,7 +77,6 @@ export async function transaction(queries) {
       client.release();
     }
   } catch (err) {
-    console.warn(`⚠️ DB transaction notice (${err.message}).`);
     return [{ rows: [], isFallback: true }];
   }
 }

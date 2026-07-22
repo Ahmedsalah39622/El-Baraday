@@ -291,13 +291,15 @@ export default function AdminPage() {
         maxWidth="md"
         fullWidth
         fullScreen={isMobile}
-        PaperProps={{
-          sx: {
-            borderRadius: { xs: 0, sm: '20px' },
-            maxHeight: { xs: '100vh', sm: '92vh' },
-            m: { xs: 0, sm: 2 },
-            display: 'flex',
-            flexDirection: 'column',
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: { xs: 0, sm: '20px' },
+              maxHeight: { xs: '100vh', sm: '92vh' },
+              m: { xs: 0, sm: 2 },
+              display: 'flex',
+              flexDirection: 'column',
+            },
           },
         }}
       >

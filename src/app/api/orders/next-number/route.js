@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const result = await query('SELECT COALESCE(MAX(order_number), 0) + 1 as next FROM orders');
+    const result = await query("SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders");
     const nextVal = (result && result.rows && result.rows.length > 0 && result.rows[0].next)
       ? parseInt(result.rows[0].next)
       : 1;

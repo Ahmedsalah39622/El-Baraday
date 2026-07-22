@@ -36,8 +36,8 @@ export async function POST(request) {
       discount, total, paid_amount, remaining_amount, cashier_name, items
     } = body;
 
-    // Get next sequential order number
-    const nextRes = await query('SELECT COALESCE(MAX(order_number), 0) + 1 as next FROM orders');
+    // Get next sequential order number with explicit INTEGER type casting
+    const nextRes = await query("SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders");
     const nextNum = (nextRes.rows && nextRes.rows.length > 0 && nextRes.rows[0].next) ? parseInt(nextRes.rows[0].next) : 1;
 
     // Insert order into Supabase DB
