@@ -5,11 +5,11 @@ import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Button, Chip, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, IconButton, MenuItem, Select, FormControl,
-  InputLabel, Checkbox, FormControlLabel, Grid, CircularProgress, Divider
+  InputLabel, Checkbox, Grid, CircularProgress, Divider, useMediaQuery, useTheme
 } from '@mui/material';
 import {
   AdminPanelSettingsOutlined, PersonOutlined, Add, EditOutlined,
-  DeleteOutlined, LockOutlined, SecurityOutlined, CheckCircle, BlockOutlined
+  DeleteOutlined, LockOutlined, SecurityOutlined, Close
 } from '@mui/icons-material';
 import { ALL_SYSTEM_SCREENS, ROLE_PERMISSIONS } from '@/store/useAuthStore';
 
@@ -22,6 +22,9 @@ const ROLE_OPTIONS = [
 ];
 
 export default function AdminPage() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -115,7 +118,6 @@ export default function AdminPage() {
 
     try {
       if (currentUser.id) {
-        // Update user in Supabase DB
         const res = await fetch(`/api/users/${currentUser.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -123,7 +125,6 @@ export default function AdminPage() {
         });
         if (res.ok) fetchUsers();
       } else {
-        // Create user in Supabase DB
         const res = await fetch('/api/users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -173,18 +174,18 @@ export default function AdminPage() {
   };
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3, height: '100%', overflowY: 'auto', pb: { xs: 10, md: 4 } }}>
-      {/* Header */}
+    <Box sx={{ p: { xs: 1.5, md: 3 }, display: 'flex', flexDirection: 'column', gap: 2.5, height: '100%', overflowY: 'auto', pb: { xs: 10, md: 4 } }}>
+      {/* Header Bar */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{ width: 48, height: 48, borderRadius: '14px', bgcolor: 'rgba(66, 133, 244, 0.1)', color: '#4285F4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <AdminPanelSettingsOutlined sx={{ fontSize: 26 }} />
+          <Box sx={{ width: 44, height: 44, borderRadius: '14px', bgcolor: 'rgba(66, 133, 244, 0.1)', color: '#4285F4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <AdminPanelSettingsOutlined sx={{ fontSize: 24 }} />
           </Box>
           <Box>
-            <Typography variant="h4" sx={{ fontWeight: 800, color: '#1A1A2E', fontSize: { xs: '1.3rem', md: '1.8rem' } }}>
+            <Typography variant="h5" sx={{ fontWeight: 800, color: '#1A1A2E', fontSize: { xs: '1.2rem', md: '1.6rem' } }}>
               إدارة المستخدمين والصلاحيات
             </Typography>
-            <Typography variant="body2" sx={{ color: '#6B7280' }}>
+            <Typography variant="caption" sx={{ color: '#6B7280', display: { xs: 'none', sm: 'block' } }}>
               التحكم في أدوار المستخدمين وتخصيص الشاشات والصلاحيات لكل حساب
             </Typography>
           </Box>
@@ -194,37 +195,37 @@ export default function AdminPage() {
           variant="contained"
           startIcon={<Add />}
           onClick={() => handleOpenDialog()}
-          sx={{ bgcolor: '#4285F4', borderRadius: '12px', px: 2.5, py: 1, fontWeight: 700 }}
+          sx={{ bgcolor: '#4285F4', borderRadius: '12px', px: 2.5, py: 1, fontWeight: 700, fontSize: { xs: '0.85rem', md: '0.95rem' } }}
         >
-          إضافة مستخدم جديد
+          إضافة مستخدم
         </Button>
       </Box>
 
       {/* Stats Cards */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 2 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 1.5 }}>
         {[
           { label: 'إجمالي المستخدمين', value: users.length, color: '#4285F4', icon: <PersonOutlined /> },
           { label: 'الحسابات النشطة', value: users.filter((u) => u.status === 'active').length, color: '#10B981', icon: <SecurityOutlined /> },
           { label: 'الأدوار المقترحة', value: '4 أدوار', color: '#FF8C42', icon: <LockOutlined /> },
         ].map((s, i) => (
-          <Paper key={i} sx={{ p: 2, borderRadius: '16px', border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: `${s.color}15`, color: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Paper key={i} sx={{ p: 1.5, borderRadius: '14px', border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ width: 40, height: 40, borderRadius: '10px', bgcolor: `${s.color}15`, color: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {s.icon}
             </Box>
             <Box>
               <Typography variant="caption" sx={{ color: '#6B7280', fontWeight: 600 }}>{s.label}</Typography>
-              <Typography variant="h6" sx={{ fontWeight: 800, color: '#1A1A2E', fontSize: '1.1rem' }}>{s.value}</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 800, color: '#1A1A2E', fontSize: '1rem' }}>{s.value}</Typography>
             </Box>
           </Paper>
         ))}
       </Box>
 
-      {/* Users Table */}
-      <TableContainer component={Paper} sx={{ borderRadius: '16px', border: '1px solid #E5E7EB' }}>
+      {/* Users Table / Responsive Cards */}
+      <TableContainer component={Paper} sx={{ borderRadius: '16px', border: '1px solid #E5E7EB', overflowX: 'auto' }}>
         {loading ? (
           <Box sx={{ p: 4, textAlign: 'center' }}><CircularProgress size={32} /></Box>
         ) : (
-          <Table>
+          <Table sx={{ minWidth: 650 }}>
             <TableHead sx={{ bgcolor: '#F8FAFC' }}>
               <TableRow>
                 <TableCell sx={{ fontWeight: 800 }}>الاسم</TableCell>
@@ -283,18 +284,66 @@ export default function AdminPage() {
         )}
       </TableContainer>
 
-      {/* User Add / Edit & Permissions Dialog */}
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800, pb: 1, bgcolor: '#FAFBFC', borderBottom: '1px solid #E5E7EB' }}>
-          {currentUser.id ? 'تعديل المستخدم والصلاحيات' : 'إضافة مستخدم جديد وترخيص الصلاحيات'}
+      {/* Fully Responsive & Scrollable User Add / Edit Permissions Dialog */}
+      <Dialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+        fullScreen={isMobile}
+        PaperProps={{
+          sx: {
+            borderRadius: { xs: 0, sm: '20px' },
+            maxHeight: { xs: '100vh', sm: '92vh' },
+            m: { xs: 0, sm: 2 },
+            display: 'flex',
+            flexDirection: 'column',
+          },
+        }}
+      >
+        {/* Dialog Header */}
+        <DialogTitle
+          component="div"
+          sx={{
+            fontWeight: 800,
+            py: 1.5,
+            px: 2.5,
+            bgcolor: '#FAFBFC',
+            borderBottom: '1px solid #E5E7EB',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <Typography variant="h6" sx={{ fontWeight: 800, fontSize: { xs: '1.05rem', sm: '1.25rem' } }}>
+            {currentUser.id ? 'تعديل المستخدم والصلاحيات' : 'إضافة مستخدم جديد وترخيص الصلاحيات'}
+          </Typography>
+          {isMobile && (
+            <IconButton onClick={() => setDialogOpen(false)} size="small">
+              <Close />
+            </IconButton>
+          )}
         </DialogTitle>
 
-        <DialogContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5, mt: 1 }}>
-          {/* Form Fields: Name, Username, PIN, Role, Status */}
-          <Grid container spacing={2}>
+        {/* Dialog Scrollable Content */}
+        <DialogContent
+          sx={{
+            p: { xs: 2, sm: 3 },
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2.5,
+            overflowY: 'auto',
+            flex: 1,
+            '&::-webkit-scrollbar': { width: '6px' },
+            '&::-webkit-scrollbar-thumb': { bgcolor: '#CBD5E1', borderRadius: '4px' },
+          }}
+        >
+          {/* Inputs Section */}
+          <Grid container spacing={2} sx={{ mt: 0.2 }}>
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
+                size="small"
                 label="الاسم الكامل"
                 placeholder="أحمد محمود"
                 value={currentUser.name}
@@ -305,6 +354,7 @@ export default function AdminPage() {
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
+                size="small"
                 label="اسم المستخدم (User ID)"
                 placeholder="cashier1"
                 value={currentUser.username}
@@ -315,6 +365,7 @@ export default function AdminPage() {
             <Grid item xs={12} sm={4}>
               <TextField
                 fullWidth
+                size="small"
                 type="password"
                 label="رمز الـ PIN (4 أرقام)"
                 placeholder="1234"
@@ -324,7 +375,7 @@ export default function AdminPage() {
             </Grid>
 
             <Grid item xs={12} sm={4}>
-              <FormControl fullWidth>
+              <FormControl fullWidth size="small">
                 <InputLabel>الدور (Role)</InputLabel>
                 <Select
                   value={currentUser.role}
@@ -339,7 +390,7 @@ export default function AdminPage() {
             </Grid>
 
             <Grid item xs={12} sm={4}>
-              <FormControl fullWidth>
+              <FormControl fullWidth size="small">
                 <InputLabel>حالة الحساب</InputLabel>
                 <Select
                   value={currentUser.status}
@@ -353,18 +404,18 @@ export default function AdminPage() {
             </Grid>
           </Grid>
 
-          <Divider sx={{ my: 1 }} />
+          <Divider />
 
           {/* Granular Screen Permissions Checkboxes Grid */}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#1A1A2E' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1A1A2E', fontSize: '0.95rem' }}>
               🎯 تحديد الشاشات والصلاحيات المسموحة لهذا المستخدم:
             </Typography>
-            <Typography variant="caption" sx={{ color: '#6B7280' }}>
-              سيتم ظهور الشاشات المحددة فقط في القائمة الجانبية والشريط العلوي للمستخدم، وسيتم حجب أي شاشة غير مسموحة تلقائياً.
+            <Typography variant="caption" sx={{ color: '#6B7280', fontSize: '0.78rem' }}>
+              سيتم إظهار الشاشات المحددة فقط في القائمة الجانبية والشريط العلوي للمستخدم عند تسجيل دخوله.
             </Typography>
 
-            <Grid container spacing={1.5} sx={{ mt: 1 }}>
+            <Grid container spacing={1.2} sx={{ mt: 0.5 }}>
               {ALL_SYSTEM_SCREENS.map((screen) => {
                 const isChecked = currentUser.permissions.includes(screen.path);
                 return (
@@ -372,7 +423,7 @@ export default function AdminPage() {
                     <Paper
                       onClick={() => handleTogglePermission(screen.path)}
                       sx={{
-                        p: 1.2,
+                        p: 1,
                         borderRadius: '12px',
                         border: '1.5px solid',
                         borderColor: isChecked ? '#4285F4' : '#E5E7EB',
@@ -380,8 +431,9 @@ export default function AdminPage() {
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 1,
-                        transition: 'all 0.2s ease',
+                        gap: 0.8,
+                        transition: 'all 0.15s ease',
+                        boxShadow: isChecked ? '0 2px 6px rgba(66, 133, 244, 0.12)' : 'none',
                         '&:hover': { borderColor: '#4285F4' }
                       }}
                     >
@@ -390,8 +442,17 @@ export default function AdminPage() {
                         onChange={() => handleTogglePermission(screen.path)}
                         color="primary"
                         size="small"
+                        sx={{ p: 0.5 }}
                       />
-                      <Typography variant="body2" sx={{ fontWeight: isChecked ? 800 : 500, color: isChecked ? '#1E40AF' : '#374151', fontSize: '0.85rem' }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: isChecked ? 800 : 500,
+                          color: isChecked ? '#1E40AF' : '#374151',
+                          fontSize: '0.82rem',
+                          lineHeight: 1.2
+                        }}
+                      >
                         {screen.name}
                       </Typography>
                     </Paper>
@@ -402,11 +463,16 @@ export default function AdminPage() {
           </Box>
         </DialogContent>
 
-        <DialogActions sx={{ p: 2.5, bgcolor: '#FAFBFC', borderTop: '1px solid #E5E7EB', gap: 1 }}>
+        {/* Dialog Actions Sticky Footer */}
+        <DialogActions sx={{ p: 2, bgcolor: '#FAFBFC', borderTop: '1px solid #E5E7EB', gap: 1 }}>
           <Button onClick={() => setDialogOpen(false)} sx={{ color: '#6B7280', fontWeight: 700 }}>
             إلغاء
           </Button>
-          <Button variant="contained" onClick={handleSave} sx={{ bgcolor: '#4285F4', borderRadius: '10px', px: 3, fontWeight: 700 }}>
+          <Button
+            variant="contained"
+            onClick={handleSave}
+            sx={{ bgcolor: '#4285F4', borderRadius: '10px', px: 3, py: 1, fontWeight: 800 }}
+          >
             حفظ المستخدم والصلاحيات
           </Button>
         </DialogActions>
