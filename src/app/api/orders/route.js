@@ -36,42 +36,33 @@ export async function POST(request) {
       discount, total, paid_amount, remaining_amount, cashier_name, items
     } = body;
 
-    const fallbackId = `ord_${Date.now()}`;
+    // Get next sequential order number
+    const nextRes = await query('SELECT COALESCE(MAX(order_number), 0) + 1 as next FROM orders');
+    const nextNum = (nextRes.rows && nextRes.rows.length > 0 && nextRes.rows[0].next) ? parseInt(nextRes.rows[0].next) : 1;
 
-    // Insert order - order_number is SERIAL, auto-increments
+    // Insert order into Supabase DB
     const orderResult = await query(
-      `INSERT INTO orders (id, order_type, customer_name, customer_phone, customer_area,
+      `INSERT INTO orders (id, order_number, order_type, customer_name, customer_phone, customer_area,
         customer_address, driver_name, driver_id, subtotal, delivery_fee, discount, total,
         paid_amount, remaining_amount, cashier_name, status)
-       VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'completed')
+       VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'completed')
        RETURNING *`,
-      [order_type || 'dine_in', customer_name || null, customer_phone || null, customer_area || null,
+      [nextNum, order_type || 'dine_in', customer_name || null, customer_phone || null, customer_area || null,
        customer_address || null, driver_name || null, driver_id || null, subtotal || 0, delivery_fee || 0,
        discount || 0, total || 0, paid_amount || 0, remaining_amount || 0,
        cashier_name || 'administrator']
     );
 
-    let order;
-    if (orderResult && orderResult.rows && orderResult.rows.length > 0) {
-      order = orderResult.rows[0];
-    } else {
-      order = {
-        id: fallbackId,
-        order_number: Date.now().toString().slice(-4),
-        order_type: order_type || 'dine_in',
-        customer_name,
-        customer_phone,
-        subtotal: subtotal || 0,
-        delivery_fee: delivery_fee || 0,
-        discount: discount || 0,
-        total: total || 0,
-        paid_amount: paid_amount || 0,
-        remaining_amount: remaining_amount || 0,
-        cashier_name: cashier_name || 'administrator',
-        status: 'completed',
-        created_at: new Date().toISOString(),
-      };
-    }
+    const order = (orderResult.rows && orderResult.rows.length > 0) ? orderResult.rows[0] : {
+      id: `ord_${Date.now()}`,
+      order_number: nextNum,
+      order_type: order_type || 'dine_in',
+      customer_name,
+      total,
+      cashier_name: cashier_name || 'administrator',
+      status: 'completed',
+      created_at: new Date().toISOString()
+    };
 
     // Insert order items
     if (items && items.length > 0) {
@@ -79,7 +70,7 @@ export async function POST(request) {
         await query(
           `INSERT INTO order_items (id, order_id, product_id, product_name, price, quantity, size, extras, notes)
            VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7, $8)`,
-          [order.id, item.product_id || item.id, item.product_name || item.name,
+          [order.id, item.product_id || item.id || null, item.product_name || item.name || 'طلب',
            item.price || 0, item.quantity || 1, item.size || null, item.extras || null, item.notes || null]
         );
       }
@@ -88,11 +79,6 @@ export async function POST(request) {
     return NextResponse.json(order, { status: 201 });
   } catch (error) {
     console.error('❌ Error creating order:', error);
-    return NextResponse.json({
-      id: `ord_${Date.now()}`,
-      order_number: Date.now().toString().slice(-4),
-      status: 'completed',
-      created_at: new Date().toISOString()
-    }, { status: 200 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
