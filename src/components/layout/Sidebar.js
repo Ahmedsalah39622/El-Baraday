@@ -48,12 +48,18 @@ const bottomItems = [
   { id: 'logout', label: 'تسجيل خروج', icon: LogoutOutlined, path: '/login', isLogout: true },
 ];
 
+import { useAuthStore } from '@/store/useAuthStore';
+
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
+  const { user, logout, hasPermission } = useAuthStore();
   const [collapsed, setCollapsed] = useState(false);
 
   if (pathname === '/login') return null;
+
+  const visibleNavItems = navItems.filter((item) => hasPermission(item.path));
+  const visibleBottomItems = bottomItems.filter((item) => item.isLogout || hasPermission(item.path));
 
   const isActive = (path) => {
     if (path === '/') return pathname === '/';
@@ -62,10 +68,7 @@ export default function Sidebar() {
 
   const handleNavClick = (item) => {
     if (item.isLogout) {
-      // Clear session and redirect to login
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('el-baraday-session');
-      }
+      logout();
       router.push('/login');
     } else {
       router.push(item.path);
@@ -153,7 +156,7 @@ export default function Sidebar() {
 
         {/* Navigation Items */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3, flex: 1 }}>
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.path);
 
@@ -192,7 +195,7 @@ export default function Sidebar() {
 
         {/* Bottom Items: Settings + Logout */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
-          {bottomItems.map((item) => {
+          {visibleBottomItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.path) && !item.isLogout;
 

@@ -1,27 +1,55 @@
 import { Pool } from 'pg';
 
-// Server-side PostgreSQL connection pool for API routes
-// Uses DATABASE_URL from .env.local
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 3000, // 3s timeout for fast fallback
-});
+// Global singleton pool to prevent connection churn in Next.js / Serverless
+let pool = global._pgPool;
 
-// Helper: execute a query with graceful fallback on connection failure
+if (!pool) {
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 20, // Increased pool limit for high concurrency
+    idleTimeoutMillis: 60000,
+    connectionTimeoutMillis: 5000,
+  });
+  global._pgPool = pool;
+}
+
+// In-Memory Query Cache (0ms response for repeated GET queries)
+const queryCache = new Map();
+const CACHE_TTL_MS = 5000; // 5 seconds cache TTL
+
 export async function query(text, params = []) {
-  try {
-    const client = await pool.connect();
-    try {
-      const result = await client.query(text, params);
-      return result;
-    } finally {
-      client.release();
+  const isReadQuery = text.trim().toUpperCase().startsWith('SELECT');
+  const cacheKey = isReadQuery ? `${text}:${JSON.stringify(params)}` : null;
+
+  // Serve from instant memory cache if valid
+  if (isReadQuery && cacheKey && queryCache.has(cacheKey)) {
+    const cached = queryCache.get(cacheKey);
+    if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return cached.result;
     }
+  }
+
+  try {
+    const result = await pool.query(text, params);
+
+    // Cache read queries for instant 0ms responses
+    if (isReadQuery && cacheKey) {
+      queryCache.set(cacheKey, { result, timestamp: Date.now() });
+    } else {
+      // Clear cache on write operations (INSERT, UPDATE, DELETE)
+      queryCache.clear();
+    }
+
+    return result;
   } catch (err) {
-    console.warn(`⚠️ DB pool connection notice (${err.message}). Using local response.`);
+    console.warn(`⚠️ DB pool notice (${err.message}). Using fallback cache if available.`);
+    
+    // Return stale cache if DB is temporarily unreachable
+    if (cacheKey && queryCache.has(cacheKey)) {
+      return queryCache.get(cacheKey).result;
+    }
+
     return {
       rows: [],
       rowCount: 0,
@@ -31,8 +59,8 @@ export async function query(text, params = []) {
   }
 }
 
-// Helper: execute multiple queries in a transaction with fallback
 export async function transaction(queries) {
+  queryCache.clear(); // Clear cache on transactions
   try {
     const client = await pool.connect();
     try {
@@ -51,7 +79,7 @@ export async function transaction(queries) {
       client.release();
     }
   } catch (err) {
-    console.warn(`⚠️ DB transaction notice (${err.message}). Using local response.`);
+    console.warn(`⚠️ DB transaction notice (${err.message}).`);
     return [{ rows: [], isFallback: true }];
   }
 }

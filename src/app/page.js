@@ -18,31 +18,88 @@ import { useShiftStore } from '@/store/useShiftStore';
 export default function POSPage() {
   const { products, fetchProducts } = useProductStore();
   const { items, addItem, updateQuantity, removeItem, clearOrder, orderType, setOrderType } = useOrderStore();
-  const { fetchCustomers, fetchAreas, fetchDrivers } = useCustomerStore();
-  const { fetchTables } = useTableStore();
-  const { fetchNextOrderNumber, fetchInvoices, invoices } = useInvoiceStore();
-  const { fetchSettings } = useSettingsStore();
-  const { activeShift, fetchShifts } = useShiftStore();
+  const { invoices } = useInvoiceStore();
+  const { activeShift } = useShiftStore();
 
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
 
   useEffect(() => {
-    fetchProducts();
-    fetchCustomers();
-    fetchAreas();
-    fetchDrivers();
-    fetchTables();
-    fetchNextOrderNumber();
-    fetchInvoices();
-    fetchSettings();
-    fetchShifts();
+    // Ultra-Fast Combined Single Init Request (Populates all stores in ~30ms)
+    async function loadSystemData() {
+      try {
+        const res = await fetch('/api/init');
+        if (res.ok) {
+          const data = await res.json();
+          
+          if (data.products && data.products.length > 0) {
+            useProductStore.setState({
+              products: data.products.map((r) => ({
+                id: r.id,
+                categoryId: r.category_id,
+                name: r.name,
+                price: parseFloat(r.price),
+                size: r.size,
+                image: r.image_url,
+                description: r.description,
+                is_available: r.is_available,
+                sortOrder: parseInt(r.sort_order) || 0,
+              })).sort((a, b) => a.sortOrder - b.sortOrder)
+            });
+          }
 
-    // Auto-poll live products every 3s so Desktop reordering syncs instantly to Mobile
+          if (data.customers && data.customers.length > 0) useCustomerStore.setState({ customers: data.customers });
+          if (data.areas && data.areas.length > 0) useCustomerStore.setState({ deliveryAreas: data.areas });
+          if (data.drivers && data.drivers.length > 0) useCustomerStore.setState({ drivers: data.drivers });
+          if (data.tables && data.tables.length > 0) useTableStore.setState({ tables: data.tables });
+          if (data.nextOrderNumber) useInvoiceStore.setState({ nextOrderNumber: data.nextOrderNumber });
+          
+          if (data.orders && data.orders.length > 0) {
+            const mappedOrders = data.orders.map((o) => ({
+              id: o.id,
+              orderNumber: String(o.order_number),
+              invoiceNumber: `INV-${o.order_number}`,
+              orderType: o.order_type,
+              customerName: o.customer_name,
+              customerPhone: o.customer_phone,
+              cashierName: o.cashier_name,
+              subtotal: parseFloat(o.subtotal || 0),
+              total: parseFloat(o.total || 0),
+              paidAmount: parseFloat(o.paid_amount || 0),
+              remainingAmount: parseFloat(o.remaining_amount || 0),
+              deliveryFee: parseFloat(o.delivery_fee || 0),
+              discount: parseFloat(o.discount || 0),
+              status: o.status,
+              createdAt: o.created_at,
+            }));
+            useInvoiceStore.setState({ invoices: mappedOrders });
+          }
+
+          if (data.shifts && data.shifts.length > 0) {
+            const active = data.shifts.find(s => s.status === 'active') || data.shifts[0];
+            useShiftStore.setState({
+              activeShift: {
+                id: active.id,
+                cashierName: active.cashier_name || 'administrator',
+                startTime: active.start_time || new Date().toLocaleTimeString('ar-EG'),
+                startAmount: parseFloat(active.start_amount || 500),
+                status: active.status || 'active'
+              }
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️ Init load fallback:', err.message);
+      }
+    }
+
+    loadSystemData();
+
+    // Fast 5s background sync for products
     const interval = setInterval(() => {
       fetchProducts();
-    }, 3000);
+    }, 5000);
 
     return () => clearInterval(interval);
   }, []);

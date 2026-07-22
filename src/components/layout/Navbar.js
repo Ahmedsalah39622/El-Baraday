@@ -87,15 +87,15 @@ export default function Navbar() {
   };
 
   const navItems = [
-    { label: 'الإعدادات', icon: <Settings />, onClick: (e) => setSettingsAnchor(e.currentTarget) },
-    { label: 'التقارير', icon: <Assessment />, onClick: () => router.push('/reports') },
-    { label: 'تسوية جردية', icon: <Inventory />, onClick: () => router.push('/inventory') },
-    { label: 'الدليفري', icon: <DeliveryDining />, onClick: () => router.push('/delivery') },
-    { label: 'العملاء', icon: <People />, onClick: () => router.push('/customers') },
-    { label: 'الطلبات', icon: <ReceiptLong />, onClick: () => router.push('/orders') },
-    { label: 'الطاولات', icon: <TableBar />, onClick: () => router.push('/tables') },
-    { label: 'المنتجات', icon: <Fastfood />, onClick: () => router.push('/products') },
-  ];
+    { label: 'الإعدادات', icon: <Settings />, path: '/settings', onClick: (e) => setSettingsAnchor(e.currentTarget) },
+    { label: 'التقارير', icon: <Assessment />, path: '/reports', onClick: () => router.push('/reports') },
+    { label: 'تسوية جردية', icon: <Inventory />, path: '/inventory', onClick: () => router.push('/inventory') },
+    { label: 'الدليفري', icon: <DeliveryDining />, path: '/delivery', onClick: () => router.push('/delivery') },
+    { label: 'العملاء', icon: <People />, path: '/customers', onClick: () => router.push('/customers') },
+    { label: 'الطلبات', icon: <ReceiptLong />, path: '/orders', onClick: () => router.push('/orders') },
+    { label: 'الطاولات', icon: <TableBar />, path: '/tables', onClick: () => router.push('/tables') },
+    { label: 'المنتجات', icon: <Fastfood />, path: '/products', onClick: () => router.push('/products') },
+  ].filter((item) => hasPermission(item.path));
 
   return (
     <AppBar position="static" color="default" elevation={1} sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: '#FFF' }}>
