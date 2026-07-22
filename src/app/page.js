@@ -38,6 +38,13 @@ export default function POSPage() {
     fetchInvoices();
     fetchSettings();
     fetchShifts();
+
+    // Auto-poll live products every 3s so Desktop reordering syncs instantly to Mobile
+    const interval = setInterval(() => {
+      fetchProducts();
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Calculate current till cash drawer amount:
@@ -46,12 +53,14 @@ export default function POSPage() {
   const totalCashSales = (invoices || []).reduce((sum, inv) => sum + (parseFloat(inv.paidAmount || inv.total || 0)), 0);
   const currentTillCash = startCash + totalCashSales;
 
-  // Filter products by category & search
-  const filteredProducts = (products || []).filter((product) => {
-    const matchesCategory = selectedCategory === 'all' || product.categoryId === selectedCategory;
-    const matchesSearch = !searchQuery || product.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  // Filter products by category & search, explicitly sorted by sortOrder
+  const filteredProducts = (products || [])
+    .filter((product) => {
+      const matchesCategory = selectedCategory === 'all' || product.categoryId === selectedCategory;
+      const matchesSearch = !searchQuery || product.name.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    })
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
   // Calculate totals
   const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);

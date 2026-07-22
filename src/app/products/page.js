@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -50,9 +50,13 @@ const presetImages = [
 ];
 
 export default function ProductsPage() {
-  const { products, addProduct, updateProduct, deleteProduct, moveProductUp, moveProductDown } = useProductStore();
+  const { products, fetchProducts, addProduct, updateProduct, deleteProduct, moveProductUp, moveProductDown } = useProductStore();
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [currentProduct, setCurrentProduct] = useState({
@@ -67,11 +71,13 @@ export default function ProductsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
 
-  const filteredProducts = (products || []).filter((p) => {
-    const matchesCategory = selectedCategory === 'All' || p.categoryId === selectedCategory;
-    const matchesSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  const filteredProducts = (products || [])
+    .filter((p) => {
+      const matchesCategory = selectedCategory === 'All' || p.categoryId === selectedCategory;
+      const matchesSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    })
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
   const handleOpenDialog = (product = null) => {
     if (product) {

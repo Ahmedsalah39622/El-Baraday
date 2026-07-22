@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 const defaultHawawshiProducts = [
   { id: 'p1', categoryId: '1', name: 'حواوشي ساده صغير', price: 45, size: 'صغير', image: '/images/hawawshi_sade.png', sortOrder: 1 },
@@ -34,174 +33,159 @@ function mapProduct(row) {
   };
 }
 
-export const useProductStore = create(
-  persist(
-    (set, get) => ({
-      products: defaultHawawshiProducts,
-      loading: false,
-      error: null,
+export const useProductStore = create((set, get) => ({
+  products: defaultHawawshiProducts,
+  loading: false,
+  error: null,
 
-      // Fetch products from API → fallback to localStorage cache
-      fetchProducts: async () => {
-        set({ loading: true, error: null });
-        try {
-          const res = await fetch('/api/products');
-          if (!res.ok) throw new Error('Failed to fetch');
-          const rows = await res.json();
-          if (Array.isArray(rows) && rows.length > 0) {
-            set({ products: rows.map(mapProduct), loading: false });
-          } else {
-            set({ loading: false });
-          }
-        } catch (err) {
-          console.warn('⚠️ Using cached products:', err.message);
-          set({ loading: false, error: err.message });
-        }
-      },
-
-      addProduct: async (product) => {
-        const localId = Date.now().toString();
-        const nextOrder = get().products.length + 1;
-        const newProduct = { ...product, id: localId, sortOrder: nextOrder };
-        set((state) => ({ products: [...state.products, newProduct] }));
-
-        try {
-          const res = await fetch('/api/products', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: product.name,
-              category_id: product.categoryId,
-              price: product.price,
-              size: product.size,
-              image_url: product.image,
-              description: product.description,
-              sort_order: nextOrder,
-            }),
-          });
-          if (res.ok) {
-            const created = await res.json();
-            set((state) => ({
-              products: state.products.map((p) =>
-                p.id === localId ? mapProduct(created) : p
-              ),
-            }));
-          }
-        } catch (err) {
-          console.warn('⚠️ Product saved locally only:', err.message);
-        }
-      },
-
-      updateProduct: async (id, updates) => {
-        set((state) => ({
-          products: state.products.map((p) => (p.id === id ? { ...p, ...updates } : p)),
-        }));
-
-        try {
-          const res = await fetch(`/api/products/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: updates.name,
-              category_id: updates.categoryId,
-              price: updates.price,
-              size: updates.size,
-              image_url: updates.image,
-              description: updates.description,
-              is_available: updates.is_available,
-              sort_order: updates.sortOrder,
-            }),
-          });
-          if (!res.ok) {
-            console.warn(`⚠️ API product update returned status ${res.status}. Kept local update.`);
-          }
-        } catch (err) {
-          console.warn('⚠️ Product update saved locally:', err.message);
-        }
-      },
-
-      deleteProduct: async (id) => {
-        set((state) => ({ products: state.products.filter((p) => p.id !== id) }));
-        try {
-          await fetch(`/api/products/${id}`, { method: 'DELETE' });
-        } catch (err) {
-          console.warn('⚠️ Product delete saved locally:', err.message);
-        }
-      },
-
-      // Reorder product UP ⬆️
-      moveProductUp: async (id) => {
-        const currentProducts = [...get().products];
-        const index = currentProducts.findIndex((p) => p.id === id);
-        if (index <= 0) return;
-
-        // Swap with previous item
-        const temp = currentProducts[index];
-        currentProducts[index] = currentProducts[index - 1];
-        currentProducts[index - 1] = temp;
-
-        // Re-index sortOrder for all
-        const reordered = currentProducts.map((p, idx) => ({ ...p, sortOrder: idx + 1 }));
-        set({ products: reordered });
-
-        // Persist to Supabase PostgreSQL DB
-        try {
-          const res = await fetch('/api/products', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(reordered.map((p) => ({ id: p.id, sort_order: p.sortOrder }))),
-          });
-          if (res.ok) {
-            const rows = await res.json();
-            if (Array.isArray(rows) && rows.length > 0) {
-              set({ products: rows.map(mapProduct) });
-            }
-          }
-        } catch (err) {
-          console.warn('⚠️ Reorder saved locally:', err.message);
-        }
-      },
-
-      // Reorder product DOWN ⬇️
-      moveProductDown: async (id) => {
-        const currentProducts = [...get().products];
-        const index = currentProducts.findIndex((p) => p.id === id);
-        if (index === -1 || index >= currentProducts.length - 1) return;
-
-        // Swap with next item
-        const temp = currentProducts[index];
-        currentProducts[index] = currentProducts[index + 1];
-        currentProducts[index + 1] = temp;
-
-        // Re-index sortOrder for all
-        const reordered = currentProducts.map((p, idx) => ({ ...p, sortOrder: idx + 1 }));
-        set({ products: reordered });
-
-        // Persist to Supabase PostgreSQL DB
-        try {
-          const res = await fetch('/api/products', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(reordered.map((p) => ({ id: p.id, sort_order: p.sortOrder }))),
-          });
-          if (res.ok) {
-            const rows = await res.json();
-            if (Array.isArray(rows) && rows.length > 0) {
-              set({ products: rows.map(mapProduct) });
-            }
-          }
-        } catch (err) {
-          console.warn('⚠️ Reorder saved locally:', err.message);
-        }
-      },
-
-      getProductsByCategory: (categoryId) => {
-        if (categoryId === 'all') return get().products;
-        return get().products.filter((p) => p.categoryId === categoryId);
-      },
-    }),
-    {
-      name: 'el-baraday-hawawshi-products-v5',
+  // Always fetch live products from API ordered by sort_order
+  fetchProducts: async () => {
+    try {
+      const res = await fetch('/api/products');
+      if (!res.ok) throw new Error('Failed to fetch');
+      const rows = await res.json();
+      if (Array.isArray(rows) && rows.length > 0) {
+        const mapped = rows.map(mapProduct).sort((a, b) => a.sortOrder - b.sortOrder);
+        set({ products: mapped, loading: false });
+      }
+    } catch (err) {
+      console.warn('⚠️ Fetch products notice:', err.message);
     }
-  )
-);
+  },
+
+  addProduct: async (product) => {
+    const localId = Date.now().toString();
+    const nextOrder = get().products.length + 1;
+    const newProduct = { ...product, id: localId, sortOrder: nextOrder };
+    set((state) => ({
+      products: [...state.products, newProduct].sort((a, b) => a.sortOrder - b.sortOrder)
+    }));
+
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: product.name,
+          category_id: product.categoryId,
+          price: product.price,
+          size: product.size,
+          image_url: product.image,
+          description: product.description,
+          sort_order: nextOrder,
+        }),
+      });
+      if (res.ok) {
+        get().fetchProducts();
+      }
+    } catch (err) {
+      console.warn('⚠️ Product saved locally only:', err.message);
+    }
+  },
+
+  updateProduct: async (id, updates) => {
+    set((state) => ({
+      products: state.products.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+    }));
+
+    try {
+      await fetch(`/api/products/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: updates.name,
+          category_id: updates.categoryId,
+          price: updates.price,
+          size: updates.size,
+          image_url: updates.image,
+          description: updates.description,
+          is_available: updates.is_available,
+          sort_order: updates.sortOrder,
+        }),
+      });
+      get().fetchProducts();
+    } catch (err) {
+      console.warn('⚠️ Product update saved locally:', err.message);
+    }
+  },
+
+  deleteProduct: async (id) => {
+    set((state) => ({ products: state.products.filter((p) => p.id !== id) }));
+    try {
+      await fetch(`/api/products/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      console.warn('⚠️ Product delete saved locally:', err.message);
+    }
+  },
+
+  // Reorder product UP ⬆️
+  moveProductUp: async (id) => {
+    const currentProducts = [...get().products];
+    const index = currentProducts.findIndex((p) => p.id === id);
+    if (index <= 0) return;
+
+    // Swap with previous item
+    const temp = currentProducts[index];
+    currentProducts[index] = currentProducts[index - 1];
+    currentProducts[index - 1] = temp;
+
+    // Re-index sortOrder for all
+    const reordered = currentProducts.map((p, idx) => ({ ...p, sortOrder: idx + 1 }));
+    set({ products: reordered });
+
+    // Persist to Supabase PostgreSQL DB
+    try {
+      const res = await fetch('/api/products', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reordered.map((p) => ({ id: p.id, sort_order: p.sortOrder }))),
+      });
+      if (res.ok) {
+        const rows = await res.json();
+        if (Array.isArray(rows) && rows.length > 0) {
+          set({ products: rows.map(mapProduct).sort((a, b) => a.sortOrder - b.sortOrder) });
+        }
+      }
+    } catch (err) {
+      console.warn('⚠️ Reorder saved locally:', err.message);
+    }
+  },
+
+  // Reorder product DOWN ⬇️
+  moveProductDown: async (id) => {
+    const currentProducts = [...get().products];
+    const index = currentProducts.findIndex((p) => p.id === id);
+    if (index === -1 || index >= currentProducts.length - 1) return;
+
+    // Swap with next item
+    const temp = currentProducts[index];
+    currentProducts[index] = currentProducts[index + 1];
+    currentProducts[index + 1] = temp;
+
+    // Re-index sortOrder for all
+    const reordered = currentProducts.map((p, idx) => ({ ...p, sortOrder: idx + 1 }));
+    set({ products: reordered });
+
+    // Persist to Supabase PostgreSQL DB
+    try {
+      const res = await fetch('/api/products', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reordered.map((p) => ({ id: p.id, sort_order: p.sortOrder }))),
+      });
+      if (res.ok) {
+        const rows = await res.json();
+        if (Array.isArray(rows) && rows.length > 0) {
+          set({ products: rows.map(mapProduct).sort((a, b) => a.sortOrder - b.sortOrder) });
+        }
+      }
+    } catch (err) {
+      console.warn('⚠️ Reorder saved locally:', err.message);
+    }
+  },
+
+  getProductsByCategory: (categoryId) => {
+    if (categoryId === 'all') return get().products;
+    return get().products.filter((p) => p.categoryId === categoryId);
+  },
+}));
