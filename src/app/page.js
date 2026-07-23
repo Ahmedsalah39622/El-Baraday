@@ -76,17 +76,31 @@ export default function POSPage() {
             useInvoiceStore.setState({ invoices: mappedOrders });
           }
 
-          if (data.shifts && data.shifts.length > 0) {
-            const active = data.shifts.find(s => s.status === 'active') || data.shifts[0];
-            useShiftStore.setState({
-              activeShift: {
-                id: active.id,
-                cashierName: active.cashier_name || 'administrator',
-                startTime: active.start_time || new Date().toLocaleTimeString('ar-EG'),
-                startAmount: parseFloat(active.start_amount || 500),
-                status: active.status || 'active'
+          if (data.shifts && Array.isArray(data.shifts)) {
+            const active = data.shifts.find(s => s.status === 'active');
+            if (active) {
+              const rawStart = active.start_time || active.created_at || new Date().toISOString();
+              let formattedTime = '08:00 AM';
+              try {
+                formattedTime = new Date(rawStart).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+              } catch (e) {}
+
+              useShiftStore.setState({
+                activeShift: {
+                  id: active.id,
+                  cashierName: active.cashier_name || 'administrator',
+                  rawStartTime: rawStart,
+                  startTime: formattedTime,
+                  startAmount: parseFloat(active.start_amount || 0),
+                  status: 'active',
+                }
+              });
+            } else {
+              const localShift = useShiftStore.getState().activeShift;
+              if (localShift && localShift.status !== 'active') {
+                useShiftStore.setState({ activeShift: null });
               }
-            });
+            }
           }
         }
       } catch (err) {
@@ -104,11 +118,23 @@ export default function POSPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Calculate current till cash drawer amount:
-  // Starting Cash + Total Sales from Invoices
-  const startCash = activeShift?.startAmount || 500;
-  const totalCashSales = (invoices || []).reduce((sum, inv) => sum + (parseFloat(inv.paidAmount || inv.total || 0)), 0);
-  const currentTillCash = startCash + totalCashSales;
+  // Calculate current till cash drawer amount for active shift only
+  const isShiftActive = activeShift && activeShift.status === 'active';
+  const startCash = isShiftActive ? (parseFloat(activeShift.startAmount) || 0) : 0;
+  
+  const totalCashSales = (invoices || []).reduce((sum, inv) => {
+    if (!isShiftActive) return sum;
+    if (activeShift?.rawStartTime && inv.createdAt) {
+      const invTime = new Date(inv.createdAt).getTime();
+      const shiftStartTime = new Date(activeShift.rawStartTime).getTime();
+      if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < shiftStartTime) {
+        return sum; // Skip invoices before shift start
+      }
+    }
+    return sum + (parseFloat(inv.paidAmount || inv.total || 0));
+  }, 0);
+
+  const currentTillCash = isShiftActive ? (startCash + totalCashSales) : 0;
 
   // Filter products by category & search, explicitly sorted by sortOrder
   const filteredProducts = (products || [])
@@ -187,23 +213,24 @@ export default function POSPage() {
               الرئيسية
             </Typography>
 
-            {/* Compact Mobile Till Cash Drawer Pill Badge (Always Visible & Never Hidden) */}
+            {/* Compact Mobile Till Cash Drawer Pill Badge */}
             <Box
               sx={{
                 display: { xs: 'flex', md: 'none' },
                 alignItems: 'center',
                 gap: 0.6,
-                bgcolor: '#ECFDF5',
-                border: '1.5px solid #10B981',
+                bgcolor: isShiftActive ? '#ECFDF5' : '#FEF2F2',
+                border: '1.5px solid',
+                borderColor: isShiftActive ? '#10B981' : '#EF4444',
                 px: 1.2,
                 py: 0.4,
                 borderRadius: '20px',
-                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.15)',
+                boxShadow: isShiftActive ? '0 2px 6px rgba(16, 185, 129, 0.15)' : 'none',
               }}
             >
-              <AccountBalanceWallet sx={{ fontSize: 16, color: '#10B981' }} />
-              <Typography variant="caption" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.78rem' }}>
-                الخزنة: {currentTillCash.toFixed(0)} ج.م
+              <AccountBalanceWallet sx={{ fontSize: 16, color: isShiftActive ? '#10B981' : '#EF4444' }} />
+              <Typography variant="caption" sx={{ color: isShiftActive ? '#065F46' : '#991B1B', fontWeight: 900, fontSize: '0.78rem' }}>
+                {isShiftActive ? `الخزنة: ${currentTillCash.toFixed(0)} ج.م` : 'الخزنة: مغلقة'}
               </Typography>
             </Box>
           </Box>
@@ -245,12 +272,13 @@ export default function POSPage() {
               display: 'flex',
               alignItems: 'center',
               gap: 1.5,
-              bgcolor: '#ECFDF5',
-              border: '1.5px solid #10B981',
+              bgcolor: isShiftActive ? '#ECFDF5' : '#FEF2F2',
+              border: '1.5px solid',
+              borderColor: isShiftActive ? '#10B981' : '#EF4444',
               px: 2.5,
               py: 0.8,
               borderRadius: '12px',
-              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.15)',
+              boxShadow: isShiftActive ? '0 2px 8px rgba(16, 185, 129, 0.15)' : 'none',
             }}
           >
             <Box
@@ -258,7 +286,7 @@ export default function POSPage() {
                 width: 34,
                 height: 34,
                 borderRadius: '8px',
-                bgcolor: '#10B981',
+                bgcolor: isShiftActive ? '#10B981' : '#EF4444',
                 color: '#FFF',
                 display: 'flex',
                 alignItems: 'center',
@@ -268,11 +296,11 @@ export default function POSPage() {
               <AccountBalanceWallet sx={{ fontSize: 20 }} />
             </Box>
             <Box sx={{ textAlign: 'right' }}>
-              <Typography variant="caption" sx={{ color: '#047857', fontWeight: 800, display: 'block', lineHeight: 1.1 }}>
-                المبلغ في الخزنة حالياً
+              <Typography variant="caption" sx={{ color: isShiftActive ? '#047857' : '#991B1B', fontWeight: 800, display: 'block', lineHeight: 1.1 }}>
+                {isShiftActive ? 'المبلغ في الخزنة حالياً' : 'حالة الوردية'}
               </Typography>
-              <Typography variant="subtitle1" sx={{ color: '#065F46', fontWeight: 900, fontSize: '1.15rem', lineHeight: 1.2 }}>
-                {currentTillCash.toFixed(2)} ج.م
+              <Typography variant="subtitle1" sx={{ color: isShiftActive ? '#065F46' : '#991B1B', fontWeight: 900, fontSize: '1.15rem', lineHeight: 1.2 }}>
+                {isShiftActive ? `${currentTillCash.toFixed(2)} ج.م` : 'شيفت مغلق'}
               </Typography>
             </Box>
           </Box>
