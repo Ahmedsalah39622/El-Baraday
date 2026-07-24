@@ -20,6 +20,10 @@ export async function GET(req) {
       shiftsWhere = `WHERE branch_id = $1`;
     }
 
+    const nextOrderSql = (branchId && branchId !== 'all')
+      ? "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1"
+      : "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders";
+
     const [
       branchesRes,
       productsRes,
@@ -39,7 +43,7 @@ export async function GET(req) {
       query('SELECT * FROM delivery_areas ORDER BY name'),
       query(`SELECT * FROM drivers ${driversWhere} ORDER BY name`, params),
       query(`SELECT * FROM restaurant_tables ${tablesWhere} ORDER BY number`, params),
-      query("SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders"),
+      query(nextOrderSql, params),
       query(`
         SELECT o.*, b.name as branch_name,
                COALESCE(

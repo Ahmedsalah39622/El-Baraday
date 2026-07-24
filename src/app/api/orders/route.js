@@ -68,15 +68,20 @@ export async function POST(request) {
       branch_id, status
     } = body;
 
+    const targetBranch = branch_id || 'b1';
+
     // Default status: delivery orders start as 'pending' or 'out_for_delivery', others 'completed'
     const initialStatus = status || (order_type === 'delivery' ? 'out_for_delivery' : 'completed');
     const isDispatched = initialStatus === 'out_for_delivery' || initialStatus === 'on_way';
 
-    // Get next sequential order number
-    const nextRes = await query("SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders");
+    // Get next sequential order number ISOLATED FOR THIS SPECIFIC BRANCH
+    const nextRes = await query(
+      "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1",
+      [targetBranch]
+    );
     const nextNum = (nextRes.rows && nextRes.rows.length > 0 && nextRes.rows[0].next) ? parseInt(nextRes.rows[0].next) : 1;
 
-    // Insert order into Supabase DB with branch_id and dispatched_at
+    // Insert order into DB with branch_id and dispatched_at
     const orderResult = await query(
       `INSERT INTO orders (id, order_number, order_type, customer_name, customer_phone, customer_area,
         customer_address, driver_name, driver_id, subtotal, delivery_fee, discount, total,
@@ -86,7 +91,7 @@ export async function POST(request) {
       [nextNum, order_type || 'dine_in', customer_name || null, customer_phone || null, customer_area || null,
        customer_address || null, driver_name || null, driver_id || null, subtotal || 0, delivery_fee || 0,
        discount || 0, total || 0, paid_amount || 0, remaining_amount || 0,
-       cashier_name || 'administrator', initialStatus, branch_id || 'b1', isDispatched ? new Date().toISOString() : null]
+       cashier_name || 'administrator', initialStatus, targetBranch, isDispatched ? new Date().toISOString() : null]
     );
 
     const order = (orderResult.rows && orderResult.rows.length > 0) ? orderResult.rows[0] : {
@@ -97,7 +102,7 @@ export async function POST(request) {
       total,
       cashier_name: cashier_name || 'administrator',
       status: initialStatus,
-      branch_id: branch_id || 'b1',
+      branch_id: targetBranch,
       dispatched_at: isDispatched ? new Date().toISOString() : null,
       created_at: new Date().toISOString()
     };

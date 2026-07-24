@@ -25,13 +25,19 @@ export default function OrderDetailsPanel({
   subtotal = 0,
   onCloseMobile,
 }) {
-  const { addInvoice, nextOrderNumber } = useInvoiceStore();
+  const { addInvoice, nextOrderNumber, fetchNextOrderNumber } = useInvoiceStore();
   const { customers = [], drivers = [], activeQueue = [], saveOrUpdateCustomer } = useCustomerStore();
   const { user } = useAuthStore();
   const { branches, selectedBranchId } = useBranchStore();
   const activeCashierName = user?.name || user?.username || 'أحمد محمود';
 
-  const [orderBranchId, setOrderBranchId] = useState(selectedBranchId !== 'all' ? selectedBranchId : 'b1');
+  const [orderBranchId, setOrderBranchId] = useState(selectedBranchId !== 'all' ? selectedBranchId : (user?.branch_id || 'b1'));
+
+  useEffect(() => {
+    const targetBranch = selectedBranchId !== 'all' ? selectedBranchId : (user?.branch_id || 'b1');
+    setOrderBranchId(targetBranch);
+    fetchNextOrderNumber(targetBranch);
+  }, [selectedBranchId, user]);
 
   // Filter drivers checked-in for current active shift & branch
   const checkedInDrivers = (activeQueue || []).filter(q => !orderBranchId || orderBranchId === 'all' || q.branch_id === orderBranchId);

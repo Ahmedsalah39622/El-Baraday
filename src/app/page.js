@@ -14,12 +14,14 @@ import { useTableStore } from '@/store/useTableStore';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useShiftStore } from '@/store/useShiftStore';
+import { useBranchStore } from '@/store/useBranchStore';
 
 export default function POSPage() {
   const { products, fetchProducts } = useProductStore();
   const { items, addItem, updateQuantity, removeItem, clearOrder, orderType, setOrderType } = useOrderStore();
   const { invoices } = useInvoiceStore();
   const { activeShift } = useShiftStore();
+  const { selectedBranchId } = useBranchStore();
 
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -29,7 +31,8 @@ export default function POSPage() {
     // Ultra-Fast Combined Single Init Request (Populates all stores in ~30ms)
     async function loadSystemData() {
       try {
-        const res = await fetch('/api/init');
+        const url = selectedBranchId && selectedBranchId !== 'all' ? `/api/init?branch_id=${selectedBranchId}` : '/api/init';
+        const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
           
@@ -73,6 +76,8 @@ export default function POSPage() {
               discount: parseFloat(o.discount || 0),
               status: o.status,
               createdAt: o.created_at,
+              branchId: o.branch_id,
+              branch_id: o.branch_id,
             }));
             useInvoiceStore.setState({ invoices: mappedOrders });
           }
@@ -94,6 +99,7 @@ export default function POSPage() {
                   startTime: formattedTime,
                   startAmount: parseFloat(active.start_amount || 0),
                   status: 'active',
+                  branch_id: active.branch_id
                 }
               });
             } else {
@@ -117,14 +123,18 @@ export default function POSPage() {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedBranchId]);
 
-  // Calculate current till cash drawer amount for active shift only
+  // Calculate current till cash drawer amount for active shift and isolated branch only
   const isShiftActive = activeShift && activeShift.status === 'active';
   const startCash = isShiftActive ? (parseFloat(activeShift.startAmount) || 0) : 0;
   
   const totalCashSales = (invoices || []).reduce((sum, inv) => {
     if (!isShiftActive) return sum;
+    if (selectedBranchId && selectedBranchId !== 'all') {
+      const invBranch = inv.branchId || inv.branch_id || 'b1';
+      if (invBranch !== selectedBranchId) return sum;
+    }
     if (activeShift?.rawStartTime && inv.createdAt) {
       const invTime = new Date(inv.createdAt).getTime();
       const shiftStartTime = new Date(activeShift.rawStartTime).getTime();

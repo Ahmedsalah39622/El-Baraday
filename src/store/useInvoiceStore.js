@@ -2,14 +2,25 @@ import { create } from 'zustand';
 
 export const useInvoiceStore = create((set, get) => ({
   invoices: [],
-  nextOrderNumber: 35,
+  nextOrderNumber: 1,
   loading: false,
 
-  // Fetch invoices/orders from DB
-  fetchInvoices: async (limit = 100) => {
+  fetchNextOrderNumber: async (branchId = 'b1') => {
+    try {
+      const res = await fetch(`/api/orders/next-number?branch_id=${branchId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.next) set({ nextOrderNumber: parseInt(data.next) || 1 });
+      }
+    } catch (e) {}
+  },
+
+  // Fetch invoices/orders from DB with optional branch filter
+  fetchInvoices: async (limit = 100, branchId = 'all') => {
     set({ loading: true });
     try {
-      const res = await fetch(`/api/orders?limit=${limit}`);
+      const url = branchId && branchId !== 'all' ? `/api/orders?limit=${limit}&branch_id=${branchId}` : `/api/orders?limit=${limit}`;
+      const res = await fetch(url);
       if (res.ok) {
         const rows = await res.json();
         const mapped = rows.map((o) => ({
@@ -29,6 +40,9 @@ export const useInvoiceStore = create((set, get) => ({
           paymentMethod: o.payment_method,
           status: o.status,
           createdAt: o.created_at,
+          branchId: o.branch_id,
+          branch_id: o.branch_id,
+          branchName: o.branch_name,
           items: Array.isArray(o.items) ? o.items : [],
           isReturned: false,
         }));
@@ -41,6 +55,7 @@ export const useInvoiceStore = create((set, get) => ({
   },
 
   addInvoice: async (invoice) => {
+    const targetBranch = invoice.branch_id || invoice.branchId || 'b1';
     const currentNum = get().nextOrderNumber;
     const newInvoice = {
       ...invoice,
@@ -48,6 +63,8 @@ export const useInvoiceStore = create((set, get) => ({
       orderNumber: currentNum.toString(),
       invoiceNumber: `INV-${currentNum}`,
       createdAt: new Date().toISOString(),
+      branchId: targetBranch,
+      branch_id: targetBranch,
       items: invoice.items || [],
       isReturned: false,
     };
@@ -78,7 +95,7 @@ export const useInvoiceStore = create((set, get) => ({
           paid_amount: invoice.paidAmount || 0,
           remaining_amount: invoice.remainingAmount || 0,
           cashier_name: invoice.cashierName || 'administrator',
-          branch_id: invoice.branch_id || 'b1',
+          branch_id: targetBranch,
           items: invoice.items?.map((item) => ({
             product_id: item.id || item.product_id,
             product_name: item.name || item.product_name,
@@ -100,12 +117,14 @@ export const useInvoiceStore = create((set, get) => ({
                   id: created.id,
                   orderNumber: String(created.order_number),
                   invoiceNumber: `INV-${created.order_number}`,
+                  branchId: created.branch_id,
+                  branch_id: created.branch_id,
                   items: created.items || inv.items
                 }
               : inv
           ),
-          nextOrderNumber: parseInt(created.order_number) + 1,
         }));
+        get().fetchNextOrderNumber(targetBranch);
       }
     } catch (err) {
       console.warn('⚠️ Order saved locally only:', err.message);
