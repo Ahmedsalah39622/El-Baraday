@@ -6,12 +6,12 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Select, MenuItem,
   InputAdornment, FormControl, InputLabel, List, ListItem, ListItemText, ListItemSecondaryAction,
-  Chip, Tooltip, Alert, Badge, CircularProgress, Divider
+  Chip, Tooltip, Alert, CircularProgress, Divider
 } from '@mui/material';
 import {
   DeliveryDining, AccessTime, LocationOn, Person, Phone, Home, Print, CheckCircle,
   Warning, Add as AddIcon, Search as SearchIcon, Edit as EditIcon, Delete as DeleteIcon,
-  Refresh, HowToReg, SwapVert, Store, LocalShipping, CheckCircleOutlined, AccountBalanceWallet
+  Refresh, HowToReg, Store, CheckCircleOutlined
 } from '@mui/icons-material';
 import { useCustomerStore } from '@/store/useCustomerStore';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
@@ -39,7 +39,7 @@ export default function DeliveryPage() {
   // Live Orders State
   const [deliveryOrders, setDeliveryOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
-  const [orderStatusFilter, setOrderStatusFilter] = useState('all'); // all, preparing, dispatched, delivered
+  const [orderStatusFilter, setOrderStatusFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [deliveryTimerMinutes, setDeliveryTimerMinutes] = useState(30);
 
@@ -58,19 +58,16 @@ export default function DeliveryPage() {
   const fetchDeliveryData = async () => {
     setLoadingOrders(true);
     try {
-      // Fetch settings for timer minutes
       const setRes = await fetch('/api/settings');
       if (setRes.ok) {
         const setObj = await setRes.json();
         if (setObj.delivery_timer_minutes) setDeliveryTimerMinutes(parseInt(setObj.delivery_timer_minutes) || 30);
       }
 
-      // Fetch Orders
       const url = selectedBranchId && selectedBranchId !== 'all' ? `/api/orders?branch_id=${selectedBranchId}` : '/api/orders';
       const res = await fetch(url);
       if (res.ok) {
         const rows = await res.json();
-        // Filter only delivery orders
         const delOrders = (rows || []).filter(o => o.order_type === 'delivery' || o.orderType === 'delivery');
         setDeliveryOrders(delOrders);
       }
@@ -87,51 +84,55 @@ export default function DeliveryPage() {
     fetchAreas();
     fetchDrivers();
 
-    const interval = setInterval(fetchDeliveryData, 60000); // Auto refresh live orders
+    const interval = setInterval(fetchDeliveryData, 10000);
     return () => clearInterval(interval);
   }, [selectedBranchId]);
 
   const handleTabChange = (event, newValue) => setTabValue(newValue);
 
-  // Filtered Live Delivery Orders
-  const filteredOrders = (deliveryOrders || []).filter(o => {
-    const isPrep = !o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل';
-    const isDisp = !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل';
-    const isDeliv = o.status === 'delivered' || o.status === 'مكتمل';
-
-    if (orderStatusFilter === 'preparing' && !isPrep) return false;
-    if (orderStatusFilter === 'dispatched' && !isDisp) return false;
-    if (orderStatusFilter === 'delivered' && !isDeliv) return false;
-
-    if (!searchTerm) return true;
-    const cleanSearch = searchTerm.toLowerCase().trim();
-    return (
-      (o.order_number || o.orderNumber || '').toString().includes(cleanSearch) ||
-      (o.customer_name || o.customerName || '').toLowerCase().includes(cleanSearch) ||
-      (o.customer_phone || o.customerPhone || '').includes(cleanSearch) ||
-      (o.driver_name || o.driverName || '').toLowerCase().includes(cleanSearch)
-    );
+  // Build clean, deduplicated driver options for dispatch selector
+  const dispatchDriverOptions = [];
+  (activeQueue || []).forEach((q, idx) => {
+    if (q.driver_name && !dispatchDriverOptions.some(opt => opt.name === q.driver_name)) {
+      dispatchDriverOptions.push({
+        id: q.id || `q_${idx}`,
+        name: q.driver_name,
+        label: `${idx === 0 ? '👑' : '🟢'} ${q.driver_name} (الدور ${idx + 1})`
+      });
+    }
+  });
+  (drivers || []).forEach(d => {
+    if (d.name && !dispatchDriverOptions.some(opt => opt.name === d.name)) {
+      dispatchDriverOptions.push({
+        id: d.id || d.name,
+        name: d.name,
+        label: `🛵 ${d.name}`
+      });
+    }
   });
 
   // Action: Open Dispatch Dialog
   const handleOpenDispatch = (order) => {
     setSelectedOrderForDispatch(order);
-    // Auto pick #1 driver in queue if available
-    const topReadyDriver = (activeQueue || []).find(q => q.status === 'ready');
-    setSelectedDriverForOrder(order.driver_name || order.driverName || (topReadyDriver ? topReadyDriver.driver_name : ''));
+    const initialDriver = order.driver_name || order.driverName || (dispatchDriverOptions[0] ? dispatchDriverOptions[0].name : '');
+    setSelectedDriverForOrder(initialDriver);
     setDispatchDialog(true);
   };
 
   // Action: Confirm Dispatching Order with Driver
   const handleConfirmDispatch = async () => {
     if (!selectedOrderForDispatch) return;
+    if (!selectedDriverForOrder || !selectedDriverForOrder.trim()) {
+      alert('برجاء اختيار طيار التوصيل أولاً للخروج بالطلب!');
+      return;
+    }
 
     try {
       await fetch(`/api/orders/${selectedOrderForDispatch.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          driver_name: selectedDriverForOrder,
+          driver_name: selectedDriverForOrder.trim(),
           dispatched_at: new Date().toISOString(),
           status: 'dispatched'
         })
@@ -186,10 +187,30 @@ export default function DeliveryPage() {
     });
   };
 
+  // Filtered Live Delivery Orders
+  const filteredOrders = (deliveryOrders || []).filter(o => {
+    const isPrep = !o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل' && o.status !== 'completed';
+    const isDisp = !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل' && o.status !== 'completed';
+    const isDeliv = o.status === 'delivered' || o.status === 'مكتمل' || o.status === 'completed';
+
+    if (orderStatusFilter === 'preparing' && !isPrep) return false;
+    if (orderStatusFilter === 'dispatched' && !isDisp) return false;
+    if (orderStatusFilter === 'delivered' && !isDeliv) return false;
+
+    if (!searchTerm) return true;
+    const cleanSearch = searchTerm.toLowerCase().trim();
+    return (
+      (o.order_number || o.orderNumber || '').toString().includes(cleanSearch) ||
+      (o.customer_name || o.customerName || '').toLowerCase().includes(cleanSearch) ||
+      (o.customer_phone || o.customerPhone || '').includes(cleanSearch) ||
+      (o.driver_name || o.driverName || '').toLowerCase().includes(cleanSearch)
+    );
+  });
+
   // Stats Counters
-  const preparingCount = deliveryOrders.filter(o => !o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل').length;
-  const dispatchedCount = deliveryOrders.filter(o => !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل').length;
-  const deliveredCount = deliveryOrders.filter(o => o.status === 'delivered' || o.status === 'مكتمل').length;
+  const preparingCount = deliveryOrders.filter(o => !o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل' && o.status !== 'completed').length;
+  const dispatchedCount = deliveryOrders.filter(o => !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل' && o.status !== 'completed').length;
+  const deliveredCount = deliveryOrders.filter(o => o.status === 'delivered' || o.status === 'مكتمل' || o.status === 'completed').length;
 
   return (
     <Box sx={{ p: { xs: 1.5, md: 3 }, display: 'flex', flexDirection: 'column', gap: 2.5, height: '100%', overflowY: 'auto', pb: { xs: 14, md: 8 } }}>
@@ -344,7 +365,7 @@ export default function DeliveryPage() {
           <Grid container spacing={2.5}>
             {filteredOrders.map(order => {
               const isDispatched = !!order.dispatched_at;
-              const isDelivered = order.status === 'delivered' || order.status === 'مكتمل';
+              const isDelivered = order.status === 'delivered' || order.status === 'مكتمل' || order.status === 'completed';
               const branchName = order.branch_name || 'الفرع الرئيسي';
 
               return (
@@ -422,31 +443,40 @@ export default function DeliveryPage() {
 
                       {/* Action Buttons Footer */}
                       <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                        {!isDelivered && (
-                          <Button
-                            fullWidth
-                            size="small"
-                            variant="contained"
-                            startIcon={<DeliveryDining />}
-                            onClick={() => handleOpenDispatch(order)}
-                            sx={{ borderRadius: '10px', fontWeight: 800, bgcolor: isDispatched ? '#3B82F6' : '#E06B1F', '&:hover': { bgcolor: isDispatched ? '#2563EB' : '#C85A17' } }}
-                          >
-                            {isDispatched ? 'تغيير الطيار' : 'خروج للتوصيل'}
-                          </Button>
-                        )}
+                        {!isDelivered ? (
+                          <>
+                            <Button
+                              fullWidth
+                              size="small"
+                              variant="contained"
+                              startIcon={<DeliveryDining />}
+                              onClick={() => handleOpenDispatch(order)}
+                              sx={{ borderRadius: '10px', fontWeight: 800, bgcolor: isDispatched ? '#3B82F6' : '#E06B1F', '&:hover': { bgcolor: isDispatched ? '#2563EB' : '#C85A17' } }}
+                            >
+                              {isDispatched ? 'تغيير الطيار' : 'خروج للتوصيل'}
+                            </Button>
 
-                        {isDispatched && !isDelivered && (
-                          <Button
-                            fullWidth
-                            size="small"
-                            variant="contained"
-                            color="success"
-                            startIcon={<CheckCircle />}
-                            onClick={() => handleMarkDelivered(order)}
-                            sx={{ borderRadius: '10px', fontWeight: 800 }}
-                          >
-                            تأكيد التسليم
-                          </Button>
+                            {isDispatched && (
+                              <Button
+                                fullWidth
+                                size="small"
+                                variant="contained"
+                                color="success"
+                                startIcon={<CheckCircle />}
+                                onClick={() => handleMarkDelivered(order)}
+                                sx={{ borderRadius: '10px', fontWeight: 800 }}
+                              >
+                                تأكيد التسليم
+                              </Button>
+                            )}
+                          </>
+                        ) : (
+                          <Chip
+                            icon={<CheckCircleOutlined sx={{ fontSize: '16px !important', color: '#047857 !important' }} />}
+                            label="تم الوصول والتسليم بنجاح"
+                            variant="filled"
+                            sx={{ width: '100%', py: 1.8, bgcolor: '#ECFDF5', color: '#047857', border: '1.5px solid #10B981', fontWeight: 800 }}
+                          />
                         )}
 
                         <Tooltip title="طباعة بون التوصيل">
@@ -641,14 +671,9 @@ export default function DeliveryPage() {
                   onChange={(e) => setSelectedDriverForOrder(e.target.value)}
                   sx={{ borderRadius: '10px' }}
                 >
-                  {(activeQueue || []).map((d, idx) => (
-                    <MenuItem key={d.id} value={d.driver_name}>
-                      {idx === 0 ? '👑' : '🟢'} {d.driver_name} (الدور {idx + 1})
-                    </MenuItem>
-                  ))}
-                  {(drivers || []).map(d => (
-                    <MenuItem key={d.id} value={d.name}>
-                      🛵 {d.name}
+                  {dispatchDriverOptions.map((d) => (
+                    <MenuItem key={d.id || d.name} value={d.name}>
+                      {d.label}
                     </MenuItem>
                   ))}
                 </Select>
