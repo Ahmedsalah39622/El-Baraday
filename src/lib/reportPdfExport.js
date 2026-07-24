@@ -1,6 +1,6 @@
-// Executive Formal A4 PDF Report Generator Utility - Dignified Corporate Styling
+// Corporate ERP Style A4 PDF Report Generator - ITTSOFT Inspired Layout
 export function generateReportPDF({
-  title = 'تقرير إداري - مطعم البرادعي',
+  title = 'تقرير إداري',
   subtitle = '',
   branchName = 'كافة الفروع',
   dateRangeStr = '',
@@ -12,20 +12,20 @@ export function generateReportPDF({
   if (!data) return;
 
   const reportRefId = `REP-${Math.floor(100000 + Math.random() * 900000)}`;
+  const currentDateStr = new Date().toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' });
 
   // Table Headers
   const tableHeaderHtml = columns
-    .map(c => `<th style="padding: 10px 12px; border: 1px solid #1E293B; background-color: #1E293B; color: #FFFFFF; font-weight: 800; font-size: 12px; text-align: center;">${c.label}</th>`)
+    .map(c => `<th style="padding: 9px 10px; border: 1px solid #0F172A; background-color: #0F172A; color: #FFFFFF; font-weight: 800; font-size: 12px; text-align: center;">${c.label}</th>`)
     .join('');
 
-  // Table Rows (Remove any emojis from cell contents if present)
+  // Table Rows (Passing both row and idx so (r, idx) => idx + 1 never returns NaN!)
   const tableRowsHtml = data.map((row, idx) => {
     const cells = columns.map(c => {
-      let val = typeof c.accessor === 'function' ? c.accessor(row) : row[c.accessor];
+      let val = typeof c.accessor === 'function' ? c.accessor(row, idx) : row[c.accessor];
       if (val === undefined || val === null) val = '';
-      // Strip any emoji characters for maximum formal elegance
       const cleanVal = String(val).replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '').trim();
-      return `<td style="padding: 9px 12px; border: 1px solid #CBD5E1; font-size: 11.5px; font-weight: 700; color: #0F172A; text-align: center;">${cleanVal}</td>`;
+      return `<td style="padding: 8px 10px; border: 1px solid #CBD5E1; font-size: 12px; font-weight: 700; color: #0F172A; text-align: center;">${cleanVal}</td>`;
     }).join('');
     return `<tr style="background-color: ${idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC'};">${cells}</tr>`;
   }).join('');
@@ -34,20 +34,20 @@ export function generateReportPDF({
   let totalsRowHtml = '';
   if (totals && typeof totals === 'object') {
     const totalCells = columns.map((c, colIdx) => {
-      if (colIdx === 0) return `<td style="padding: 10px 12px; border: 1.5px solid #1E293B; background: #F1F5F9; font-weight: 900; font-size: 12px; color: #0F172A; text-align: center;">المجموع الكلي</td>`;
+      if (colIdx === 0) return `<td style="padding: 10px 10px; border: 1.5px solid #0F172A; background: #F1F5F9; font-weight: 900; font-size: 12px; color: #0F172A; text-align: center;">المجموع الكلي</td>`;
       const val = totals[c.key || c.accessor];
-      return `<td style="padding: 10px 12px; border: 1.5px solid #1E293B; background: #F1F5F9; font-weight: 900; font-size: 12px; color: #1E40AF; text-align: center;">${val !== undefined ? val : '-'}</td>`;
+      return `<td style="padding: 10px 10px; border: 1.5px solid #0F172A; background: #F1F5F9; font-weight: 900; font-size: 12px; color: #0F172A; text-align: center;">${val !== undefined ? val : '-'}</td>`;
     }).join('');
-    totalsRowHtml = `<tfoot><tr style="border-top: 2px solid #1E293B;">${totalCells}</tr></tfoot>`;
+    totalsRowHtml = `<tfoot><tr style="border-top: 2px solid #0F172A;">${totalCells}</tr></tfoot>`;
   }
 
   // Summary KPI Cards Grid
   const statsHtml = stats.length > 0 ? `
-    <div style="display: grid; grid-template-columns: repeat(${Math.min(stats.length, 4)}, 1fr); gap: 12px; margin-bottom: 22px;">
+    <div style="display: grid; grid-template-columns: repeat(${Math.min(stats.length, 4)}, 1fr); gap: 12px; margin-bottom: 18px;">
       ${stats.map(s => `
-        <div style="background: #FFFFFF; border: 1.5px solid #CBD5E1; border-right: 4px solid #1E293B; border-radius: 6px; padding: 12px 14px;">
-          <div style="font-size: 11.5px; font-weight: 800; color: #475569; margin-bottom: 4px;">${s.title}</div>
-          <div style="font-size: 17px; font-weight: 900; color: #0F172A;">${String(s.value).replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '')}</div>
+        <div style="background: #FFFFFF; border: 1px solid #CBD5E1; border-top: 3px solid #0F172A; border-radius: 4px; padding: 10px 12px; text-align: center;">
+          <div style="font-size: 11px; font-weight: 800; color: #475569; margin-bottom: 3px;">${s.title}</div>
+          <div style="font-size: 16px; font-weight: 900; color: #0F172A;">${String(s.value).replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '')}</div>
         </div>
       `).join('')}
     </div>
@@ -72,7 +72,7 @@ export function generateReportPDF({
           }
           html, body {
             margin: 0 !important;
-            padding: 12mm 15mm !important;
+            padding: 10mm 12mm !important;
             background: #FFFFFF !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
@@ -84,122 +84,93 @@ export function generateReportPDF({
           padding: 0;
         }
         body {
-          font-family: 'Cairo', 'Segoe UI', Arial, sans-serif;
+          font-family: 'Cairo', Arial, sans-serif;
           color: #0F172A;
           direction: rtl;
-          padding: 12mm 15mm;
+          padding: 10mm 12mm;
           background-color: #FFFFFF;
           font-size: 12px;
         }
 
-        /* Dignified Header Banner */
-        .banner {
-          background: #1E293B;
-          border-bottom: 3px solid #0F172A;
-          border-radius: 8px;
-          padding: 20px 24px;
-          margin-bottom: 22px;
-          color: #FFFFFF;
+        /* Top Header Layout (ITTSOFT Style) */
+        .top-header {
           display: flex;
           justify-content: space-between;
-          align-items: center;
+          align-items: flex-start;
+          margin-bottom: 12px;
         }
-        .brand-name {
-          font-size: 22px;
+        .header-title-box {
+          text-align: right;
+        }
+        .doc-main-title {
+          font-size: 24px;
           font-weight: 900;
-          color: #FFFFFF;
-          letter-spacing: 0.5px;
-          margin-bottom: 6px;
+          color: #0F172A;
+          margin: 0 0 2px 0;
+          line-height: 1.1;
         }
-        .doc-title {
-          font-size: 15px;
-          font-weight: 800;
-          color: #E2E8F0;
-          background: rgba(255, 255, 255, 0.1);
-          padding: 4px 12px;
-          border-radius: 4px;
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          display: inline-block;
-        }
-        .meta-box {
-          text-align: left;
-          display: flex;
-          flex-direction: column;
-          align-items: flex-end;
-          gap: 4px;
-        }
-        .meta-pill {
-          background: rgba(255, 255, 255, 0.15);
-          color: #FFFFFF;
+        .doc-print-date {
           font-size: 11px;
-          font-weight: 800;
-          padding: 4px 12px;
-          border-radius: 4px;
-          border: 1px solid rgba(255, 255, 255, 0.25);
-        }
-        .meta-sub {
-          font-size: 10.5px;
-          color: #CBD5E1;
           font-weight: 700;
+          color: #64748B;
+        }
+        .brand-logo-box {
+          text-align: left;
+        }
+        .brand-company {
+          font-size: 26px;
+          font-weight: 900;
+          color: #0F172A;
+          letter-spacing: 1px;
+          line-height: 1;
+        }
+        .brand-tagline {
+          font-size: 10px;
+          font-weight: 800;
+          color: #64748B;
+          letter-spacing: 0.5px;
+          margin-top: 3px;
+        }
+        .brand-meta {
+          font-size: 10px;
+          font-weight: 700;
+          color: #475569;
+          margin-top: 3px;
+        }
+
+        /* Divider Line */
+        .header-divider {
+          border-bottom: 2.5px solid #0F172A;
+          margin: 10px 0 14px 0;
+        }
+
+        /* Black Date Range Bar */
+        .date-range-bar {
+          background: #0F172A;
+          color: #FFFFFF;
+          text-align: center;
+          padding: 7px 12px;
+          border-radius: 4px;
+          font-weight: 800;
+          font-size: 13px;
+          margin-bottom: 16px;
+          letter-spacing: 0.3px;
         }
 
         /* Table */
         .table-container {
-          border: 1.5px solid #1E293B;
-          border-radius: 6px;
+          border: 1.5px solid #0F172A;
+          border-radius: 4px;
           overflow: hidden;
-          margin-bottom: 24px;
+          margin-bottom: 20px;
         }
         table {
           width: 100%;
           border-collapse: collapse;
         }
 
-        /* Footer Signatures */
-        .footer-grid {
-          margin-top: 35px;
-          display: grid;
-          grid-template-columns: 1fr 1fr 1fr;
-          gap: 20px;
-          padding-top: 16px;
-          border-top: 1.5px solid #94A3B8;
-        }
-        .signature-card {
-          border: 1px solid #CBD5E1;
-          background: #FAFCFF;
-          border-radius: 6px;
-          padding: 14px;
-          text-align: center;
-        }
-        .sig-title {
-          font-size: 11.5px;
-          font-weight: 800;
-          color: #1E293B;
-          margin-bottom: 28px;
-        }
-        .sig-line {
-          border-bottom: 1.5px solid #94A3B8;
-          width: 85%;
-          margin: 0 auto 6px auto;
-        }
-
-        .seal-box {
-          border: 2px double #1E293B;
-          border-radius: 50%;
-          width: 68px;
-          height: 68px;
-          margin: 0 auto;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 9.5px;
-          font-weight: 900;
-          color: #1E293B;
-          text-align: center;
-        }
-
         .system-footer {
-          margin-top: 24px;
+          margin-top: 30px;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -212,22 +183,26 @@ export function generateReportPDF({
       </style>
     </head>
     <body>
-      <!-- Header Banner -->
-      <div class="banner">
-        <div>
-          <div class="brand-name">
-            مطعم البرادعي للحواوشي
-          </div>
-          <div class="doc-title">${title}</div>
-          ${subtitle ? `<div style="font-size: 11px; color: #E2E8F0; margin-top: 4px;">${subtitle}</div>` : ''}
+      <!-- Top Header -->
+      <div class="top-header">
+        <div class="header-title-box">
+          <h1 class="doc-main-title">${title}</h1>
+          <div class="doc-print-date">تاريخ الطباعة: ${currentDateStr}</div>
         </div>
 
-        <div class="meta-box">
-          <div class="meta-pill">الفرع: ${branchName}</div>
-          <div class="meta-sub">الفترة الزمنية: ${dateRangeStr || 'اليوم'}</div>
-          <div class="meta-sub">تاريخ الإصدار: ${new Date().toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}</div>
-          <div class="meta-sub">الرقم المرجعي: ${reportRefId}</div>
+        <div class="brand-logo-box">
+          <div class="brand-company">EL-BARADAY</div>
+          <div class="brand-tagline">SALES & RESTAURANT POS SYSTEM</div>
+          <div class="brand-meta">الفرع: ${branchName} | مرجع: ${reportRefId}</div>
         </div>
+      </div>
+
+      <!-- Divider -->
+      <div class="header-divider"></div>
+
+      <!-- Black Date Range Bar -->
+      <div class="date-range-bar">
+        الفترة من ${dateRangeStr || 'اليوم'}
       </div>
 
       <!-- Summary KPI Cards -->
@@ -246,28 +221,7 @@ export function generateReportPDF({
         </table>
       </div>
 
-      <!-- Signatures Footer -->
-      <div class="footer-grid">
-        <div class="signature-card">
-          <div class="sig-title">إعداد المسؤول / الكاشير</div>
-          <div class="sig-line"></div>
-          <div style="font-size: 10px; color: #475569; font-weight: 700;">التوقيع والاسم</div>
-        </div>
-
-        <div class="signature-card">
-          <div class="sig-title">المراجعة والتدقيق المالي</div>
-          <div class="sig-line"></div>
-          <div style="font-size: 10px; color: #475569; font-weight: 700;">التوقيع والاعتماد</div>
-        </div>
-
-        <div class="signature-card" style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
-          <div class="seal-box">
-            ختم الفرع<br/>المعتمد
-          </div>
-        </div>
-      </div>
-
-      <!-- System Footer Line -->
+      <!-- Footer Line -->
       <div class="system-footer">
         <div>نظام إدارة المبيعات ونقاط البيع - مطعم البرادعي</div>
         <div>تقرير إداري رسمـي</div>
