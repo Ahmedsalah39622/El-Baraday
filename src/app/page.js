@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Box, Typography, Button, Drawer, Badge } from '@mui/material';
-import { ShoppingBagOutlined, AccountBalanceWallet } from '@mui/icons-material';
+import { ShoppingBagOutlined, AccountBalanceWallet, Store } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
 import CategoryTabs from '@/components/pos/CategoryTabs';
 import ProductGrid from '@/components/pos/ProductGrid';
@@ -15,6 +15,7 @@ import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useShiftStore } from '@/store/useShiftStore';
 import { useBranchStore } from '@/store/useBranchStore';
+import { useAuthStore } from '@/store/useAuthStore';
 
 export default function POSPage() {
   const { products, fetchProducts } = useProductStore();
@@ -22,6 +23,8 @@ export default function POSPage() {
   const { invoices } = useInvoiceStore();
   const { activeShift } = useShiftStore();
   const { selectedBranchId } = useBranchStore();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin' || !user;
 
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -146,6 +149,19 @@ export default function POSPage() {
   }, 0);
 
   const currentTillCash = isShiftActive ? (startCash + totalCashSales) : 0;
+
+  // Calculate Cash drawer totals for Branch 1 and Branch 2 for Admin View
+  const b1CashSales = (invoices || []).reduce((sum, inv) => {
+    const invBranch = inv.branchId || inv.branch_id || 'b1';
+    if (invBranch !== 'b1') return sum;
+    return sum + (parseFloat(inv.paidAmount || inv.total || 0));
+  }, 0);
+
+  const b2CashSales = (invoices || []).reduce((sum, inv) => {
+    const invBranch = inv.branchId || inv.branch_id || 'b1';
+    if (invBranch !== 'b2') return sum;
+    return sum + (parseFloat(inv.paidAmount || inv.total || 0));
+  }, 0);
 
   // Filter products by category & search, explicitly sorted by sortOrder
   const filteredProducts = (products || [])
@@ -278,43 +294,97 @@ export default function POSPage() {
             width: '100%',
           }}
         >
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1.5,
-              bgcolor: isShiftActive ? '#ECFDF5' : '#FEF2F2',
-              border: '1.5px solid',
-              borderColor: isShiftActive ? '#10B981' : '#EF4444',
-              px: 2.5,
-              py: 0.8,
-              borderRadius: '12px',
-              boxShadow: isShiftActive ? '0 2px 8px rgba(16, 185, 129, 0.15)' : 'none',
-            }}
-          >
+          {isAdmin ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+              {/* Branch 1 Till Cash */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  bgcolor: '#ECFDF5',
+                  border: '1.5px solid #10B981',
+                  px: 1.8,
+                  py: 0.6,
+                  borderRadius: '12px',
+                  boxShadow: '0 2px 6px rgba(16, 185, 129, 0.12)',
+                }}
+              >
+                <Store sx={{ color: '#10B981', fontSize: 20 }} />
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography variant="caption" sx={{ color: '#047857', fontWeight: 800, display: 'block', lineHeight: 1.1, fontSize: '0.72rem' }}>
+                    خزنة الفرع الأول
+                  </Typography>
+                  <Typography variant="subtitle2" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.95rem', lineHeight: 1.2 }}>
+                    {b1CashSales.toFixed(2)} ج.م
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* Branch 2 Till Cash */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  bgcolor: '#EFF6FF',
+                  border: '1.5px solid #3B82F6',
+                  px: 1.8,
+                  py: 0.6,
+                  borderRadius: '12px',
+                  boxShadow: '0 2px 6px rgba(59, 130, 246, 0.12)',
+                }}
+              >
+                <Store sx={{ color: '#3B82F6', fontSize: 20 }} />
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography variant="caption" sx={{ color: '#1E40AF', fontWeight: 800, display: 'block', lineHeight: 1.1, fontSize: '0.72rem' }}>
+                    خزنة الفرع الثاني
+                  </Typography>
+                  <Typography variant="subtitle2" sx={{ color: '#1D4ED8', fontWeight: 900, fontSize: '0.95rem', lineHeight: 1.2 }}>
+                    {b2CashSales.toFixed(2)} ج.م
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+          ) : (
             <Box
               sx={{
-                width: 34,
-                height: 34,
-                borderRadius: '8px',
-                bgcolor: isShiftActive ? '#10B981' : '#EF4444',
-                color: '#FFF',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
+                gap: 1.5,
+                bgcolor: isShiftActive ? '#ECFDF5' : '#FEF2F2',
+                border: '1.5px solid',
+                borderColor: isShiftActive ? '#10B981' : '#EF4444',
+                px: 2.5,
+                py: 0.8,
+                borderRadius: '12px',
+                boxShadow: isShiftActive ? '0 2px 8px rgba(16, 185, 129, 0.15)' : 'none',
               }}
             >
-              <AccountBalanceWallet sx={{ fontSize: 20 }} />
+              <Box
+                sx={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: '8px',
+                  bgcolor: isShiftActive ? '#10B981' : '#EF4444',
+                  color: '#FFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <AccountBalanceWallet sx={{ fontSize: 20 }} />
+              </Box>
+              <Box sx={{ textAlign: 'right' }}>
+                <Typography variant="caption" sx={{ color: isShiftActive ? '#047857' : '#991B1B', fontWeight: 800, display: 'block', lineHeight: 1.1 }}>
+                  {isShiftActive ? 'المبلغ في الخزنة حالياً' : 'حالة الوردية'}
+                </Typography>
+                <Typography variant="subtitle1" sx={{ color: isShiftActive ? '#065F46' : '#991B1B', fontWeight: 900, fontSize: '1.15rem', lineHeight: 1.2 }}>
+                  {isShiftActive ? `${currentTillCash.toFixed(2)} ج.م` : 'شيفت مغلق'}
+                </Typography>
+              </Box>
             </Box>
-            <Box sx={{ textAlign: 'right' }}>
-              <Typography variant="caption" sx={{ color: isShiftActive ? '#047857' : '#991B1B', fontWeight: 800, display: 'block', lineHeight: 1.1 }}>
-                {isShiftActive ? 'المبلغ في الخزنة حالياً' : 'حالة الوردية'}
-              </Typography>
-              <Typography variant="subtitle1" sx={{ color: isShiftActive ? '#065F46' : '#991B1B', fontWeight: 900, fontSize: '1.15rem', lineHeight: 1.2 }}>
-                {isShiftActive ? `${currentTillCash.toFixed(2)} ج.م` : 'شيفت مغلق'}
-              </Typography>
-            </Box>
-          </Box>
+          )}
         </Box>
       </Box>
 
