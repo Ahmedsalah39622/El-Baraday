@@ -4,11 +4,13 @@ import { useState, useEffect } from 'react';
 import { Box, Typography, Chip } from '@mui/material';
 import { AccessTime, Warning, CheckCircle } from '@mui/icons-material';
 
-export default function DeliveryTimerBadge({ dispatchedAt, targetMinutes = 30 }) {
+export default function DeliveryTimerBadge({ dispatchedAt, targetMinutes = 30, status, isDelivered }) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
+  const isCompleted = isDelivered || status === 'delivered' || status === 'مكتمل' || status === 'completed';
+
   useEffect(() => {
-    if (!dispatchedAt) return;
+    if (!dispatchedAt || isCompleted) return;
 
     const calculateElapsed = () => {
       const start = new Date(dispatchedAt).getTime();
@@ -20,15 +22,27 @@ export default function DeliveryTimerBadge({ dispatchedAt, targetMinutes = 30 })
     calculateElapsed();
     const interval = setInterval(calculateElapsed, 1000);
     return () => clearInterval(interval);
-  }, [dispatchedAt]);
+  }, [dispatchedAt, isCompleted]);
+
+  // If order is delivered/completed, stop timer and show green completed badge!
+  if (isCompleted) {
+    return (
+      <Chip
+        size="small"
+        icon={<CheckCircle sx={{ fontSize: 15, color: '#047857 !important' }} />}
+        label="✅ تم التسليم"
+        sx={{ bgcolor: '#ECFDF5', color: '#047857', border: '1.5px solid #10B981', fontWeight: 800 }}
+      />
+    );
+  }
 
   if (!dispatchedAt) {
     return (
       <Chip
         size="small"
         icon={<AccessTime sx={{ fontSize: 14 }} />}
-        label="في الانتظار"
-        sx={{ bgcolor: '#F3F4F6', color: '#6B7280', fontWeight: 700 }}
+        label="⏳ قيد التحضير"
+        sx={{ bgcolor: '#FFFBEB', color: '#B45309', border: '1px solid #F59E0B', fontWeight: 800 }}
       />
     );
   }

@@ -375,7 +375,7 @@ export default function DeliveryPage() {
                         </Box>
 
                         {/* Realtime Delivery Timer Badge */}
-                        <DeliveryTimerBadge dispatchedAt={order.dispatched_at} targetMinutes={deliveryTimerMinutes} />
+                        <DeliveryTimerBadge dispatchedAt={order.dispatched_at} targetMinutes={deliveryTimerMinutes} status={order.status} isDelivered={isDelivered} />
                       </Box>
 
                       <Divider sx={{ my: 0.5 }} />
