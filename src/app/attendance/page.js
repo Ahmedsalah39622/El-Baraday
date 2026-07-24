@@ -9,7 +9,7 @@ import {
 } from '@mui/material';
 import {
   HowToReg, DeliveryDining, AccessTime, CheckCircle, Warning,
-  PersonAdd, Logout, Refresh, SwapVert, BadgeOutlined
+  PersonAdd, Logout, Refresh, SwapVert, BadgeOutlined, Check, Clear
 } from '@mui/icons-material';
 import { useBranchStore } from '@/store/useBranchStore';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -27,7 +27,7 @@ export default function AttendancePage() {
 
   // Checkin Modal
   const [checkInOpen, setCheckInOpen] = useState(false);
-  const [selectedDriverId, setSelectedDriverId] = useState('');
+  const [selectedStaffId, setSelectedStaffId] = useState('');
   const [selectedBranchForCheckIn, setSelectedBranchForCheckIn] = useState('b1');
   const [submitting, setSubmitting] = useState(false);
 
@@ -67,24 +67,66 @@ export default function AttendancePage() {
     return () => clearInterval(interval);
   }, [selectedBranchId]);
 
+  // Combine Drivers and Employees into unified Staff Options list for Check-In Modal
+  const allStaffOptions = [];
+
+  // 1. Add registered drivers
+  allDrivers.forEach(d => {
+    const isCheckedIn = activeQueue.some(q => q.driver_id === d.id || q.driver_name === d.name);
+    allStaffOptions.push({
+      id: d.id,
+      name: d.name,
+      role: 'طيار دليفري',
+      isDriver: true,
+      driverId: d.id,
+      branchName: d.branch_name || 'الفرع الرئيسي',
+      isCheckedIn,
+      label: `🛵 ${d.name} (طيار دليفري - ${d.branch_name || 'الرئيسي'}) ${isCheckedIn ? '✔️ متواجد بالدور' : ''}`
+    });
+  });
+
+  // 2. Add other staff members (cashier, chef, manager, worker...)
+  employees.forEach(emp => {
+    if (!allStaffOptions.some(opt => opt.name === emp.name)) {
+      const isDriver = emp.role === 'طيار' || emp.role === 'driver' || emp.role?.includes('طيار');
+      const driverObj = isDriver ? allDrivers.find(d => d.name === emp.name) : null;
+      const isCheckedIn = isDriver
+        ? activeQueue.some(q => q.driver_name === emp.name)
+        : emp.status === 'active';
+
+      allStaffOptions.push({
+        id: emp.id,
+        name: emp.name,
+        role: emp.role || 'موظف',
+        isDriver: isDriver,
+        driverId: driverObj ? driverObj.id : emp.id,
+        branchName: emp.branch_name || 'الفرع الرئيسي',
+        isCheckedIn,
+        label: `👤 ${emp.name} (${emp.role || 'موظف'} - ${emp.branch_name || 'الرئيسي'}) ${isCheckedIn ? '✔️ حاضر بالسيستم' : ''}`
+      });
+    }
+  });
+
   const handleCheckIn = async () => {
-    if (!selectedDriverId) return;
+    if (!selectedStaffId) return;
     setSubmitting(true);
     try {
-      const driverObj = allDrivers.find(d => d.id === selectedDriverId);
+      const staffObj = allStaffOptions.find(s => s.id === selectedStaffId);
       const res = await fetch('/api/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'check_in',
-          driver_id: selectedDriverId,
-          driver_name: driverObj?.name || 'طيار',
+          staff_id: staffObj?.id,
+          driver_id: staffObj?.driverId || staffObj?.id,
+          driver_name: staffObj?.name || 'موظف',
+          is_driver: staffObj?.isDriver,
           branch_id: selectedBranchForCheckIn
         })
       });
       if (res.ok) {
         setCheckInOpen(false);
-        setSelectedDriverId('');
+        setSelectedStaffId('');
         fetchAttendance();
       }
     } catch (err) {
@@ -94,7 +136,7 @@ export default function AttendancePage() {
     }
   };
 
-  const handleCheckOut = async (attendanceId, driverId) => {
+  const handleCheckOut = async (attendanceId, driverId, staffName) => {
     try {
       const res = await fetch('/api/attendance', {
         method: 'POST',
@@ -102,7 +144,8 @@ export default function AttendancePage() {
         body: JSON.stringify({
           action: 'check_out',
           attendance_id: attendanceId,
-          driver_id: driverId
+          driver_id: driverId,
+          driver_name: staffName
         })
       });
       if (res.ok) {
@@ -110,6 +153,30 @@ export default function AttendancePage() {
       }
     } catch (err) {
       console.error('Checkout error:', err);
+    }
+  };
+
+  const handleEmployeeToggleAttendance = async (emp) => {
+    try {
+      const action = emp.status === 'active' ? 'check_out' : 'check_in';
+      const isDriver = emp.role === 'طيار' || emp.role === 'driver' || emp.role?.includes('طيار');
+      const driverObj = isDriver ? allDrivers.find(d => d.name === emp.name) : null;
+
+      await fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          staff_id: emp.id,
+          driver_id: driverObj ? driverObj.id : emp.id,
+          driver_name: emp.name,
+          is_driver: isDriver,
+          branch_id: selectedBranchId !== 'all' ? selectedBranchId : 'b1'
+        })
+      });
+      fetchAttendance();
+    } catch (err) {
+      console.error('Error toggling employee attendance:', err);
     }
   };
 
@@ -129,7 +196,7 @@ export default function AttendancePage() {
               تمامات الموظفين وطابور دور الطيارين
             </Typography>
             <Typography variant="caption" sx={{ color: '#6B7280' }}>
-              متابعة حضور وانصراف الطيارين، ترتيب الدور بالدقيقة، وتايمر خروج الدليفري اللحظي
+              متابعة حضور وانصراف كافة الموظفين والطيارين، ترتيب الدور بالدقيقة، وتايمر خروج الدليفري اللحظي
             </Typography>
           </Box>
         </Box>
@@ -149,7 +216,7 @@ export default function AttendancePage() {
             onClick={() => setCheckInOpen(true)}
             sx={{ bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' }, borderRadius: '12px', fontWeight: 800, px: 2.5 }}
           >
-            تسجيل تمام طيار جديد (حضور)
+            تسجيل تمام موظف / طيار جديد (حضور)
           </Button>
         </Box>
       </Box>
@@ -162,7 +229,7 @@ export default function AttendancePage() {
               <HowToReg />
             </Box>
             <Box>
-              <Typography variant="caption" color="text.secondary" fontWeight={700}>المتواجدون بالتمام</Typography>
+              <Typography variant="caption" color="text.secondary" fontWeight={700}>الطيارين المتواجدين بالتمام</Typography>
               <Typography variant="h6" fontWeight={900}>{activeQueue.length} طيار</Typography>
             </Box>
           </Paper>
@@ -198,8 +265,8 @@ export default function AttendancePage() {
               <AccessTime />
             </Box>
             <Box>
-              <Typography variant="caption" color="text.secondary" fontWeight={700}>وقت التوصيل المحدد</Typography>
-              <Typography variant="h6" fontWeight={900}>{deliveryTimerMinutes} دقيقة</Typography>
+              <Typography variant="caption" color="text.secondary" fontWeight={700}>الموظفين الحاضرين بالسيستم</Typography>
+              <Typography variant="h6" fontWeight={900}>{employees.filter(e => e.status === 'active').length} / {employees.length}</Typography>
             </Box>
           </Paper>
         </Grid>
@@ -221,7 +288,7 @@ export default function AttendancePage() {
           <Box sx={{ py: 4, textAlign: 'center' }}><CircularProgress size={32} /></Box>
         ) : activeQueue.length === 0 ? (
           <Alert severity="info" sx={{ borderRadius: '12px', fontWeight: 700 }}>
-            لا يوجد طيارين مسجلين بالسيستم حالياً. اضغط على زر "تسجيل تمام طيار جديد (حضور)" لبدء طابور التوصيل.
+            لا يوجد طيارين مسجلين بالسيستم حالياً. اضغط على زر "تسجيل تمام موظف / طيار جديد (حضور)" لبدء طابور التوصيل.
           </Alert>
         ) : (
           <Grid container spacing={2}>
@@ -324,7 +391,7 @@ export default function AttendancePage() {
                             size="small"
                             color="error"
                             startIcon={<Logout />}
-                            onClick={() => handleCheckOut(item.id, item.driver_id)}
+                            onClick={() => handleCheckOut(item.id, item.driver_id, item.driver_name)}
                             sx={{ fontWeight: 700 }}
                           >
                             تسجيل انصراف
@@ -343,7 +410,7 @@ export default function AttendancePage() {
       {/* Employee General Attendance Table */}
       <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1px solid #E5E7EB' }}>
         <Typography variant="h6" fontWeight={800} sx={{ mb: 2, color: '#1A1A2E' }}>
-          👥 تمام وسجل حضور الموظفين العام
+          👥 تمام وسجل حضور كافة الموظفين العام
         </Typography>
         <TableContainer>
           <Table size="small">
@@ -354,6 +421,7 @@ export default function AttendancePage() {
                 <TableCell sx={{ fontWeight: 800 }}>الفرع</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>التليفون</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>الحالة بالسيستم</TableCell>
+                <TableCell sx={{ fontWeight: 800 }} align="center">إجراء السريع للسرعة</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -365,7 +433,7 @@ export default function AttendancePage() {
                   <TableCell>{emp.phone || '-'}</TableCell>
                   <TableCell>
                     <Chip
-                      label={emp.status === 'active' ? 'حاضر / نشط' : 'غائب'}
+                      label={emp.status === 'active' ? 'حاضر / نشط' : 'غائب / منصرف'}
                       size="small"
                       sx={{
                         bgcolor: emp.status === 'active' ? '#D1FAE5' : '#FEF2F2',
@@ -374,11 +442,23 @@ export default function AttendancePage() {
                       }}
                     />
                   </TableCell>
+                  <TableCell align="center">
+                    <Button
+                      size="small"
+                      variant={emp.status === 'active' ? 'outlined' : 'contained'}
+                      color={emp.status === 'active' ? 'error' : 'success'}
+                      startIcon={emp.status === 'active' ? <Clear /> : <Check />}
+                      onClick={() => handleEmployeeToggleAttendance(emp)}
+                      sx={{ borderRadius: '10px', fontWeight: 800 }}
+                    >
+                      {emp.status === 'active' ? 'انصراف' : 'إثبات تمام (حضور)'}
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
               {employees.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} align="center">لا يوجد موظفين مسجلين</TableCell>
+                  <TableCell colSpan={6} align="center">لا يوجد موظفين مسجلين</TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -386,24 +466,24 @@ export default function AttendancePage() {
         </TableContainer>
       </Paper>
 
-      {/* Driver Check-in Dialog */}
+      {/* Staff Check-in Dialog (Covers ALL employees & drivers) */}
       <Dialog open={checkInOpen} onClose={() => setCheckInOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800 }}>تسجيل تمام طيار بالدور (حضور)</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 800 }}>إثبات تمام حضور الموظفين والطيارين</DialogTitle>
         <DialogContent sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Typography variant="body2" color="text.secondary">
-            اختر طيار الدليفري والفرع لإثبات حضوره والدخول في طابور الدور بالترتيب.
+            اختر الموظف أو طيار الدليفري لإثبات الحضور بالسيستم أو الإدراج بطابور دور التوصيل.
           </Typography>
 
           <FormControl fullWidth size="small" sx={{ mt: 1 }}>
-            <InputLabel>اختر الطيار</InputLabel>
+            <InputLabel>اختر الموظف / الطيار</InputLabel>
             <Select
-              value={selectedDriverId}
-              label="اختر الطيار"
-              onChange={(e) => setSelectedDriverId(e.target.value)}
+              value={selectedStaffId}
+              label="اختر الموظف / الطيار"
+              onChange={(e) => setSelectedStaffId(e.target.value)}
             >
-              {allDrivers.map((d) => (
-                <MenuItem key={d.id} value={d.id}>
-                  {d.name} ({d.branch_name || 'الفرع الرئيسي'}) {d.active_attendance_id ? '✔️ متواجد بالدور' : ''}
+              {allStaffOptions.map((s) => (
+                <MenuItem key={s.id} value={s.id}>
+                  {s.label}
                 </MenuItem>
               ))}
             </Select>
@@ -427,11 +507,11 @@ export default function AttendancePage() {
           <Button onClick={() => setCheckInOpen(false)}>إلغاء</Button>
           <Button
             variant="contained"
-            disabled={!selectedDriverId || submitting}
+            disabled={!selectedStaffId || submitting}
             onClick={handleCheckIn}
             sx={{ bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' }, fontWeight: 800 }}
           >
-            {submitting ? 'جاري التسجيل...' : 'إثبات التمام والادراج بالدور'}
+            {submitting ? 'جاري التسجيل...' : 'إثبات التمام (حضور)'}
           </Button>
         </DialogActions>
       </Dialog>
