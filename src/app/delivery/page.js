@@ -11,7 +11,7 @@ import {
 import {
   DeliveryDining, AccessTime, LocationOn, Person, Phone, Home, Print, CheckCircle,
   Warning, Add as AddIcon, Search as SearchIcon, Edit as EditIcon, Delete as DeleteIcon,
-  Refresh, HowToReg, Store, CheckCircleOutlined
+  Refresh, HowToReg, Store, CheckCircleOutlined, DirectionsRun
 } from '@mui/icons-material';
 import { useCustomerStore } from '@/store/useCustomerStore';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
@@ -31,7 +31,7 @@ function TabPanel(props) {
 
 export default function DeliveryPage() {
   const [tabValue, setTabValue] = useState(0);
-  const { customers, fetchCustomers, saveOrUpdateCustomer, updateCustomerAddresses, deleteCustomer, areas, fetchAreas, addArea, deleteArea, drivers, fetchDrivers, activeQueue } = useCustomerStore();
+  const { customers, fetchCustomers, saveOrUpdateCustomer, updateCustomerAddresses, deleteCustomer, areas, fetchAreas, addArea, deleteArea, drivers, fetchDrivers, activeQueue, fetchAttendanceQueue } = useCustomerStore();
   const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin';
@@ -83,8 +83,12 @@ export default function DeliveryPage() {
     fetchCustomers();
     fetchAreas();
     fetchDrivers();
+    fetchAttendanceQueue(selectedBranchId);
 
-    const interval = setInterval(fetchDeliveryData, 10000);
+    const interval = setInterval(() => {
+      fetchDeliveryData();
+      fetchAttendanceQueue(selectedBranchId);
+    }, 8000);
     return () => clearInterval(interval);
   }, [selectedBranchId]);
 
@@ -158,13 +162,32 @@ export default function DeliveryPage() {
       setDispatchDialog(false);
       setSelectedOrderForDispatch(null);
       fetchDeliveryData();
-      fetchDrivers();
+      fetchAttendanceQueue(selectedBranchId);
     } catch (e) {
       console.error('❌ Failed to dispatch order:', e);
     }
   };
 
-  // Action: Mark Order Delivered
+  // Action Phase 2: Mark Order Delivered to Customer (Starts return trip timer!)
+  const handleMarkCustomerDelivered = async (order) => {
+    try {
+      await fetch(`/api/orders/${order.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'customer_delivered',
+          delivered_to_customer_at: new Date().toISOString(),
+          driver_name: order.driver_name || order.driverName
+        })
+      });
+      fetchDeliveryData();
+      fetchAttendanceQueue(selectedBranchId);
+    } catch (e) {
+      console.error('❌ Failed to mark customer delivered:', e);
+    }
+  };
+
+  // Action Phase 3: Mark Order Fully Completed (Driver arrived back at restaurant)
   const handleMarkDelivered = async (order) => {
     try {
       await fetch(`/api/orders/${order.id}`, {
@@ -176,7 +199,7 @@ export default function DeliveryPage() {
         })
       });
       fetchDeliveryData();
-      fetchDrivers();
+      fetchAttendanceQueue(selectedBranchId);
     } catch (e) {
       console.error('❌ Failed to mark delivered:', e);
     }
@@ -206,12 +229,14 @@ export default function DeliveryPage() {
 
   // Filtered Live Delivery Orders
   const filteredOrders = (deliveryOrders || []).filter(o => {
-    const isPrep = !o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل' && o.status !== 'completed';
-    const isDisp = !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل' && o.status !== 'completed';
+    const isPrep = !o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل' && o.status !== 'completed' && o.status !== 'customer_delivered';
+    const isDisp = !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل' && o.status !== 'completed' && o.status !== 'customer_delivered';
+    const isCustDeliv = o.status === 'customer_delivered';
     const isDeliv = o.status === 'delivered' || o.status === 'مكتمل' || o.status === 'completed';
 
     if (orderStatusFilter === 'preparing' && !isPrep) return false;
     if (orderStatusFilter === 'dispatched' && !isDisp) return false;
+    if (orderStatusFilter === 'customer_delivered' && !isCustDeliv) return false;
     if (orderStatusFilter === 'delivered' && !isDeliv) return false;
 
     if (!searchTerm) return true;
@@ -225,8 +250,9 @@ export default function DeliveryPage() {
   });
 
   // Stats Counters
-  const preparingCount = deliveryOrders.filter(o => !o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل' && o.status !== 'completed').length;
-  const dispatchedCount = deliveryOrders.filter(o => !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل' && o.status !== 'completed').length;
+  const preparingCount = deliveryOrders.filter(o => !o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل' && o.status !== 'completed' && o.status !== 'customer_delivered').length;
+  const dispatchedCount = deliveryOrders.filter(o => !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل' && o.status !== 'completed' && o.status !== 'customer_delivered').length;
+  const customerDeliveredCount = deliveryOrders.filter(o => o.status === 'customer_delivered').length;
   const deliveredCount = deliveryOrders.filter(o => o.status === 'delivered' || o.status === 'مكتمل' || o.status === 'completed').length;
 
   return (
@@ -301,25 +327,25 @@ export default function DeliveryPage() {
         </Grid>
 
         <Grid xs={6} sm={3}>
-          <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #10B981', bgcolor: '#ECFDF5', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#10B981', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <CheckCircle sx={{ fontSize: 24 }} />
+          <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #A855F7', bgcolor: '#F3E8FF', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#A855F7', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Home sx={{ fontSize: 24 }} />
             </Box>
             <Box>
-              <Typography variant="caption" color="#065F46" fontWeight={700}>تم الوصول والتسليم</Typography>
-              <Typography variant="h6" fontWeight={900} color="#047857">{deliveredCount} طلب</Typography>
+              <Typography variant="caption" color="#6B21A8" fontWeight={700}>تم تسليم العميل (في الرجوع)</Typography>
+              <Typography variant="h6" fontWeight={900} color="#7E22CE">{customerDeliveredCount} طلب</Typography>
             </Box>
           </Paper>
         </Grid>
 
         <Grid xs={6} sm={3}>
-          <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#F0FDF4', color: '#166534', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <HowToReg sx={{ fontSize: 24 }} />
+          <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #10B981', bgcolor: '#ECFDF5', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#10B981', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CheckCircle sx={{ fontSize: 24 }} />
             </Box>
             <Box>
-              <Typography variant="caption" color="text.secondary" fontWeight={700}>طابور الطيارين الجاهزين</Typography>
-              <Typography variant="h6" fontWeight={900} color="#15803D">{activeQueue.length} طيار بالشيفت</Typography>
+              <Typography variant="caption" color="#065F46" fontWeight={700}>تم عودة الطيار واكتمال الأوردر</Typography>
+              <Typography variant="h6" fontWeight={900} color="#047857">{deliveredCount} طلب</Typography>
             </Box>
           </Paper>
         </Grid>
@@ -342,9 +368,10 @@ export default function DeliveryPage() {
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             {[
               { id: 'all', label: `الكل (${deliveryOrders.length})` },
-              { id: 'preparing', label: `⏳ قيد التجهيز بالمطبخ (${preparingCount})` },
+              { id: 'preparing', label: `⏳ قيد التجهيز (${preparingCount})` },
               { id: 'dispatched', label: `🚀 خارج للتوصيل (${dispatchedCount})` },
-              { id: 'delivered', label: `✅ تم التسليم (${deliveredCount})` },
+              { id: 'customer_delivered', label: `🏠 تم تسليم العميل (${customerDeliveredCount})` },
+              { id: 'delivered', label: `✅ تم عودة الطيار (${deliveredCount})` },
             ].map(filter => (
               <Chip
                 key={filter.id}
@@ -381,7 +408,8 @@ export default function DeliveryPage() {
         ) : (
           <Grid container spacing={2.5}>
             {filteredOrders.map(order => {
-              const isDispatched = !!order.dispatched_at;
+              const isDispatched = !!order.dispatched_at && order.status !== 'customer_delivered';
+              const isCustomerDelivered = order.status === 'customer_delivered';
               const isDelivered = order.status === 'delivered' || order.status === 'مكتمل' || order.status === 'completed';
               const branchName = order.branch_name || 'الفرع الرئيسي';
 
@@ -392,9 +420,9 @@ export default function DeliveryPage() {
                     sx={{
                       borderRadius: '20px',
                       border: '2px solid',
-                      borderColor: isDelivered ? '#10B981' : (isDispatched ? '#3B82F6' : '#F59E0B'),
-                      bgcolor: isDelivered ? '#F0FDF4' : (isDispatched ? '#EFF6FF' : '#FFFFFF'),
-                      boxShadow: isDispatched ? '0 4px 16px rgba(59, 130, 246, 0.15)' : '0 2px 8px rgba(0,0,0,0.04)',
+                      borderColor: isDelivered ? '#10B981' : (isCustomerDelivered ? '#A855F7' : (isDispatched ? '#3B82F6' : '#F59E0B')),
+                      bgcolor: isDelivered ? '#F0FDF4' : (isCustomerDelivered ? '#FAF5FF' : (isDispatched ? '#EFF6FF' : '#FFFFFF')),
+                      boxShadow: isDispatched || isCustomerDelivered ? '0 4px 16px rgba(0,0,0,0.08)' : '0 2px 8px rgba(0,0,0,0.04)',
                       transition: 'all 0.2s ease-in-out',
                       '&:hover': { transform: 'translateY(-2px)' }
                     }}
@@ -416,7 +444,13 @@ export default function DeliveryPage() {
                         </Box>
 
                         {/* Realtime Delivery Timer Badge */}
-                        <DeliveryTimerBadge dispatchedAt={order.dispatched_at} targetMinutes={deliveryTimerMinutes} status={order.status} isDelivered={isDelivered} />
+                        <DeliveryTimerBadge
+                          dispatchedAt={order.dispatched_at}
+                          deliveredToCustomerAt={order.delivered_to_customer_at}
+                          targetMinutes={deliveryTimerMinutes}
+                          status={order.status}
+                          isDelivered={isDelivered}
+                        />
                       </Box>
 
                       <Divider sx={{ my: 0.5 }} />
@@ -446,10 +480,10 @@ export default function DeliveryPage() {
                       </Box>
 
                       {/* Driver Status Banner */}
-                      <Paper sx={{ p: 1.2, borderRadius: '12px', bgcolor: isDispatched ? '#DBEAFE' : '#FFFBEB', border: '1px solid', borderColor: isDispatched ? '#BFDBFE' : '#FDE68A', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Paper sx={{ p: 1.2, borderRadius: '12px', bgcolor: isCustomerDelivered ? '#F3E8FF' : (isDispatched ? '#DBEAFE' : '#FFFBEB'), border: '1px solid', borderColor: isCustomerDelivered ? '#E9D5FF' : (isDispatched ? '#BFDBFE' : '#FDE68A'), display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <DeliveryDining sx={{ color: isDispatched ? '#1D4ED8' : '#D97706' }} />
-                          <Typography variant="caption" fontWeight={800} color={isDispatched ? '#1E40AF' : '#92400E'}>
+                          <DeliveryDining sx={{ color: isCustomerDelivered ? '#9333EA' : (isDispatched ? '#1D4ED8' : '#D97706') }} />
+                          <Typography variant="caption" fontWeight={800} color={isCustomerDelivered ? '#6B21A8' : (isDispatched ? '#1E40AF' : '#92400E')}>
                             الطيار: {order.driver_name || order.driverName || 'لم يحدد طيار بعد'}
                           </Typography>
                         </Box>
@@ -461,36 +495,59 @@ export default function DeliveryPage() {
                       {/* Action Buttons Footer */}
                       <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
                         {!isDelivered ? (
-                          <>
+                          isCustomerDelivered ? (
+                            /* Phase 3 Button: Driver returned to restaurant */
+                            <Button
+                              fullWidth
+                              size="small"
+                              variant="contained"
+                              color="success"
+                              startIcon={<CheckCircle />}
+                              onClick={() => handleMarkDelivered(order)}
+                              sx={{ borderRadius: '10px', fontWeight: 800, py: 1, bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' } }}
+                            >
+                              ✅ تأكيد عودة الطيار للمحل
+                            </Button>
+                          ) : isDispatched ? (
+                            /* Phase 2 Buttons: Out on delivery -> Mark customer received or change driver */
+                            <>
+                              <Button
+                                fullWidth
+                                size="small"
+                                variant="contained"
+                                startIcon={<Home />}
+                                onClick={() => handleMarkCustomerDelivered(order)}
+                                sx={{ borderRadius: '10px', fontWeight: 800, bgcolor: '#8B5CF6', '&:hover': { bgcolor: '#7C3AED' } }}
+                              >
+                                🏠 تم التسليم للعميل
+                              </Button>
+
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={() => handleOpenDispatch(order)}
+                                sx={{ borderRadius: '10px', fontWeight: 800, minWidth: '95px' }}
+                              >
+                                تغيير الطيار
+                              </Button>
+                            </>
+                          ) : (
+                            /* Phase 1 Button: Dispatch order with driver */
                             <Button
                               fullWidth
                               size="small"
                               variant="contained"
                               startIcon={<DeliveryDining />}
                               onClick={() => handleOpenDispatch(order)}
-                              sx={{ borderRadius: '10px', fontWeight: 800, bgcolor: isDispatched ? '#3B82F6' : '#E06B1F', '&:hover': { bgcolor: isDispatched ? '#2563EB' : '#C85A17' } }}
+                              sx={{ borderRadius: '10px', fontWeight: 800, bgcolor: '#E06B1F', '&:hover': { bgcolor: '#C85A17' } }}
                             >
-                              {isDispatched ? 'تغيير الطيار' : 'خروج للتوصيل'}
+                              🚀 خروج للتوصيل
                             </Button>
-
-                            {isDispatched && (
-                              <Button
-                                fullWidth
-                                size="small"
-                                variant="contained"
-                                color="success"
-                                startIcon={<CheckCircle />}
-                                onClick={() => handleMarkDelivered(order)}
-                                sx={{ borderRadius: '10px', fontWeight: 800 }}
-                              >
-                                تأكيد التسليم
-                              </Button>
-                            )}
-                          </>
+                          )
                         ) : (
                           <Chip
                             icon={<CheckCircleOutlined sx={{ fontSize: '16px !important', color: '#047857 !important' }} />}
-                            label="تم الوصول والتسليم بنجاح"
+                            label="تم الوصول والعودة بنجاح"
                             variant="filled"
                             sx={{ width: '100%', py: 1.8, bgcolor: '#ECFDF5', color: '#047857', border: '1.5px solid #10B981', fontWeight: 800 }}
                           />
