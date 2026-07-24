@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useCustomerStore } from '@/store/useCustomerStore';
 
 export const useInvoiceStore = create((set, get) => ({
   invoices: [],
@@ -86,7 +87,7 @@ export const useInvoiceStore = create((set, get) => ({
           customer_phone: invoice.customerPhone,
           customer_area: invoice.customerArea,
           customer_address: invoice.customerAddress,
-          driver_name: invoice.driverName,
+          driver_name: invoice.driverName || invoice.driver_name || null,
           driver_id: invoice.driverId,
           subtotal: invoice.subtotal,
           delivery_fee: invoice.deliveryFee || 0,
@@ -125,6 +126,11 @@ export const useInvoiceStore = create((set, get) => ({
           ),
         }));
         get().fetchNextOrderNumber(targetBranch);
+
+        // Immediate sync of driver attendance queue
+        if (invoice.orderType === 'delivery' || invoice.driverName || invoice.driver_name) {
+          useCustomerStore.getState().fetchAttendanceQueue(targetBranch);
+        }
       }
     } catch (err) {
       console.warn('⚠️ Order saved locally only:', err.message);

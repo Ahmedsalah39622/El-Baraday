@@ -85,6 +85,21 @@ export const useCustomerStore = create(
         }
       },
 
+      // Fetch driver attendance queue in realtime from DB
+      fetchAttendanceQueue: async (branchId = 'b1') => {
+        try {
+          const url = branchId && branchId !== 'all' ? `/api/attendance?branch_id=${branchId}` : '/api/attendance';
+          const res = await fetch(url);
+          if (res.ok) {
+            const data = await res.json();
+            set({
+              activeQueue: data.activeQueue || [],
+              drivers: data.allDrivers || get().drivers
+            });
+          }
+        } catch (err) {}
+      },
+
       // Search customer by phone substring
       searchCustomersByPhone: (query) => {
         if (!query) return [];

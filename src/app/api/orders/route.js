@@ -70,9 +70,9 @@ export async function POST(request) {
 
     const targetBranch = branch_id || 'b1';
 
-    // Default status: delivery orders start as 'pending' or 'out_for_delivery', others 'completed'
+    // Default status: delivery orders start as 'out_for_delivery', others 'completed'
     const initialStatus = status || (order_type === 'delivery' ? 'out_for_delivery' : 'completed');
-    const isDispatched = initialStatus === 'out_for_delivery' || initialStatus === 'on_way';
+    const isDispatched = initialStatus === 'out_for_delivery' || initialStatus === 'on_way' || initialStatus === 'dispatched';
 
     // Get next sequential order number ISOLATED FOR THIS SPECIFIC BRANCH
     const nextRes = await query(
@@ -119,11 +119,16 @@ export async function POST(request) {
       }
     }
 
-    // If driver assigned, update driver attendance queue status
+    // If driver assigned by name or ID, update driver attendance queue status
     if (driver_name || driver_id) {
+      const cleanName = (driver_name || '').trim();
+      const cleanId = (driver_id || '').trim();
       await query(
-        `UPDATE driver_attendance SET status = 'on_delivery', current_order_id = $1 WHERE (driver_name = $2 OR driver_id = $3) AND check_out_time IS NULL`,
-        [order.id, driver_name || '', driver_id || '']
+        `UPDATE driver_attendance
+         SET status = 'on_delivery', current_order_id = $1
+         WHERE (TRIM(driver_name) = $2 OR driver_name ILIKE $2 OR (driver_id = $3 AND $3 != ''))
+         AND check_out_time IS NULL`,
+        [order.id, cleanName, cleanId]
       );
     }
 
@@ -146,7 +151,7 @@ export async function PUT(request) {
     let sql = 'UPDATE orders SET status = $1';
     const params = [status, id];
 
-    if (status === 'out_for_delivery' || status === 'on_way') {
+    if (status === 'out_for_delivery' || status === 'on_way' || status === 'dispatched') {
       sql += ', dispatched_at = CURRENT_TIMESTAMP';
     }
     if (driver_id) {
@@ -163,16 +168,25 @@ export async function PUT(request) {
     const res = await query(sql, params);
 
     // If driver status changed
-    if (driver_id) {
-      if (status === 'out_for_delivery' || status === 'on_way') {
+    if (driver_name || driver_id) {
+      const cleanName = (driver_name || '').trim();
+      const cleanId = (driver_id || '').trim();
+
+      if (status === 'out_for_delivery' || status === 'on_way' || status === 'dispatched') {
         await query(
-          `UPDATE driver_attendance SET status = 'on_delivery', current_order_id = $1 WHERE driver_id = $2 AND check_out_time IS NULL`,
-          [id, driver_id]
+          `UPDATE driver_attendance
+           SET status = 'on_delivery', current_order_id = $1
+           WHERE (TRIM(driver_name) = $2 OR driver_name ILIKE $2 OR (driver_id = $3 AND $3 != ''))
+           AND check_out_time IS NULL`,
+          [id, cleanName, cleanId]
         );
       } else if (status === 'completed' || status === 'delivered') {
         await query(
-          `UPDATE driver_attendance SET status = 'ready', current_order_id = NULL WHERE driver_id = $1 AND check_out_time IS NULL`,
-          [driver_id]
+          `UPDATE driver_attendance
+           SET status = 'ready', current_order_id = NULL, check_in_time = CURRENT_TIMESTAMP
+           WHERE (TRIM(driver_name) = $1 OR driver_name ILIKE $1 OR (driver_id = $2 AND $2 != ''))
+           AND check_out_time IS NULL`,
+          [cleanName, cleanId]
         );
       }
     }
