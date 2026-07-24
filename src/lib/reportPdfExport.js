@@ -30,15 +30,23 @@ export function generateReportPDF({
     return `<tr style="background-color: ${idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC'};">${cells}</tr>`;
   }).join('');
 
-  // Table Totals Footer Row (if available)
+  // Table Totals Footer Row (Solid Black Row - Matching ITTSOFT Reference Image Exactly)
   let totalsRowHtml = '';
   if (totals && typeof totals === 'object') {
     const totalCells = columns.map((c, colIdx) => {
-      if (colIdx === 0) return `<td style="padding: 10px 10px; border: 1.5px solid #0F172A; background: #F1F5F9; font-weight: 900; font-size: 12px; color: #0F172A; text-align: center;">المجموع الكلي</td>`;
-      const val = totals[c.key || c.accessor];
-      return `<td style="padding: 10px 10px; border: 1.5px solid #0F172A; background: #F1F5F9; font-weight: 900; font-size: 12px; color: #0F172A; text-align: center;">${val !== undefined ? val : '-'}</td>`;
+      const key = c.key || (typeof c.accessor === 'string' ? c.accessor : null);
+      let val = key ? totals[key] : (totals[colIdx] !== undefined ? totals[colIdx] : undefined);
+      
+      // Auto-assign "الإجمالي" label to second column (or column 1 in RTL)
+      if (val === undefined && (colIdx === 1 || colIdx === columns.length - 2)) {
+        val = 'الإجمالي';
+      }
+      
+      const cleanVal = val !== undefined ? String(val).replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '').trim() : '';
+
+      return `<td style="padding: 10px 8px; border: 1px solid #1E293B; background-color: #000000; font-weight: 900; font-size: 13px; color: #FFFFFF; text-align: center;">${cleanVal}</td>`;
     }).join('');
-    totalsRowHtml = `<tfoot><tr style="border-top: 2px solid #0F172A;">${totalCells}</tr></tfoot>`;
+    totalsRowHtml = `<tfoot><tr style="background-color: #000000; color: #FFFFFF;">${totalCells}</tr></tfoot>`;
   }
 
   // Summary KPI Cards Grid

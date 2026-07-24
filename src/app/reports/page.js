@@ -168,15 +168,22 @@ export default function ReportsPage() {
     let reportData = [];
     let reportStats = [];
 
+    let totals = null;
+
     if (activeTab === 'overview') {
       reportTitle = 'تقرير الإيرادات والمبيعات والأصناف الأكثر مبيعاً';
       columns = [
         { label: '#', accessor: (r, idx) => idx + 1 },
         { label: 'الصنف', accessor: 'name' },
-        { label: 'الكمية المباعة', accessor: 'totalQty' },
-        { label: 'إجمالي الإيراد (ج.م)', accessor: (r) => r.totalRevenue.toFixed(2) },
+        { label: 'الكمية المباعة', key: 'totalQty', accessor: 'totalQty' },
+        { label: 'إجمالي الإيراد (ج.م)', key: 'totalRevenue', accessor: (r) => r.totalRevenue.toFixed(2) },
       ];
       reportData = topProducts;
+      totals = {
+        name: 'الإجمالي',
+        totalQty: `${topProducts.reduce((s, p) => s + p.totalQty, 0)} قطعة`,
+        totalRevenue: `${totalSales.toFixed(2)} ج.م`,
+      };
       reportStats = [
         { title: 'إجمالي الإيرادات', value: `${totalSales.toFixed(2)} ج.م` },
         { title: 'عدد الفواتير', value: `${totalOrdersCount}` },
@@ -185,83 +192,127 @@ export default function ReportsPage() {
     } else if (activeTab === 'daily_attendance') {
       reportTitle = 'تقرير التمام اليومي وحضور الموظفين';
       columns = [
-        { label: 'الموظف / الطيار', accessor: (r) => r.driver_name || r.name || 'موظف' },
+        { label: '#', accessor: (r, idx) => idx + 1 },
+        { label: 'الموظف / الطيار', key: 'name', accessor: (r) => r.driver_name || r.name || 'موظف' },
         { label: 'الفرع', accessor: (r) => r.branch_name || activeBranchName },
         { label: 'وقت الحضور', accessor: (r) => r.check_in_time ? new Date(r.check_in_time).toLocaleTimeString('ar-EG') : 'حاضر' },
         { label: 'وقت الانصراف', accessor: (r) => r.check_out_time ? new Date(r.check_out_time).toLocaleTimeString('ar-EG') : 'في الشيفت' },
-        { label: 'الحالة الحالية', accessor: (r) => r.status === 'ready' ? 'جاهز بالدور' : r.status === 'on_delivery' ? 'في مشوار توصيل' : 'حاضر' },
+        { label: 'الحالة الحالية', key: 'status', accessor: (r) => r.status === 'ready' ? 'جاهز بالدور' : r.status === 'on_delivery' ? 'في مشوار توصيل' : 'حاضر' },
       ];
       reportData = attendanceData;
+      totals = {
+        name: 'الإجمالي',
+        status: `إجمالي الحضور: ${attendanceData.length}`,
+      };
     } else if (activeTab === 'delivery') {
       reportTitle = 'تقرير طلبات وأداء الدليفري';
       columns = [
         { label: 'رقم الطلب', accessor: (r) => `#${r.orderNumber || r.id?.slice(0,6)}` },
         { label: 'العميل', accessor: (r) => r.customerName || 'عميل' },
         { label: 'الهاتف', accessor: (r) => r.customerPhone || '-' },
-        { label: 'الطيار', accessor: (r) => r.driverName || 'غير محدد' },
-        { label: 'رسوم التوصيل', accessor: (r) => `${(r.deliveryFee || 0).toFixed(2)} ج.م` },
-        { label: 'الإجمالي', accessor: (r) => `${(r.total || 0).toFixed(2)} ج.م` },
+        { label: 'الطيار', key: 'driverName', accessor: (r) => r.driverName || 'غير محدد' },
+        { label: 'رسوم التوصيل', key: 'deliveryFee', accessor: (r) => `${(r.deliveryFee || 0).toFixed(2)} ج.م` },
+        { label: 'الإجمالي', key: 'total', accessor: (r) => `${(r.total || 0).toFixed(2)} ج.م` },
       ];
       reportData = deliveryOrders;
+      totals = {
+        driverName: 'الإجمالي',
+        deliveryFee: `${deliveryFeesTotal.toFixed(2)} ج.م`,
+        total: `${totalSales.toFixed(2)} ج.م`,
+      };
     } else if (activeTab === 'driver_commissions') {
       reportTitle = 'تقرير نسب وحسابات طياري الدليفري';
       columns = [
-        { label: 'اسم الطيار', accessor: 'driverName' },
-        { label: 'عدد الطلبات المنفذة', accessor: 'orderCount' },
-        { label: 'إجمالي رسوم التوصيل (ج.م)', accessor: (r) => r.totalDeliveryFees.toFixed(2) },
-        { label: 'مجموع قيمة الطلبات (ج.م)', accessor: (r) => r.totalOrderAmount.toFixed(2) },
+        { label: 'اسم الطيار', key: 'driverName', accessor: 'driverName' },
+        { label: 'عدد الطلبات المنفذة', key: 'orderCount', accessor: 'orderCount' },
+        { label: 'إجمالي رسوم التوصيل (ج.م)', key: 'totalDeliveryFees', accessor: (r) => r.totalDeliveryFees.toFixed(2) },
+        { label: 'مجموع قيمة الطلبات (ج.م)', key: 'totalOrderAmount', accessor: (r) => r.totalOrderAmount.toFixed(2) },
       ];
       reportData = driverPerformanceList;
+      totals = {
+        driverName: 'الإجمالي',
+        orderCount: `${driverPerformanceList.reduce((s, d) => s + d.orderCount, 0)}`,
+        totalDeliveryFees: `${driverPerformanceList.reduce((s, d) => s + d.totalDeliveryFees, 0).toFixed(2)}`,
+        totalOrderAmount: `${driverPerformanceList.reduce((s, d) => s + d.totalOrderAmount, 0).toFixed(2)}`,
+      };
     } else if (activeTab === 'inventory') {
       reportTitle = 'تقرير استهلاك المخزون والخامات';
       columns = [
-        { label: 'اسم الخامة / المنتج', accessor: 'name' },
+        { label: 'اسم الخامة / المنتج', key: 'name', accessor: 'name' },
         { label: 'الفئة', accessor: (r) => r.category || 'خامات' },
-        { label: 'الكمية المتوفرة', accessor: (r) => `${r.quantity || 0} ${r.unit || ''}` },
+        { label: 'الكمية المتوفرة', key: 'quantity', accessor: (r) => `${r.quantity || 0} ${r.unit || ''}` },
         { label: 'الحد الأدنى', accessor: (r) => `${r.minQuantity || 5} ${r.unit || ''}` },
-        { label: 'الحالة', accessor: (r) => (r.quantity <= (r.minQuantity || 5)) ? '⚠️ نواقص' : '✅ متوفر' },
+        { label: 'الحالة', accessor: (r) => (r.quantity <= (r.minQuantity || 5)) ? 'نواقص' : 'متوفر' },
       ];
       reportData = inventoryData;
+      totals = {
+        name: 'الإجمالي',
+        quantity: `${inventoryData.reduce((s, i) => s + (parseFloat(i.quantity) || 0), 0)} أصناف`,
+      };
     } else if (activeTab === 'salaries') {
       reportTitle = 'تقرير المرتبات والمسحوبات والسُلف';
       columns = [
-        { label: 'الموظف', accessor: 'name' },
+        { label: 'الموظف', key: 'name', accessor: 'name' },
         { label: 'الوظيفة', accessor: 'role' },
-        { label: 'الراتب الأساسي', accessor: (r) => `${parseFloat(r.salary || 0).toFixed(2)} ج.م` },
-        { label: 'إجمالي السُلف والمسحوبات', accessor: (r) => `${parseFloat(r.total_advances || 0).toFixed(2)} ج.م` },
-        { label: 'الصافي المستحق', accessor: (r) => `${(parseFloat(r.salary || 0) - parseFloat(r.total_advances || 0)).toFixed(2)} ج.م` },
+        { label: 'الراتب الأساسي', key: 'salary', accessor: (r) => `${parseFloat(r.salary || 0).toFixed(2)} ج.م` },
+        { label: 'إجمالي السُلف والمسحوبات', key: 'total_advances', accessor: (r) => `${parseFloat(r.total_advances || 0).toFixed(2)} ج.م` },
+        { label: 'الصافي المستحق', key: 'net_salary', accessor: (r) => `${(parseFloat(r.salary || 0) - parseFloat(r.total_advances || 0)).toFixed(2)} ج.م` },
       ];
       reportData = employeesData;
+      const totalSalary = employeesData.reduce((s, e) => s + (parseFloat(e.salary) || 0), 0);
+      const totalAdvances = employeesData.reduce((s, e) => s + (parseFloat(e.total_advances) || 0), 0);
+      totals = {
+        name: 'الإجمالي',
+        salary: `${totalSalary.toFixed(2)} ج.م`,
+        total_advances: `${totalAdvances.toFixed(2)} ج.م`,
+        net_salary: `${(totalSalary - totalAdvances).toFixed(2)} ج.م`,
+      };
     } else if (activeTab === 'shifts') {
       reportTitle = 'تقرير سجل الشيفتات وإغلاق الخزنة';
       columns = [
-        { label: 'الكاشير', accessor: (r) => r.cashier_name || 'كاشير' },
+        { label: 'الكاشير', key: 'cashier_name', accessor: (r) => r.cashier_name || 'كاشير' },
         { label: 'وقت الفتح', accessor: (r) => r.start_time ? new Date(r.start_time).toLocaleString('ar-EG') : '-' },
         { label: 'وقت الإغلاق', accessor: (r) => r.end_time ? new Date(r.end_time).toLocaleString('ar-EG') : 'مفتوح الآن' },
-        { label: 'المتوقع بالخزنة', accessor: (r) => `${(r.expected_cash || 0).toFixed(2)} ج.م` },
-        { label: 'الفعلي بالخزنة', accessor: (r) => `${(r.actual_cash || 0).toFixed(2)} ج.م` },
-        { label: 'الفارق / العجز', accessor: (r) => `${((r.actual_cash || 0) - (r.expected_cash || 0)).toFixed(2)} ج.م` },
+        { label: 'المتوقع بالخزنة', key: 'expected_cash', accessor: (r) => `${(r.expected_cash || 0).toFixed(2)} ج.م` },
+        { label: 'الفعلي بالخزنة', key: 'actual_cash', accessor: (r) => `${(r.actual_cash || 0).toFixed(2)} ج.م` },
+        { label: 'الفارق / العجز', key: 'diff', accessor: (r) => `${((r.actual_cash || 0) - (r.expected_cash || 0)).toFixed(2)} ج.م` },
       ];
       reportData = shiftsData;
+      const totalExp = shiftsData.reduce((s, r) => s + (parseFloat(r.expected_cash) || 0), 0);
+      const totalAct = shiftsData.reduce((s, r) => s + (parseFloat(r.actual_cash) || 0), 0);
+      totals = {
+        cashier_name: 'الإجمالي',
+        expected_cash: `${totalExp.toFixed(2)} ج.م`,
+        actual_cash: `${totalAct.toFixed(2)} ج.م`,
+        diff: `${(totalAct - totalExp).toFixed(2)} ج.م`,
+      };
     } else if (activeTab === 'orders') {
       reportTitle = 'تقرير كشف الطلبات التفصيلي';
       columns = [
         { label: 'رقم الطلب', accessor: (r) => `#${r.orderNumber || r.id?.slice(0,6)}` },
         { label: 'نوع الطلب', accessor: (r) => r.orderType === 'delivery' ? 'دليفري' : 'تيك أوي' },
-        { label: 'العميل', accessor: (r) => r.customerName || 'كاشير' },
+        { label: 'العميل', key: 'customerName', accessor: (r) => r.customerName || 'كاشير' },
         { label: 'التاريخ والوقت', accessor: (r) => new Date(r.createdAt || Date.now()).toLocaleString('ar-EG') },
-        { label: 'المبلغ الإجمالي', accessor: (r) => `${(r.total || 0).toFixed(2)} ج.م` },
+        { label: 'المبلغ الإجمالي', key: 'total', accessor: (r) => `${(r.total || 0).toFixed(2)} ج.م` },
       ];
       reportData = filteredInvoices;
+      totals = {
+        customerName: 'الإجمالي',
+        total: `${totalSales.toFixed(2)} ج.م`,
+      };
     } else if (activeTab === 'customers') {
       reportTitle = 'تقرير بيانات وإحصائيات العملاء';
       columns = [
-        { label: 'اسم العميل', accessor: 'name' },
+        { label: 'اسم العميل', key: 'name', accessor: 'name' },
         { label: 'رقم الهاتف', accessor: 'phone' },
-        { label: 'عدد الطلبات', accessor: (r) => r.ordersCount || 1 },
+        { label: 'عدد الطلبات', key: 'ordersCount', accessor: (r) => r.ordersCount || 1 },
         { label: 'العنوان المسجل', accessor: 'address' },
       ];
       reportData = customersData;
+      totals = {
+        name: 'الإجمالي',
+        ordersCount: `إجمالي العملاء: ${customersData.length}`,
+      };
     }
 
     generateReportPDF({
@@ -271,6 +322,7 @@ export default function ReportsPage() {
       stats: reportStats,
       columns,
       data: reportData,
+      totals,
     });
   };
 
