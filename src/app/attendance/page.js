@@ -31,8 +31,8 @@ export default function AttendancePage() {
   const [selectedBranchForCheckIn, setSelectedBranchForCheckIn] = useState('b1');
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchAttendance = async () => {
-    setLoading(true);
+  const fetchAttendance = async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const res = await fetch(`/api/attendance?branch_id=${selectedBranchId}`);
       if (res.ok) {
@@ -57,13 +57,13 @@ export default function AttendancePage() {
     } catch (err) {
       console.error('Failed to fetch attendance:', err);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAttendance();
-    const interval = setInterval(fetchAttendance, 5000); // 5s realtime sync
+    fetchAttendance(false);
+    const interval = setInterval(() => fetchAttendance(true), 5000); // 5s silent realtime sync
     return () => clearInterval(interval);
   }, [selectedBranchId]);
 

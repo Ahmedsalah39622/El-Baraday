@@ -54,9 +54,9 @@ export default function DeliveryPage() {
   const [areaDialogOpen, setAreaDialogOpen] = useState(false);
   const [newAreaName, setNewAreaName] = useState('');
 
-  // Fetch Delivery Orders & Settings
-  const fetchDeliveryData = async () => {
-    setLoadingOrders(true);
+  // Fetch Delivery Orders & Settings (Silent background fetch mode to prevent UI flickering)
+  const fetchDeliveryData = async (isSilent = false) => {
+    if (!isSilent) setLoadingOrders(true);
     try {
       const setRes = await fetch('/api/settings');
       if (setRes.ok) {
@@ -74,19 +74,19 @@ export default function DeliveryPage() {
     } catch (e) {
       console.error('❌ Error fetching delivery orders:', e);
     } finally {
-      setLoadingOrders(false);
+      if (!isSilent) setLoadingOrders(false);
     }
   };
 
   useEffect(() => {
-    fetchDeliveryData();
+    fetchDeliveryData(false);
     fetchCustomers();
     fetchAreas();
     fetchDrivers();
     fetchAttendanceQueue(selectedBranchId);
 
     const interval = setInterval(() => {
-      fetchDeliveryData();
+      fetchDeliveryData(true); // Silent background fetch - zero UI flickering!
       fetchAttendanceQueue(selectedBranchId);
     }, 6000);
     return () => clearInterval(interval);
