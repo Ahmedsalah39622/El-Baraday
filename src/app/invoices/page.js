@@ -65,8 +65,10 @@ export default function InvoicesPage() {
             variant="outlined"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
+            slotProps={{
+              input: {
+                startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
+              }
             }}
             sx={{ width: '400px' }}
           />
@@ -105,7 +107,7 @@ export default function InvoicesPage() {
           <TextField
             type="date"
             label="تاريخ البحث"
-            InputLabelProps={{ shrink: true }}
+            slotProps={{ inputLabel: { shrink: true } }}
             value={filterDate}
             onChange={(e) => setFilterDate(e.target.value)}
             sx={{ width: '250px' }}

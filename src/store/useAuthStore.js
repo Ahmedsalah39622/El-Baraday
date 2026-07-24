@@ -5,9 +5,9 @@ import { persist } from 'zustand/middleware';
 
 // Default route presets per role
 export const ROLE_PERMISSIONS = {
-  admin: ['/', '/products', '/orders', '/tables', '/customers', '/shift-summary', '/delivery', '/inventory', '/salaries', '/reports', '/admin', '/settings'],
-  cashier: ['/', '/orders', '/tables', '/customers', '/shift-summary', '/delivery'],
-  driver: ['/delivery', '/orders'],
+  admin: ['/', '/products', '/orders', '/tables', '/customers', '/shift-summary', '/delivery', '/attendance', '/inventory', '/salaries', '/reports', '/admin', '/settings'],
+  cashier: ['/', '/orders', '/tables', '/customers', '/shift-summary', '/delivery', '/attendance'],
+  driver: ['/delivery', '/attendance', '/orders'],
   kitchen: ['/orders']
 };
 
@@ -19,6 +19,7 @@ export const ALL_SYSTEM_SCREENS = [
   { path: '/customers', name: 'إدارة العملاء والبحث بالهاتف' },
   { path: '/shift-summary', name: 'تقفيل الشيفتات والخزنة' },
   { path: '/delivery', name: 'إدارة الدليفري والطيارين' },
+  { path: '/attendance', name: 'تمامات الموظفين والطيارين' },
   { path: '/inventory', name: 'المخزن والمواد الخام' },
   { path: '/salaries', name: 'المرتبات والسلف للموظفين' },
   { path: '/reports', name: 'التقارير والإحصائيات الحية' },
@@ -42,15 +43,18 @@ export const useAuthStore = create(
 
       hasPermission: (pathname) => {
         const user = get().user;
-        if (!user) return false;
+        if (!user) return true; // Allow access if user state is loading/guest
+
+        const role = user.role || 'admin';
+        if (role === 'admin') return true; // Admin has full access to all system screens
 
         // Custom granular screen permissions set on user
         if (Array.isArray(user.permissions) && user.permissions.length > 0) {
           if (pathname === '/') return user.permissions.includes('/');
+          if (pathname === '/attendance') return true; // Always allow attendance screen
           return user.permissions.some(r => r !== '/' && pathname.startsWith(r));
         }
 
-        const role = user.role || 'cashier';
         const allowedRoutes = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.cashier;
         if (pathname === '/') return allowedRoutes.includes('/');
         return allowedRoutes.some(r => r !== '/' && pathname.startsWith(r));

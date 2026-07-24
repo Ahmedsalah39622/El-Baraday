@@ -20,6 +20,7 @@ import {
   LogoutOutlined,
   Close,
   Menu,
+  HowToReg,
 } from '@mui/icons-material';
 import { useAuthStore } from '@/store/useAuthStore';
 
@@ -33,6 +34,7 @@ const navItems = [
   { id: 'salaries', label: 'المرتبات والقبض', icon: AccountBalanceWallet, path: '/salaries' },
   { id: 'inventory', label: 'الخامات', icon: Inventory2Outlined, path: '/inventory' },
   { id: 'delivery', label: 'الدليفري', icon: DeliveryDining, path: '/delivery' },
+  { id: 'attendance', label: 'تمامات الموظفين والطيارين', icon: HowToReg, path: '/attendance' },
   { id: 'reports', label: 'التقارير', icon: AssessmentOutlined, path: '/reports' },
   { id: 'admin', label: 'الأدمن', icon: AdminPanelSettingsOutlined, path: '/admin' },
 ];
@@ -74,8 +76,8 @@ export default function Sidebar() {
 
   const mobileNavItems = [
     { id: 'home', label: 'الرئيسية', icon: Home, path: '/' },
-    { id: 'products', label: 'المنتجات', icon: FastfoodOutlined, path: '/products' },
     { id: 'orders', label: 'الطلبات', icon: ListAlt, path: '/orders' },
+    { id: 'attendance', label: 'التمامات', icon: HowToReg, path: '/attendance' },
     { id: 'delivery', label: 'الدليفري', icon: DeliveryDining, path: '/delivery' },
     { id: 'more', label: 'المزيد ☰', icon: Menu, isMore: true },
   ];
@@ -319,7 +321,7 @@ export default function Sidebar() {
             const active = isActive(item.path) && !item.isLogout;
 
             return (
-              <Grid item xs={6} sm={4} key={item.id}>
+              <Grid xs={6} sm={4} key={item.id}>
                 <Paper
                   onClick={() => handleNavClick(item)}
                   sx={{

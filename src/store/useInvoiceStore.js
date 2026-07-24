@@ -78,6 +78,7 @@ export const useInvoiceStore = create((set, get) => ({
           paid_amount: invoice.paidAmount || 0,
           remaining_amount: invoice.remainingAmount || 0,
           cashier_name: invoice.cashierName || 'administrator',
+          branch_id: invoice.branch_id || 'b1',
           items: invoice.items?.map((item) => ({
             product_id: item.id || item.product_id,
             product_name: item.name || item.product_name,

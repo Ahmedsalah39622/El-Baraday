@@ -5,7 +5,7 @@ export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { username, name, pin, role, permissions, status, avatar } = body;
+    const { username, name, pin, role, permissions, status, avatar, branch_id } = body;
 
     const permsStr = Array.isArray(permissions) ? JSON.stringify(permissions) : undefined;
 
@@ -17,9 +17,10 @@ export async function PUT(request, { params }) {
          role = COALESCE($4, role),
          permissions = COALESCE($5, permissions),
          status = COALESCE($6, status),
-         avatar = COALESCE($7, avatar)
-       WHERE id = $8 RETURNING *`,
-      [username ? username.trim().toLowerCase() : null, name ? name.trim() : null, pin ? pin.trim() : null, role || null, permsStr || null, status || null, avatar || null, id]
+         avatar = COALESCE($7, avatar),
+         branch_id = COALESCE($8, branch_id)
+       WHERE id = $9 RETURNING *`,
+      [username ? username.trim().toLowerCase() : null, name ? name.trim() : null, pin ? pin.trim() : null, role || null, permsStr || null, status || null, avatar || null, branch_id || null, id]
     );
 
     if (result.rows && result.rows.length > 0) {

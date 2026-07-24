@@ -25,12 +25,14 @@ export default function BarcodeInput({ onBarcodeScanned }) {
       onKeyDown={handleKeyDown}
       autoFocus
       size="small"
-      InputProps={{
-        startAdornment: (
-          <InputAdornment position="start">
-            <QrCodeScannerIcon />
-          </InputAdornment>
-        ),
+      slotProps={{
+        input: {
+          startAdornment: (
+            <InputAdornment position="start">
+              <QrCodeScannerIcon />
+            </InputAdornment>
+          ),
+        }
       }}
       sx={{ width: 200 }}
     />

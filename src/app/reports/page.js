@@ -69,7 +69,7 @@ export default function ReportsPage() {
       {/* Summary Cards */}
       <Grid container spacing={2.5}>
         {stats.map((stat, i) => (
-          <Grid item xs={12} sm={6} md={3} key={i}>
+          <Grid xs={12} sm={6} md={3} key={i}>
             <Card sx={{ borderRadius: '16px', border: '1px solid #E5E7EB', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
               <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2.5 }}>
                 <Box>

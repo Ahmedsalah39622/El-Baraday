@@ -14,7 +14,9 @@ import {
   ListItemText,
   Divider,
   Chip,
-  Avatar
+  Avatar,
+  Select,
+  FormControl
 } from '@mui/material';
 import {
   Settings,
@@ -24,36 +26,27 @@ import {
   TableBar,
   Fastfood,
   Logout,
-  Print,
   PointOfSale,
-  LocalOffer,
-  Business,
-  DateRange,
   Person,
-  PersonOff,
-  Insights,
   People,
-  MoneyOff,
-  Payment,
-  LocationCity,
-  Search,
-  Receipt,
   Assessment,
-  ArrowBackIosNew
+  Store,
+  SwapHoriz
 } from '@mui/icons-material';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useBranchStore } from '@/store/useBranchStore';
 
 export default function Navbar() {
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user, logout, hasPermission } = useAuthStore();
+  const { branches, selectedBranchId, setSelectedBranchId, fetchBranches, getActiveBranchName } = useBranchStore();
   const [time, setTime] = useState('');
   
   const [settingsAnchor, setSettingsAnchor] = useState(null);
-  const [inventoryAnchor, setInventoryAnchor] = useState(null);
-  const [deliveryAnchor, setDeliveryAnchor] = useState(null);
-  const [invoicesAnchor, setInvoicesAnchor] = useState(null);
+  const [branchMenuAnchor, setBranchMenuAnchor] = useState(null);
 
   useEffect(() => {
+    fetchBranches();
     const updateTime = () => {
       const now = new Date();
       const options = { 
@@ -75,9 +68,7 @@ export default function Navbar() {
 
   const handleCloseAll = () => {
     setSettingsAnchor(null);
-    setInventoryAnchor(null);
-    setDeliveryAnchor(null);
-    setInvoicesAnchor(null);
+    setBranchMenuAnchor(null);
   };
 
   const handleLogout = () => {
@@ -96,6 +87,8 @@ export default function Navbar() {
     { label: 'الطاولات', icon: <TableBar />, path: '/tables', onClick: () => router.push('/tables') },
     { label: 'المنتجات', icon: <Fastfood />, path: '/products', onClick: () => router.push('/products') },
   ].filter((item) => hasPermission(item.path));
+
+  const isAdmin = user?.role === 'admin' || !user?.role;
 
   return (
     <AppBar position="static" color="default" elevation={1} sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: '#FFF' }}>
@@ -124,8 +117,69 @@ export default function Navbar() {
           </Typography>
         </Box>
 
+        {/* Multi-Branch Selector Pill for Admin */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {isAdmin ? (
+            <Chip
+              icon={<Store sx={{ fontSize: '18px !important' }} />}
+              label={`الفرع: ${getActiveBranchName()}`}
+              onClick={(e) => setBranchMenuAnchor(e.currentTarget)}
+              onDelete={(e) => setBranchMenuAnchor(e.currentTarget)}
+              deleteIcon={<SwapHoriz sx={{ fontSize: '18px !important' }} />}
+              sx={{
+                bgcolor: selectedBranchId === 'all' ? '#EFF6FF' : '#ECFDF5',
+                color: selectedBranchId === 'all' ? '#1D4ED8' : '#047857',
+                border: '1.5px solid',
+                borderColor: selectedBranchId === 'all' ? '#3B82F6' : '#10B981',
+                fontWeight: 900,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                '&:hover': { bgcolor: selectedBranchId === 'all' ? '#DBEAFE' : '#D1FAE5' }
+              }}
+            />
+          ) : (
+            <Chip
+              icon={<Store sx={{ fontSize: '18px !important' }} />}
+              label={`الفرع: ${getActiveBranchName()}`}
+              sx={{
+                bgcolor: '#F3F4F6',
+                color: '#374151',
+                fontWeight: 800,
+                fontSize: '0.82rem'
+              }}
+            />
+          )}
+
+          <Menu
+            anchorEl={branchMenuAnchor}
+            open={Boolean(branchMenuAnchor)}
+            onClose={handleCloseAll}
+          >
+            <MenuItem
+              selected={selectedBranchId === 'all'}
+              onClick={() => { setSelectedBranchId('all'); handleCloseAll(); }}
+              sx={{ fontWeight: 800, color: '#1D4ED8' }}
+            >
+              <ListItemIcon><Store fontSize="small" sx={{ color: '#1D4ED8' }} /></ListItemIcon>
+              <ListItemText primary="جميع الفروع (ريل تايم مجمع)" />
+            </MenuItem>
+            <Divider />
+            {branches.map((b) => (
+              <MenuItem
+                key={b.id}
+                selected={selectedBranchId === b.id}
+                onClick={() => { setSelectedBranchId(b.id); handleCloseAll(); }}
+                sx={{ fontWeight: 700 }}
+              >
+                <ListItemIcon><Store fontSize="small" /></ListItemIcon>
+                <ListItemText primary={b.name} secondary={b.phone} />
+              </MenuItem>
+            ))}
+          </Menu>
+        </Box>
+
         {/* Navigation Items */}
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
+        <Box sx={{ display: { xs: 'none', lg: 'flex' }, gap: 0.5 }}>
           {navItems.map((item) => (
             <Button 
               key={item.label}
@@ -175,6 +229,10 @@ export default function Navbar() {
           <MenuItem onClick={() => { handleCloseAll(); router.push('/shift-summary'); }}>
             <ListItemIcon><PointOfSale fontSize="small" /></ListItemIcon>
             <ListItemText>ملخص الوردية والشيفت الحالي</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={() => { handleCloseAll(); router.push('/attendance'); }}>
+            <ListItemIcon><Person fontSize="small" /></ListItemIcon>
+            <ListItemText>تمامات الموظفين والطيارين</ListItemText>
           </MenuItem>
           <MenuItem onClick={() => { handleCloseAll(); router.push('/salaries'); }}>
             <ListItemIcon><Person fontSize="small" /></ListItemIcon>

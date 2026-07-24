@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Box, CircularProgress, Typography } from '@mui/material';
+import { Box } from '@mui/material';
 import Sidebar from './Sidebar';
-import { useAuthStore, ROLE_PERMISSIONS } from '@/store/useAuthStore';
+import { useAuthStore } from '@/store/useAuthStore';
 
 export default function AppShell({ children }) {
   const pathname = usePathname();
@@ -33,7 +33,7 @@ export default function AppShell({ children }) {
       return;
     }
 
-    // 3. Permission Check: Cashiers/Kitchen restricted from admin routes
+    // 3. Permission Check
     if (isAuthenticated && !isLoginPage) {
       const permitted = hasPermission(pathname);
       if (!permitted) {
@@ -42,18 +42,9 @@ export default function AppShell({ children }) {
     }
   }, [mounted, isAuthenticated, pathname, user, router]);
 
-  // Loading state while hydration initializes
-  if (!mounted) {
-    return (
-      <Box sx={{ height: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#F8FAFC' }}>
-        <CircularProgress size={36} />
-      </Box>
-    );
-  }
-
   const isLoginPage = pathname === '/login';
 
-  if (isLoginPage || !isAuthenticated) {
+  if (isLoginPage) {
     return (
       <Box sx={{ height: '100vh', width: '100vw', overflow: 'hidden' }}>
         {children}
@@ -84,8 +75,8 @@ export default function AppShell({ children }) {
         {children}
       </Box>
 
-      {/* Sidebar - Appears ONLY after login on POS pages */}
-      <Sidebar />
+      {/* Sidebar - Renders consistently after hydration */}
+      {mounted && isAuthenticated && <Sidebar />}
     </Box>
   );
 }

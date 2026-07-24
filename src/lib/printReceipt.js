@@ -3,15 +3,15 @@ export function printThermalReceipt(orderData) {
   if (!orderData) return;
 
   const {
-    orderNumber = '35',
+    orderNumber = '1',
     dateStr = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
-    driverName = 'محمد علي الصوفي',
-    cashierName = 'administrator',
-    customerName = ' ',
-    customerPhone = ' ',
-    customerAddress = '  - بجوار قهوة المشربية',
-    customerFloor = '3',
-    customerApartment = '5',
+    driverName = '',
+    cashierName = 'كاشير',
+    customerName = '',
+    customerPhone = '',
+    customerAddress = '',
+    customerFloor = '',
+    customerApartment = '',
     items = [],
     subtotal = 0,
     deliveryFee = 0,

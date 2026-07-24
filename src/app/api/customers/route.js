@@ -14,15 +14,27 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, phone, address, floor, apartment, id } = body;
+    const { name, phone, address, floor, apartment, addresses, id } = body;
     const customerId = id || `cust_${Date.now()}`;
+
+    let addressesVal = null;
+    if (addresses) {
+      if (typeof addresses === 'string') {
+        addressesVal = addresses;
+      } else {
+        addressesVal = JSON.stringify(addresses);
+      }
+    } else {
+      addressesVal = JSON.stringify([{ address: address || '', floor: floor || '', apartment: apartment || '' }]);
+    }
+
     const result = await query(
-      `INSERT INTO customers (id, name, phone, address, floor, apartment, total_orders, total_spend)
-       VALUES ($1, $2, $3, $4, $5, $6, 0, 0)
+      `INSERT INTO customers (id, name, phone, address, floor, apartment, addresses, total_orders, total_spend)
+       VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::jsonb, '[]'::jsonb), 0, 0)
        ON CONFLICT (id) DO UPDATE
-       SET name = EXCLUDED.name, phone = EXCLUDED.phone, address = EXCLUDED.address, floor = EXCLUDED.floor, apartment = EXCLUDED.apartment
+       SET name = EXCLUDED.name, phone = EXCLUDED.phone, address = EXCLUDED.address, floor = EXCLUDED.floor, apartment = EXCLUDED.apartment, addresses = EXCLUDED.addresses
        RETURNING *`,
-      [customerId, name || 'عميل', phone || '', address || '', floor || '', apartment || '']
+      [customerId, name || 'عميل', phone || '', address || '', floor || '', apartment || '', addressesVal]
     );
     return NextResponse.json(result.rows[0], { status: 201 });
   } catch (error) {

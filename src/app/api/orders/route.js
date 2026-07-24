@@ -7,50 +7,51 @@ export async function GET(request) {
     const limit = searchParams.get('limit') || 100;
     const status = searchParams.get('status');
     const date = searchParams.get('date');
+    const branchId = searchParams.get('branch_id');
 
-    // 1. Fetch orders with items using json_agg
-    try {
-      let sql = `
-        SELECT o.*, 
-               COALESCE(
-                 json_agg(
-                   json_build_object(
-                     'id', oi.id,
-                     'product_id', oi.product_id,
-                     'product_name', oi.product_name,
-                     'name', oi.product_name,
-                     'price', oi.price,
-                     'quantity', oi.quantity,
-                     'size', oi.size,
-                     'extras', oi.extras,
-                     'notes', oi.notes
-                   )
-                 ) FILTER (WHERE oi.id IS NOT NULL), '[]'
-               ) as items
-        FROM orders o
-        LEFT JOIN order_items oi ON o.id = oi.order_id
-      `;
-      const params = [];
-      const conditions = [];
+    let sql = `
+      SELECT o.*, b.name as branch_name,
+             COALESCE(
+               json_agg(
+                 json_build_object(
+                   'id', oi.id,
+                   'product_id', oi.product_id,
+                   'product_name', oi.product_name,
+                   'name', oi.product_name,
+                   'price', oi.price,
+                   'quantity', oi.quantity,
+                   'size', oi.size,
+                   'extras', oi.extras,
+                   'notes', oi.notes
+                 )
+               ) FILTER (WHERE oi.id IS NOT NULL), '[]'
+             ) as items
+      FROM orders o
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      LEFT JOIN branches b ON o.branch_id = b.id
+    `;
+    const params = [];
+    const conditions = [];
 
-      if (status) { conditions.push(`o.status = $${params.length + 1}`); params.push(status); }
-      if (date) { conditions.push(`o.created_at::date = $${params.length + 1}`); params.push(date); }
-
-      if (conditions.length > 0) sql += ' WHERE ' + conditions.join(' AND ');
-      sql += ` GROUP BY o.id ORDER BY o.created_at DESC LIMIT $${params.length + 1}`;
-      params.push(limit);
-
-      const result = await query(sql, params);
-      if (result.rows && result.rows.length > 0) {
-        return NextResponse.json(result.rows);
-      }
-    } catch (aggError) {
-      console.warn('⚠️ SQL Join Error, falling back to simple SELECT * FROM orders:', aggError.message);
+    if (branchId && branchId !== 'all') {
+      params.push(branchId);
+      conditions.push(`o.branch_id = $${params.length}`);
+    }
+    if (status) {
+      params.push(status);
+      conditions.push(`o.status = $${params.length}`);
+    }
+    if (date) {
+      params.push(date);
+      conditions.push(`o.created_at::date = $${params.length}`);
     }
 
-    // 2. Fallback query: Simple SELECT * FROM orders to ensure orders NEVER disappear
-    const fallbackRes = await query('SELECT * FROM orders ORDER BY created_at DESC LIMIT $1', [limit]);
-    return NextResponse.json(fallbackRes.rows || []);
+    if (conditions.length > 0) sql += ' WHERE ' + conditions.join(' AND ');
+    sql += ` GROUP BY o.id, b.name ORDER BY o.created_at DESC LIMIT $${params.length + 1}`;
+    params.push(limit);
+
+    const result = await query(sql, params);
+    return NextResponse.json(result.rows || []);
   } catch (error) {
     console.error('❌ Error fetching orders:', error);
     return NextResponse.json([]);
@@ -63,24 +64,29 @@ export async function POST(request) {
     const {
       order_type, customer_name, customer_phone, customer_area,
       customer_address, driver_name, driver_id, subtotal, delivery_fee,
-      discount, total, paid_amount, remaining_amount, cashier_name, items
+      discount, total, paid_amount, remaining_amount, cashier_name, items,
+      branch_id, status
     } = body;
 
-    // Get next sequential order number with explicit INTEGER type casting
+    // Default status: delivery orders start as 'pending' or 'out_for_delivery', others 'completed'
+    const initialStatus = status || (order_type === 'delivery' ? 'out_for_delivery' : 'completed');
+    const isDispatched = initialStatus === 'out_for_delivery' || initialStatus === 'on_way';
+
+    // Get next sequential order number
     const nextRes = await query("SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders");
     const nextNum = (nextRes.rows && nextRes.rows.length > 0 && nextRes.rows[0].next) ? parseInt(nextRes.rows[0].next) : 1;
 
-    // Insert order into Supabase DB
+    // Insert order into Supabase DB with branch_id and dispatched_at
     const orderResult = await query(
       `INSERT INTO orders (id, order_number, order_type, customer_name, customer_phone, customer_area,
         customer_address, driver_name, driver_id, subtotal, delivery_fee, discount, total,
-        paid_amount, remaining_amount, cashier_name, status)
-       VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'completed')
+        paid_amount, remaining_amount, cashier_name, status, branch_id, dispatched_at)
+       VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
        RETURNING *`,
       [nextNum, order_type || 'dine_in', customer_name || null, customer_phone || null, customer_area || null,
        customer_address || null, driver_name || null, driver_id || null, subtotal || 0, delivery_fee || 0,
        discount || 0, total || 0, paid_amount || 0, remaining_amount || 0,
-       cashier_name || 'administrator']
+       cashier_name || 'administrator', initialStatus, branch_id || 'b1', isDispatched ? new Date().toISOString() : null]
     );
 
     const order = (orderResult.rows && orderResult.rows.length > 0) ? orderResult.rows[0] : {
@@ -90,11 +96,13 @@ export async function POST(request) {
       customer_name,
       total,
       cashier_name: cashier_name || 'administrator',
-      status: 'completed',
+      status: initialStatus,
+      branch_id: branch_id || 'b1',
+      dispatched_at: isDispatched ? new Date().toISOString() : null,
       created_at: new Date().toISOString()
     };
 
-    // Insert order items into order_items table
+    // Insert items
     if (items && items.length > 0) {
       for (const item of items) {
         await query(
@@ -106,12 +114,67 @@ export async function POST(request) {
       }
     }
 
+    // If driver assigned, update driver attendance queue status
+    if (driver_id) {
+      await query(
+        `UPDATE driver_attendance SET status = 'on_delivery', current_order_id = $1 WHERE driver_id = $2 AND check_out_time IS NULL`,
+        [order.id, driver_id]
+      );
+    }
+
     return NextResponse.json({
       ...order,
       items: items || []
     }, { status: 201 });
   } catch (error) {
     console.error('❌ Error creating order:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function PUT(request) {
+  try {
+    const body = await request.json();
+    const { id, status, driver_id, driver_name } = body;
+    if (!id) return NextResponse.json({ error: 'Order ID required' }, { status: 400 });
+
+    let sql = 'UPDATE orders SET status = $1';
+    const params = [status, id];
+
+    if (status === 'out_for_delivery' || status === 'on_way') {
+      sql += ', dispatched_at = CURRENT_TIMESTAMP';
+    }
+    if (driver_id) {
+      params.push(driver_id);
+      sql += `, driver_id = $${params.length}`;
+    }
+    if (driver_name) {
+      params.push(driver_name);
+      sql += `, driver_name = $${params.length}`;
+    }
+
+    sql += ' WHERE id = $2 RETURNING *';
+
+    const res = await query(sql, params);
+
+    // If driver status changed
+    if (driver_id) {
+      if (status === 'out_for_delivery' || status === 'on_way') {
+        await query(
+          `UPDATE driver_attendance SET status = 'on_delivery', current_order_id = $1 WHERE driver_id = $2 AND check_out_time IS NULL`,
+          [id, driver_id]
+        );
+      } else if (status === 'completed' || status === 'delivered') {
+        await query(
+          `UPDATE driver_attendance SET status = 'ready', current_order_id = NULL WHERE driver_id = $1 AND check_out_time IS NULL`,
+          [driver_id]
+        );
+      }
+    }
+
+    return NextResponse.json(res.rows[0] || { message: 'Updated' });
+  } catch (error) {
+    console.error('❌ Error updating order:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

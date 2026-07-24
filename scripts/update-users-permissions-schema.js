@@ -33,7 +33,7 @@ async function main() {
   const defaultUsers = [
     {
       username: 'administrator',
-      name: 'أحمد محمود (المدير)',
+      name: (المدير)',
       pin: '1234',
       role: 'admin',
       permissions: JSON.stringify(['/', '/products', '/orders', '/tables', '/customers', '/shift-summary', '/delivery', '/inventory', '/salaries', '/reports', '/admin', '/settings']),

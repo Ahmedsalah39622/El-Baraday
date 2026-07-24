@@ -25,11 +25,12 @@ import { Print, VisibilityOutlined, Close, Person, Phone, LocationOn, ReceiptLon
 import SearchBar from '@/components/pos/SearchBar';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { printThermalReceipt } from '@/lib/printReceipt';
+import DeliveryTimerBadge from '@/components/delivery/DeliveryTimerBadge';
 
 export default function OrdersPage() {
   const { invoices, fetchInvoices } = useInvoiceStore();
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // View Order Details Modal State
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -93,7 +94,7 @@ export default function OrdersPage() {
                   <TableCell sx={{ fontWeight: 800, color: '#1A1A2E', fontSize: '0.95rem' }}>
                     #{row.orderNumber || row.id?.slice(0, 8)}
                   </TableCell>
-                  
+
                   <TableCell sx={{ fontWeight: 700, color: '#374151' }}>
                     {row.customerName || 'عميل كاشير'}
                     {row.customerPhone ? ` (${row.customerPhone})` : ''}
@@ -142,11 +143,16 @@ export default function OrdersPage() {
                   </TableCell>
 
                   <TableCell>
-                    <Chip
-                      label={row.status || 'مكتمل'}
-                      size="small"
-                      sx={{ bgcolor: '#D1FAE5', color: '#065F46', fontWeight: 800 }}
-                    />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
+                      <Chip
+                        label={row.status || 'مكتمل'}
+                        size="small"
+                        sx={{ bgcolor: '#D1FAE5', color: '#065F46', fontWeight: 800 }}
+                      />
+                      {isDelivery && (row.dispatched_at || row.createdAt) && (
+                        <DeliveryTimerBadge dispatchedAt={row.dispatched_at || row.createdAt} />
+                      )}
+                    </Box>
                   </TableCell>
 
                   <TableCell sx={{ fontWeight: 900, color: '#4285F4', fontSize: '0.95rem' }}>
@@ -173,7 +179,7 @@ export default function OrdersPage() {
                           onClick={() => printThermalReceipt({
                             orderNumber: row.orderNumber || '1',
                             dateStr: new Date(row.createdAt || Date.now()).toLocaleString('ar-EG'),
-                            cashierName: row.cashierName || 'أحمد محمود',
+                            cashierName: row.cashierName || '',
                             customerName: row.customerName,
                             customerPhone: row.customerPhone,
                             items: row.items || [],
@@ -285,7 +291,7 @@ export default function OrdersPage() {
               <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#1A1A2E', mt: 1 }}>
                 📦 الأصناف والمحتويات المطلوبة:
               </Typography>
-              
+
               <TableContainer component={Paper} sx={{ borderRadius: '14px', border: '1px solid #E2E8F0' }}>
                 <Table size="small">
                   <TableHead sx={{ bgcolor: '#F1F5F9' }}>

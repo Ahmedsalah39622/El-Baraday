@@ -20,25 +20,30 @@ import {
   DialogActions,
   TextField,
   Tooltip,
+  Divider,
+  Alert
 } from '@mui/material';
-import { EditOutlined, DeleteOutlined, Add, Phone, Home, Layers, LocationOn } from '@mui/icons-material';
+import { EditOutlined, DeleteOutlined, Add, Phone, Home, LocationOn, StarOutlined, StarBorder } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
 import { useCustomerStore } from '@/store/useCustomerStore';
 
 export default function CustomersPage() {
-  const { customers, fetchCustomers, saveOrUpdateCustomer, deleteCustomer } = useCustomerStore();
+  const { customers, fetchCustomers, saveOrUpdateCustomer, updateCustomerAddresses, deleteCustomer } = useCustomerStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
 
-  // Form states
+  // Manage Addresses Dialog state
+  const [addressManageDialog, setAddressManageDialog] = useState(false);
+  const [selectedCustomerForAddresses, setSelectedCustomerForAddresses] = useState(null);
+  const [newAddressInput, setNewAddressInput] = useState({ address: '', floor: '', apartment: '' });
+
+  // Form states for Add/Edit Customer
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
-    address: '',
-    floor: '',
-    apartment: '',
+    addresses: [{ address: '', floor: '', apartment: '' }]
   });
 
   useEffect(() => {
@@ -47,19 +52,24 @@ export default function CustomersPage() {
 
   const handleOpenAdd = () => {
     setEditingCustomer(null);
-    setFormData({ name: '', phone: '', address: '', floor: '', apartment: '' });
+    setFormData({
+      name: '',
+      phone: '',
+      addresses: [{ address: '', floor: '', apartment: '' }]
+    });
     setOpenDialog(true);
   };
 
   const handleOpenEdit = (customer) => {
     setEditingCustomer(customer);
-    const mainAddr = customer.addresses?.[0] || {};
+    const addrs = customer.addresses && customer.addresses.length > 0
+      ? customer.addresses
+      : [{ address: customer.address || '', floor: customer.floor || '', apartment: customer.apartment || '' }];
+
     setFormData({
       name: customer.name || '',
       phone: customer.phone || '',
-      address: mainAddr.address || customer.address || '',
-      floor: mainAddr.floor || customer.floor || '',
-      apartment: mainAddr.apartment || customer.apartment || '',
+      addresses: addrs
     });
     setOpenDialog(true);
   };
@@ -69,15 +79,39 @@ export default function CustomersPage() {
     setEditingCustomer(null);
   };
 
+  const handleAddAddressFieldInForm = () => {
+    setFormData({
+      ...formData,
+      addresses: [...formData.addresses, { address: '', floor: '', apartment: '' }]
+    });
+  };
+
+  const handleRemoveAddressFieldInForm = (index) => {
+    if (formData.addresses.length <= 1) return;
+    const updated = formData.addresses.filter((_, idx) => idx !== index);
+    setFormData({ ...formData, addresses: updated });
+  };
+
+  const handleAddressChangeInForm = (index, field, value) => {
+    const updated = [...formData.addresses];
+    updated[index][field] = value;
+    setFormData({ ...formData, addresses: updated });
+  };
+
   const handleSubmit = async () => {
     if (!formData.name.trim() || !formData.phone.trim()) return;
+
+    const validAddresses = formData.addresses.filter(a => a.address && a.address.trim());
+    const finalAddresses = validAddresses.length > 0 ? validAddresses : [{ address: '', floor: '', apartment: '' }];
+    const primary = finalAddresses[0];
 
     await saveOrUpdateCustomer({
       name: formData.name.trim(),
       phone: formData.phone.trim(),
-      address: formData.address.trim(),
-      floor: formData.floor.trim(),
-      apartment: formData.apartment.trim(),
+      address: primary.address,
+      floor: primary.floor,
+      apartment: primary.apartment,
+      addresses: finalAddresses
     });
 
     handleCloseDialog();
@@ -88,6 +122,52 @@ export default function CustomersPage() {
     if (confirm('هل أنت تأكد من رغبتك في حذف هذا العميل؟')) {
       await deleteCustomer(id);
     }
+  };
+
+  // Address Manager Functions
+  const handleOpenAddressManager = (customer) => {
+    setSelectedCustomerForAddresses(customer);
+    setNewAddressInput({ address: '', floor: '', apartment: '' });
+    setAddressManageDialog(true);
+  };
+
+  const handleAddNewAddressToCustomer = async () => {
+    if (!selectedCustomerForAddresses || !newAddressInput.address.trim()) return;
+    const currentList = selectedCustomerForAddresses.addresses || [];
+    const updatedList = [...currentList, {
+      address: newAddressInput.address.trim(),
+      floor: newAddressInput.floor.trim(),
+      apartment: newAddressInput.apartment.trim()
+    }];
+
+    await updateCustomerAddresses(selectedCustomerForAddresses.id, updatedList);
+    setSelectedCustomerForAddresses({ ...selectedCustomerForAddresses, addresses: updatedList });
+    setNewAddressInput({ address: '', floor: '', apartment: '' });
+    fetchCustomers();
+  };
+
+  const handleDeleteAddressFromCustomer = async (index) => {
+    if (!selectedCustomerForAddresses) return;
+    const currentList = selectedCustomerForAddresses.addresses || [];
+    if (currentList.length <= 1) {
+      alert('يجب الإبقاء على عنوان واحد على الأقل للعميل');
+      return;
+    }
+    const updatedList = currentList.filter((_, idx) => idx !== index);
+    await updateCustomerAddresses(selectedCustomerForAddresses.id, updatedList);
+    setSelectedCustomerForAddresses({ ...selectedCustomerForAddresses, addresses: updatedList });
+    fetchCustomers();
+  };
+
+  const handleSetPrimaryAddress = async (index) => {
+    if (!selectedCustomerForAddresses) return;
+    const currentList = [...(selectedCustomerForAddresses.addresses || [])];
+    const [selected] = currentList.splice(index, 1);
+    const updatedList = [selected, ...currentList];
+
+    await updateCustomerAddresses(selectedCustomerForAddresses.id, updatedList);
+    setSelectedCustomerForAddresses({ ...selectedCustomerForAddresses, addresses: updatedList });
+    fetchCustomers();
   };
 
   // Filter customers by search query
@@ -104,7 +184,7 @@ export default function CustomersPage() {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 800, color: '#1A1A2E' }}>
-            إدارة العملاء
+            إدارة العملاء والعناوين المتعددة
           </Typography>
           <Typography variant="body2" sx={{ color: '#6B7280', mt: 0.5 }}>
             إجمالي العملاء المسجلين ({customers?.length || 0})
@@ -170,16 +250,16 @@ export default function CustomersPage() {
                     {floorApartmentText}
                   </TableCell>
                   <TableCell>
-                    {addrs.length > 0 ? (
+                    <Tooltip title="اضغط لإدارة كافه عناوين العميل">
                       <Chip
                         icon={<LocationOn sx={{ fontSize: '14px !important' }} />}
-                        label={`${addrs.length} عنوان`}
+                        label={`${addrs.length} ${addrs.length === 1 ? 'عنوان' : 'عناوين'}`}
                         size="small"
-                        sx={{ bgcolor: '#EFF6FF', color: '#1E40AF', fontWeight: 700 }}
+                        onClick={() => handleOpenAddressManager(row)}
+                        clickable
+                        sx={{ bgcolor: '#EFF6FF', color: '#1E40AF', fontWeight: 800, '&:hover': { bgcolor: '#DBEAFE' } }}
                       />
-                    ) : (
-                      <Typography variant="caption" sx={{ color: '#9CA3AF' }}>1 عنوان</Typography>
-                    )}
+                    </Tooltip>
                   </TableCell>
                   <TableCell sx={{ fontWeight: 700, color: '#1A1A2E' }}>
                     {row.totalTransactions || row.ordersCount || 0} طلب
@@ -188,7 +268,7 @@ export default function CustomersPage() {
                     {(row.totalSpend || 0).toLocaleString()} ج.م
                   </TableCell>
                   <TableCell align="center">
-                    <Tooltip title="تعديل بيانات العميل والعناوين">
+                    <Tooltip title="تعديل العميل والتعناوين">
                       <IconButton size="small" onClick={() => handleOpenEdit(row)} sx={{ color: '#4285F4' }}>
                         <EditOutlined sx={{ fontSize: 18 }} />
                       </IconButton>
@@ -214,76 +294,89 @@ export default function CustomersPage() {
         </Table>
       </TableContainer>
 
-      {/* Add / Edit Customer Dialog */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+      {/* Add / Edit Customer Dialog with Multiple Addresses */}
+      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
         <DialogTitle sx={{ fontWeight: 800, fontSize: '1.25rem' }}>
-          {editingCustomer ? 'تعديل بيانات العميل' : 'إضافة عميل جديد'}
+          {editingCustomer ? '✏️ تعديل بيانات وعناوين العميل' : '➕ إضافة عميل جديد بعناوين متعددة'}
         </DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1.5 }}>
-          <TextField
-            fullWidth
-            size="small"
-            label="اسم العميل *"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            sx={{ bgcolor: '#FFF' }}
-          />
-
-          <TextField
-            fullWidth
-            size="small"
-            label="رقم الهاتف *"
-            value={formData.phone}
-            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-            sx={{ bgcolor: '#FFF' }}
-          />
-
-          <TextField
-            fullWidth
-            size="small"
-            label="العنوان"
-            placeholder="مثال:   - بجوار قهوة المشربية"
-            value={formData.address}
-            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-            sx={{ bgcolor: '#FFF' }}
-          />
-
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 2 }}>
             <TextField
               fullWidth
               size="small"
-              label="الدور"
-              placeholder="مثال: 3"
-              value={formData.floor}
-              onChange={(e) => setFormData({ ...formData, floor: e.target.value })}
+              label="اسم العميل *"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               sx={{ bgcolor: '#FFF' }}
             />
             <TextField
               fullWidth
               size="small"
-              label="الشقة"
-              placeholder="مثال: 5"
-              value={formData.apartment}
-              onChange={(e) => setFormData({ ...formData, apartment: e.target.value })}
+              label="رقم الهاتف *"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               sx={{ bgcolor: '#FFF' }}
             />
           </Box>
 
-          {/* Show saved addresses list if editing */}
-          {editingCustomer && (editingCustomer.addresses || []).length > 1 && (
-            <Box sx={{ bgcolor: '#F8FAFC', p: 1.5, borderRadius: '12px', border: '1px solid #E2E8F0', mt: 1 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1E40AF', mb: 1 }}>
-                📍 العناوين المحفوظة السابقة لـ {editingCustomer.name}:
-              </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8 }}>
-                {editingCustomer.addresses.map((a, idx) => (
-                  <Box key={idx} sx={{ p: 1, bgcolor: '#FFF', borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '0.813rem', fontWeight: 700 }}>
-                    🏠 {a.address} {a.floor ? `- (دور ${a.floor}` : ''}{a.apartment ? ` شقة ${a.apartment})` : a.floor ? ')' : ''}
-                  </Box>
-                ))}
+          <Divider sx={{ my: 1 }} />
+
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1E40AF' }}>
+              📍 العناوين المحفوظة للعميل ({formData.addresses.length}):
+            </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<Add />}
+              onClick={handleAddAddressFieldInForm}
+              sx={{ borderRadius: '8px', fontWeight: 700 }}
+            >
+              إضافة عنوان آخر
+            </Button>
+          </Box>
+
+          {formData.addresses.map((addrObj, index) => (
+            <Paper key={index} sx={{ p: 2, bgcolor: index === 0 ? '#F0FDF4' : '#F8FAFC', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: index === 0 ? '#166534' : '#475569' }}>
+                  {index === 0 ? '⭐️ العنوان الرئيسي (الأول)' : `عنوان فرعي رقم ${index + 1}`}
+                </Typography>
+                {formData.addresses.length > 1 && (
+                  <IconButton size="small" onClick={() => handleRemoveAddressFieldInForm(index)} sx={{ color: '#EF4444' }}>
+                    <DeleteOutlined fontSize="small" />
+                  </IconButton>
+                )}
               </Box>
-            </Box>
-          )}
+
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <TextField
+                  size="small"
+                  label="العنوان *"
+                  placeholder="اسم الشارع - العلامة المميزة"
+                  value={addrObj.address}
+                  onChange={(e) => handleAddressChangeInForm(index, 'address', e.target.value)}
+                  sx={{ flex: 2, minWidth: 200, bgcolor: '#FFF' }}
+                />
+                <TextField
+                  size="small"
+                  label="الدور"
+                  placeholder="مثال: 3"
+                  value={addrObj.floor}
+                  onChange={(e) => handleAddressChangeInForm(index, 'floor', e.target.value)}
+                  sx={{ flex: 1, minWidth: 90, bgcolor: '#FFF' }}
+                />
+                <TextField
+                  size="small"
+                  label="الشقة"
+                  placeholder="مثال: 5"
+                  value={addrObj.apartment}
+                  onChange={(e) => handleAddressChangeInForm(index, 'apartment', e.target.value)}
+                  sx={{ flex: 1, minWidth: 90, bgcolor: '#FFF' }}
+                />
+              </Box>
+            </Paper>
+          ))}
         </DialogContent>
 
         <DialogActions sx={{ p: 2.5, gap: 1 }}>
@@ -291,8 +384,102 @@ export default function CustomersPage() {
             إلغاء
           </Button>
           <Button onClick={handleSubmit} variant="contained" sx={{ borderRadius: '10px', px: 3, fontWeight: 700, bgcolor: '#4285F4' }}>
-            حفظ البيانات
+            حفظ بيانات العميل
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Address Manager Dialog for Customer */}
+      <Dialog open={addressManageDialog} onClose={() => setAddressManageDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>
+          📍 إدارة عناوين العميل: {selectedCustomerForAddresses?.name}
+        </DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1.5 }}>
+          {selectedCustomerForAddresses && (
+            <>
+              {/* Existing addresses list */}
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {(selectedCustomerForAddresses.addresses || []).map((addr, idx) => (
+                  <Paper key={idx} sx={{ p: 1.5, borderRadius: '12px', border: idx === 0 ? '2px solid #10B981' : '1px solid #E2E8F0', bgcolor: idx === 0 ? '#F0FDF4' : '#FFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" fontWeight={800} color="#1E293B">
+                          🏠 {addr.address}
+                        </Typography>
+                        {idx === 0 && <Chip label="الرئيسي" size="small" color="success" sx={{ fontWeight: 800 }} />}
+                      </Box>
+                      <Typography variant="caption" color="text.secondary">
+                        {[addr.floor ? `الدور ${addr.floor}` : '', addr.apartment ? `شقة ${addr.apartment}` : ''].filter(Boolean).join(' - ') || 'بدون دور/شقة'}
+                      </Typography>
+                    </Box>
+
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      {idx !== 0 && (
+                        <Tooltip title="تعيين كعنوان رئيسي">
+                          <IconButton size="small" onClick={() => handleSetPrimaryAddress(idx)} sx={{ color: '#F59E0B' }}>
+                            <StarBorder />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {(selectedCustomerForAddresses.addresses || []).length > 1 && (
+                        <Tooltip title="حذف هذا العنوان">
+                          <IconButton size="small" onClick={() => handleDeleteAddressFromCustomer(idx)} sx={{ color: '#EF4444' }}>
+                            <DeleteOutlined fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Box>
+                  </Paper>
+                ))}
+              </Box>
+
+              <Divider sx={{ my: 1 }} />
+
+              {/* Add New Address Section */}
+              <Box sx={{ bgcolor: '#F8FAFC', p: 2, borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                <Typography variant="subtitle2" fontWeight={800} color="#1E40AF" mb={1}>
+                  ➕ إضافة عنوان جديد للعميل:
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1.5 }}>
+                  <TextField
+                    size="small"
+                    label="العنوان الجديد *"
+                    placeholder="شارع الجيش - أمام المستشفى"
+                    value={newAddressInput.address}
+                    onChange={(e) => setNewAddressInput({ ...newAddressInput, address: e.target.value })}
+                    sx={{ flex: 2, minWidth: 200, bgcolor: '#FFF' }}
+                  />
+                  <TextField
+                    size="small"
+                    label="الدور"
+                    value={newAddressInput.floor}
+                    onChange={(e) => setNewAddressInput({ ...newAddressInput, floor: e.target.value })}
+                    sx={{ flex: 1, minWidth: 80, bgcolor: '#FFF' }}
+                  />
+                  <TextField
+                    size="small"
+                    label="الشقة"
+                    value={newAddressInput.apartment}
+                    onChange={(e) => setNewAddressInput({ ...newAddressInput, apartment: e.target.value })}
+                    sx={{ flex: 1, minWidth: 80, bgcolor: '#FFF' }}
+                  />
+                </Box>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  startIcon={<Add />}
+                  onClick={handleAddNewAddressToCustomer}
+                  disabled={!newAddressInput.address.trim()}
+                  sx={{ bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' }, fontWeight: 800, borderRadius: '8px' }}
+                >
+                  حفظ العنوان الجديد للعميل
+                </Button>
+              </Box>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setAddressManageDialog(false)} variant="outlined">إغلاق</Button>
         </DialogActions>
       </Dialog>
     </Box>

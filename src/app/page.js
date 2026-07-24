@@ -52,6 +52,7 @@ export default function POSPage() {
           if (data.customers && data.customers.length > 0) useCustomerStore.setState({ customers: data.customers });
           if (data.areas && data.areas.length > 0) useCustomerStore.setState({ deliveryAreas: data.areas });
           if (data.drivers && data.drivers.length > 0) useCustomerStore.setState({ drivers: data.drivers });
+          if (data.activeAttendanceQueue) useCustomerStore.setState({ activeQueue: data.activeAttendanceQueue });
           if (data.tables && data.tables.length > 0) useTableStore.setState({ tables: data.tables });
           if (data.nextOrderNumber) useInvoiceStore.setState({ nextOrderNumber: data.nextOrderNumber });
           

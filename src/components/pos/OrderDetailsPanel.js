@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box, Typography, Button, IconButton, Divider, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Select, FormControl, InputLabel, Autocomplete, Chip
 } from '@mui/material';
@@ -11,6 +11,8 @@ import DeliveryReceipts from './DeliveryReceipts';
 import { printThermalReceipt } from '@/lib/printReceipt';
 
 import { useAuthStore } from '@/store/useAuthStore';
+import { useBranchStore } from '@/store/useBranchStore';
+import { Store } from '@mui/icons-material';
 
 export default function OrderDetailsPanel({
   items = [],
@@ -24,20 +26,49 @@ export default function OrderDetailsPanel({
   onCloseMobile,
 }) {
   const { addInvoice, nextOrderNumber } = useInvoiceStore();
-  const { customers = [], drivers = [], saveOrUpdateCustomer } = useCustomerStore();
+  const { customers = [], drivers = [], activeQueue = [], saveOrUpdateCustomer } = useCustomerStore();
   const { user } = useAuthStore();
+  const { branches, selectedBranchId } = useBranchStore();
   const activeCashierName = user?.name || user?.username || 'أحمد محمود';
 
-  const [driverName, setDriverName] = useState('محمد علي الصوفي');
-  const [customerName, setCustomerName] = useState(' ');
-  const [customerPhone, setCustomerPhone] = useState(' ');
-  const [customerAddress, setCustomerAddress] = useState('  - بجوار قهوة المشربية');
-  const [customerFloor, setCustomerFloor] = useState('3');
-  const [customerApartment, setCustomerApartment] = useState('5');
-  const [savedAddresses, setSavedAddresses] = useState([
-    { address: '  - بجوار قهوة المشربية', floor: '3', apartment: '5' },
-    { address: 'شارع النصر - برج السلام', floor: 'الأرضي', apartment: '1' }
-  ]);
+  const [orderBranchId, setOrderBranchId] = useState(selectedBranchId !== 'all' ? selectedBranchId : 'b1');
+
+  // Filter drivers checked-in for current active shift & branch
+  const checkedInDrivers = (activeQueue || []).filter(q => !orderBranchId || orderBranchId === 'all' || q.branch_id === orderBranchId);
+
+  const availableDriverOptions = [];
+  checkedInDrivers.forEach((q, idx) => {
+    const isTop = idx === 0 && q.status === 'ready';
+    const label = isTop 
+      ? `👑 ${q.driver_name} (الدور 1 - التالي)` 
+      : q.status === 'on_delivery' 
+      ? `🛵 ${q.driver_name} (في مشوار توصيل)` 
+      : `🟢 ${q.driver_name} (الدور ${idx + 1})`;
+    availableDriverOptions.push({ id: q.driver_id || q.id, name: q.driver_name, label, isCheckedIn: true });
+  });
+
+  (drivers || []).forEach(d => {
+    if (!availableDriverOptions.some(opt => opt.name === d.name)) {
+      availableDriverOptions.push({ id: d.id, name: d.name, label: `${d.name} (لم يتمم الحضور)`, isCheckedIn: false });
+    }
+  });
+
+  const [driverName, setDriverName] = useState(availableDriverOptions[0]?.name || '');
+
+  useEffect(() => {
+    if (availableDriverOptions.length > 0) {
+      const exists = availableDriverOptions.some(d => d.name === driverName);
+      if (!exists || !driverName) {
+        setDriverName(availableDriverOptions[0].name);
+      }
+    }
+  }, [activeQueue, drivers, orderBranchId]);
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
+  const [customerFloor, setCustomerFloor] = useState('');
+  const [customerApartment, setCustomerApartment] = useState('');
+  const [savedAddresses, setSavedAddresses] = useState([]);
   const [deliveryFee, setDeliveryFee] = useState(15);
   const [paidAmount, setPaidAmount] = useState('');
   const [showDeliveryForm, setShowDeliveryForm] = useState(true);
@@ -105,6 +136,7 @@ export default function OrderDetailsPanel({
       paidAmount: numericPaid,
       remainingAmount: remainingChange,
       orderType,
+      branch_id: orderBranchId,
     };
 
     addInvoice({
@@ -118,6 +150,7 @@ export default function OrderDetailsPanel({
       total: finalTotal,
       paidAmount: numericPaid,
       remainingAmount: remainingChange,
+      branch_id: orderBranchId,
     });
 
     setCompletedOrderData(currentOrderData);
@@ -236,6 +269,23 @@ export default function OrderDetailsPanel({
           {/* Form Fields (Expandable / Collapsible) */}
           {showDeliveryForm && (
             <>
+              {/* Branch Selector for Delivery - ADMIN ONLY */}
+              {(user?.role === 'admin' || !user) && (
+                <FormControl fullWidth size="small">
+                  <InputLabel sx={{ fontSize: '0.75rem', fontWeight: 800 }}>🏢 فرع التوصيل المنفذ (الأدمن فقط)</InputLabel>
+                  <Select
+                    value={orderBranchId}
+                    label="🏢 فرع التوصيل المنفذ (الأدمن فقط)"
+                    onChange={(e) => setOrderBranchId(e.target.value)}
+                    sx={{ borderRadius: '8px', bgcolor: '#FFF', fontSize: '0.813rem', fontWeight: 800 }}
+                  >
+                    {branches.map((b) => (
+                      <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+
               {/* Driver & Phone in 2 Columns */}
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <FormControl fullWidth size="small">
@@ -246,13 +296,10 @@ export default function OrderDetailsPanel({
                     onChange={(e) => setDriverName(e.target.value)}
                     sx={{ borderRadius: '8px', bgcolor: '#FFF', fontSize: '0.813rem' }}
                   >
-                    {(drivers.length > 0 ? drivers : [
-                      { id: '1', name: 'محمد علي الصوفي' },
-                      { id: '2', name: 'أحمد عبد الفتاح' },
-                      { id: '3', name: 'محمود السويفي' },
-                      { id: '4', name: 'خالد طارق' }
-                    ]).map((d) => (
-                      <MenuItem key={d.id || d.name} value={d.name}>{d.name}</MenuItem>
+                    {availableDriverOptions.map((d) => (
+                      <MenuItem key={d.id || d.name} value={d.name}>
+                        {d.label || d.name}
+                      </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
@@ -287,24 +334,26 @@ export default function OrderDetailsPanel({
                 sx={{ bgcolor: '#FFF', '& input': { fontSize: '0.813rem' } }}
               />
 
-              {/* Saved Addresses Dropdown (If customer has >1 address) */}
-              {savedAddresses.length > 1 && (
+              {/* Saved Addresses Dropdown (If customer has >= 1 saved address) */}
+              {savedAddresses.length > 0 && (
                 <FormControl fullWidth size="small">
-                  <InputLabel sx={{ fontSize: '0.75rem', fontWeight: 700, color: '#E06B1F' }}>
-                    📍 العناوين المحفوظة ({savedAddresses.length})
+                  <InputLabel sx={{ fontSize: '0.75rem', fontWeight: 800, color: '#1E40AF' }}>
+                    📍 عناوين العميل المحفوظة ({savedAddresses.length})
                   </InputLabel>
                   <Select
                     value={customerAddress}
-                    label={`📍 العناوين المحفوظة (${savedAddresses.length})`}
+                    label={`📍 عناوين العميل المحفوظة (${savedAddresses.length})`}
                     onChange={(e) => {
                       const selectedAddr = savedAddresses.find(a => a.address === e.target.value);
                       if (selectedAddr) {
                         setCustomerAddress(selectedAddr.address);
                         setCustomerFloor(selectedAddr.floor || '');
                         setCustomerApartment(selectedAddr.apartment || '');
+                      } else {
+                        setCustomerAddress(e.target.value);
                       }
                     }}
-                    sx={{ borderRadius: '8px', bgcolor: '#FFF', fontSize: '0.813rem', fontWeight: 700 }}
+                    sx={{ borderRadius: '8px', bgcolor: '#EFF6FF', fontSize: '0.813rem', fontWeight: 800 }}
                   >
                     {savedAddresses.map((addrObj, idx) => (
                       <MenuItem key={idx} value={addrObj.address}>
@@ -319,8 +368,8 @@ export default function OrderDetailsPanel({
               <TextField
                 fullWidth
                 size="small"
-                label="العنوان"
-                placeholder="  - بجوار قهوة المشربية"
+                label="العنوان التفصيلي"
+                placeholder="اسم الشارع - العلامة المميزة"
                 value={customerAddress}
                 onChange={(e) => setCustomerAddress(e.target.value)}
                 sx={{ bgcolor: '#FFF', '& input': { fontSize: '0.813rem' } }}

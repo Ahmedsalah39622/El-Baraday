@@ -32,7 +32,7 @@ export const defaultAreas = [
 ];
 
 export const defaultDrivers = [
-  { id: 'd1', name: 'أحمد محمود' },
+  { id: 'd1', name: ' },
   { id: 'd2', name: 'محمد علي' },
   { id: 'd3', name: 'محمود حسن' }
 ];

@@ -3,54 +3,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-const defaultCustomersList = [
-  {
-    id: 'c1',
-    name: ' ',
-    phone: ' ',
-    address: '  - بجوار قهوة المشربية',
-    floor: '3',
-    apartment: '5',
-    addresses: [
-      { address: '  - بجوار قهوة المشربية', floor: '3', apartment: '5' },
-      { address: 'شارع النصر - برج السلام', floor: 'الأرضي', apartment: '1' }
-    ]
-  },
-  {
-    id: 'c2',
-    name: 'أحمد محمود',
-    phone: '01001234567',
-    address: 'شارع العشرين - فيصل',
-    floor: '2',
-    apartment: '1',
-    addresses: [
-      { address: 'شارع العشرين - فيصل', floor: '2', apartment: '1' }
-    ]
-  },
-  {
-    id: 'c3',
-    name: 'محمود عبد الفتاح',
-    phone: '01229876543',
-    address: 'الهرم - أمام سينما رادوبيس',
-    floor: '5',
-    apartment: '12',
-    addresses: [
-      { address: 'الهرم - أمام سينما رادوبيس', floor: '5', apartment: '12' }
-    ]
-  }
-];
-
 export const useCustomerStore = create(
   persist(
     (set, get) => ({
-      customers: defaultCustomersList,
+      customers: [],
       areas: [],
-      drivers: [
-        { id: 'd1', name: 'محمد علي الصوفي', phone: '01000000001' },
-        { id: 'd2', name: 'أحمد عبد الفتاح', phone: '01000000002' },
-        { id: 'd3', name: 'محمود السويفي', phone: '01000000003' },
-        { id: 'd4', name: 'خالد طارق', phone: '01000000004' }
-      ],
+      drivers: [],
+      activeQueue: [],
       loading: false,
 
       // Fetch customers from DB
@@ -60,31 +19,39 @@ export const useCustomerStore = create(
           const res = await fetch('/api/customers');
           if (res.ok) {
             const rows = await res.json();
-            if (rows.length > 0) {
-              set({
-                customers: rows.map(r => {
-                  const mainAddress = r.address || '';
-                  const mainFloor = r.floor || '';
-                  const mainApartment = r.apartment || '';
-                  return {
-                    id: r.id,
-                    name: r.name,
-                    phone: r.phone,
-                    address: mainAddress,
-                    floor: mainFloor,
-                    apartment: mainApartment,
-                    addresses: [
-                      { address: mainAddress, floor: mainFloor, apartment: mainApartment }
-                    ],
-                    totalTransactions: r.total_orders || 0,
-                    totalSpend: parseFloat(r.total_spend || 0)
-                  };
-                }),
-                loading: false
-              });
-            } else {
-              set({ loading: false });
-            }
+            set({
+              customers: (rows || []).map(r => {
+                const mainAddress = r.address || '';
+                const mainFloor = r.floor || '';
+                const mainApartment = r.apartment || '';
+
+                let parsedAddresses = [];
+                if (Array.isArray(r.addresses)) {
+                  parsedAddresses = r.addresses;
+                } else if (typeof r.addresses === 'string') {
+                  try { parsedAddresses = JSON.parse(r.addresses); } catch (e) {}
+                }
+
+                if (!Array.isArray(parsedAddresses) || parsedAddresses.length === 0) {
+                  parsedAddresses = [{ address: mainAddress, floor: mainFloor, apartment: mainApartment }];
+                }
+
+                return {
+                  id: r.id,
+                  name: r.name,
+                  phone: r.phone,
+                  address: mainAddress,
+                  floor: mainFloor,
+                  apartment: mainApartment,
+                  addresses: parsedAddresses,
+                  totalTransactions: r.total_orders || 0,
+                  totalSpend: parseFloat(r.total_spend || 0)
+                };
+              }),
+              loading: false
+            });
+          } else {
+            set({ customers: [], loading: false });
           }
         } catch (err) {
           console.warn('⚠️ Using cached customers:', err.message);
@@ -111,7 +78,7 @@ export const useCustomerStore = create(
           const res = await fetch('/api/drivers');
           if (res.ok) {
             const rows = await res.json();
-            if (rows.length > 0) set({ drivers: rows });
+            set({ drivers: rows || [] });
           }
         } catch (err) {
           console.warn('⚠️ Using cached drivers:', err.message);
@@ -136,10 +103,11 @@ export const useCustomerStore = create(
         const newAddrObj = { address: address || '', floor: floor || '', apartment: apartment || '' };
 
         if (existingIdx !== -1) {
-          // Existing customer → update name and add address if new
+          // Existing customer → update name and append address if new
           const existing = currentCustomers[existingIdx];
           const hasAddr = (existing.addresses || []).some(a => a.address === newAddrObj.address);
           const updatedAddresses = hasAddr ? (existing.addresses || []) : [...(existing.addresses || []), newAddrObj];
+          
           const updatedCustomer = {
             ...existing,
             name: name || existing.name,
@@ -153,7 +121,6 @@ export const useCustomerStore = create(
           updatedList[existingIdx] = updatedCustomer;
           set({ customers: updatedList });
 
-          // API update to Supabase
           try {
             await fetch(`/api/customers/${existing.id}`, {
               method: 'PUT',
@@ -164,6 +131,7 @@ export const useCustomerStore = create(
                 address: address || existing.address || '',
                 floor: floor || existing.floor || '',
                 apartment: apartment || existing.apartment || '',
+                addresses: updatedAddresses
               }),
             });
           } catch (e) { }
@@ -194,6 +162,7 @@ export const useCustomerStore = create(
                 address: address || '',
                 floor: floor || '',
                 apartment: apartment || '',
+                addresses: [newAddrObj]
               }),
             });
           } catch (e) { }
@@ -202,8 +171,59 @@ export const useCustomerStore = create(
 
       addCustomer: async (customer) => {
         const localId = Date.now().toString();
-        const newCust = { ...customer, id: localId, addresses: customer.addresses || [{ address: customer.address || '', floor: customer.floor || '', apartment: customer.apartment || '' }] };
+        const initialAddresses = customer.addresses || [{ address: customer.address || '', floor: customer.floor || '', apartment: customer.apartment || '' }];
+        const newCust = { ...customer, id: localId, addresses: initialAddresses };
         set((state) => ({ customers: [newCust, ...state.customers] }));
+
+        try {
+          await fetch('/api/customers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: localId,
+              name: newCust.name,
+              phone: newCust.phone,
+              address: newCust.address || '',
+              floor: newCust.floor || '',
+              apartment: newCust.apartment || '',
+              addresses: initialAddresses
+            })
+          });
+        } catch (e) {}
+      },
+
+      updateCustomerAddresses: async (customerId, addressesList) => {
+        const currentCustomers = get().customers;
+        const target = currentCustomers.find(c => c.id === customerId);
+        if (!target) return;
+
+        const mainAddr = addressesList[0] || { address: '', floor: '', apartment: '' };
+        const updated = {
+          ...target,
+          address: mainAddr.address,
+          floor: mainAddr.floor,
+          apartment: mainAddr.apartment,
+          addresses: addressesList
+        };
+
+        set((state) => ({
+          customers: state.customers.map(c => c.id === customerId ? updated : c)
+        }));
+
+        try {
+          await fetch(`/api/customers/${customerId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: updated.name,
+              phone: updated.phone,
+              address: mainAddr.address,
+              floor: mainAddr.floor,
+              apartment: mainAddr.apartment,
+              addresses: addressesList
+            })
+          });
+        } catch (e) {}
       },
 
       deleteCustomer: async (id) => {
@@ -212,7 +232,7 @@ export const useCustomerStore = create(
       },
     }),
     {
-      name: 'el-baraday-customers-v3',
+      name: 'el-baraday-customers-v6',
     }
   )
 );

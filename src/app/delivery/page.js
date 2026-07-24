@@ -1,99 +1,518 @@
 'use client';
 
-import { useState } from 'react';
-import { 
+import { useState, useEffect } from 'react';
+import {
   Box, Typography, Tabs, Tab, TextField, Button, Grid, Card, CardContent,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Select, MenuItem,
-  InputAdornment, FormControl, InputLabel, List, ListItem, ListItemText, ListItemSecondaryAction
+  InputAdornment, FormControl, InputLabel, List, ListItem, ListItemText, ListItemSecondaryAction,
+  Chip, Tooltip, Alert, Badge, CircularProgress, Divider
 } from '@mui/material';
-import { 
-  Add as AddIcon, Search as SearchIcon, Edit as EditIcon, Delete as DeleteIcon 
+import {
+  DeliveryDining, AccessTime, LocationOn, Person, Phone, Home, Print, CheckCircle,
+  Warning, Add as AddIcon, Search as SearchIcon, Edit as EditIcon, Delete as DeleteIcon,
+  Refresh, HowToReg, SwapVert, Store, LocalShipping, CheckCircleOutlined, AccountBalanceWallet
 } from '@mui/icons-material';
 import { useCustomerStore } from '@/store/useCustomerStore';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
+import { useBranchStore } from '@/store/useBranchStore';
+import { useAuthStore } from '@/store/useAuthStore';
+import DeliveryTimerBadge from '@/components/delivery/DeliveryTimerBadge';
+import { printThermalReceipt } from '@/lib/printReceipt';
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
   return (
     <div role="tabpanel" hidden={value !== index} {...other}>
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+      {value === index && <Box sx={{ pt: 2.5, pb: 4 }}>{children}</Box>}
     </div>
   );
 }
 
 export default function DeliveryPage() {
   const [tabValue, setTabValue] = useState(0);
-  const { customers, addCustomer, updateCustomer, deleteCustomer, areas, addArea, deleteArea } = useCustomerStore();
-  const { invoices } = useInvoiceStore();
-  
+  const { customers, fetchCustomers, saveOrUpdateCustomer, updateCustomerAddresses, deleteCustomer, areas, fetchAreas, addArea, deleteArea, drivers, fetchDrivers, activeQueue } = useCustomerStore();
+  const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin';
+
+  // Live Orders State
+  const [deliveryOrders, setDeliveryOrders] = useState([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [orderStatusFilter, setOrderStatusFilter] = useState('all'); // all, preparing, dispatched, delivered
   const [searchTerm, setSearchTerm] = useState('');
+  const [deliveryTimerMinutes, setDeliveryTimerMinutes] = useState(30);
+
+  // Dispatch Dialog State
+  const [dispatchDialog, setDispatchDialog] = useState(false);
+  const [selectedOrderForDispatch, setSelectedOrderForDispatch] = useState(null);
+  const [selectedDriverForOrder, setSelectedDriverForOrder] = useState('');
+
+  // Customer & Area Dialogs
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
-  const [currentCustomer, setCurrentCustomer] = useState({ phone: '', name: '', address: '', area: '' });
-  
+  const [currentCustomer, setCurrentCustomer] = useState({ phone: '', name: '', address: '', area: '', floor: '', apartment: '' });
   const [areaDialogOpen, setAreaDialogOpen] = useState(false);
   const [newAreaName, setNewAreaName] = useState('');
 
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState(null);
+  // Fetch Delivery Orders & Settings
+  const fetchDeliveryData = async () => {
+    setLoadingOrders(true);
+    try {
+      // Fetch settings for timer minutes
+      const setRes = await fetch('/api/settings');
+      if (setRes.ok) {
+        const setObj = await setRes.json();
+        if (setObj.delivery_timer_minutes) setDeliveryTimerMinutes(parseInt(setObj.delivery_timer_minutes) || 30);
+      }
+
+      // Fetch Orders
+      const url = selectedBranchId && selectedBranchId !== 'all' ? `/api/orders?branch_id=${selectedBranchId}` : '/api/orders';
+      const res = await fetch(url);
+      if (res.ok) {
+        const rows = await res.json();
+        // Filter only delivery orders
+        const delOrders = (rows || []).filter(o => o.order_type === 'delivery' || o.orderType === 'delivery');
+        setDeliveryOrders(delOrders);
+      }
+    } catch (e) {
+      console.error('❌ Error fetching delivery orders:', e);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDeliveryData();
+    fetchCustomers();
+    fetchAreas();
+    fetchDrivers();
+
+    const interval = setInterval(fetchDeliveryData, 60000); // Auto refresh live orders
+    return () => clearInterval(interval);
+  }, [selectedBranchId]);
 
   const handleTabChange = (event, newValue) => setTabValue(newValue);
 
-  // Filtered Customers
-  const filteredCustomers = customers.filter(c => 
-    c.name.includes(searchTerm) || c.phone.includes(searchTerm)
-  );
+  // Filtered Live Delivery Orders
+  const filteredOrders = (deliveryOrders || []).filter(o => {
+    const isPrep = !o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل';
+    const isDisp = !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل';
+    const isDeliv = o.status === 'delivered' || o.status === 'مكتمل';
 
-  const handleSaveCustomer = () => {
-    if (currentCustomer.id) {
-      updateCustomer(currentCustomer.id, currentCustomer);
-    } else {
-      addCustomer({ ...currentCustomer, id: Date.now(), totalDealings: 0 });
+    if (orderStatusFilter === 'preparing' && !isPrep) return false;
+    if (orderStatusFilter === 'dispatched' && !isDisp) return false;
+    if (orderStatusFilter === 'delivered' && !isDeliv) return false;
+
+    if (!searchTerm) return true;
+    const cleanSearch = searchTerm.toLowerCase().trim();
+    return (
+      (o.order_number || o.orderNumber || '').toString().includes(cleanSearch) ||
+      (o.customer_name || o.customerName || '').toLowerCase().includes(cleanSearch) ||
+      (o.customer_phone || o.customerPhone || '').includes(cleanSearch) ||
+      (o.driver_name || o.driverName || '').toLowerCase().includes(cleanSearch)
+    );
+  });
+
+  // Action: Open Dispatch Dialog
+  const handleOpenDispatch = (order) => {
+    setSelectedOrderForDispatch(order);
+    // Auto pick #1 driver in queue if available
+    const topReadyDriver = (activeQueue || []).find(q => q.status === 'ready');
+    setSelectedDriverForOrder(order.driver_name || order.driverName || (topReadyDriver ? topReadyDriver.driver_name : ''));
+    setDispatchDialog(true);
+  };
+
+  // Action: Confirm Dispatching Order with Driver
+  const handleConfirmDispatch = async () => {
+    if (!selectedOrderForDispatch) return;
+
+    try {
+      await fetch(`/api/orders/${selectedOrderForDispatch.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          driver_name: selectedDriverForOrder,
+          dispatched_at: new Date().toISOString(),
+          status: 'dispatched'
+        })
+      });
+
+      setDispatchDialog(false);
+      setSelectedOrderForDispatch(null);
+      fetchDeliveryData();
+    } catch (e) {
+      console.error('❌ Failed to dispatch order:', e);
     }
-    setCustomerDialogOpen(false);
-    setCurrentCustomer({ phone: '', name: '', address: '', area: '' });
   };
 
-  const handleEditCustomer = (customer) => {
-    setCurrentCustomer(customer);
-    setCustomerDialogOpen(true);
-  };
-
-  const handleDeleteClick = (id) => {
-    setItemToDelete(id);
-    setDeleteDialogOpen(true);
-  };
-
-  const confirmDeleteCustomer = () => {
-    deleteCustomer(itemToDelete);
-    setDeleteDialogOpen(false);
-  };
-
-  const handleSaveArea = () => {
-    if (newAreaName) {
-      addArea({ id: Date.now(), name: newAreaName });
-      setNewAreaName('');
-      setAreaDialogOpen(false);
+  // Action: Mark Order Delivered
+  const handleMarkDelivered = async (orderId) => {
+    try {
+      await fetch(`/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'delivered'
+        })
+      });
+      fetchDeliveryData();
+    } catch (e) {
+      console.error('❌ Failed to mark delivered:', e);
     }
   };
+
+  // Action: Print Delivery Receipt
+  const handlePrintDelivery = (order) => {
+    printThermalReceipt({
+      orderNumber: order.order_number || order.orderNumber || '1',
+      dateStr: new Date(order.created_at || order.createdAt || Date.now()).toLocaleString('ar-EG'),
+      driverName: order.driver_name || order.driverName || 'طيار الدليفري',
+      cashierName: order.cashier_name || order.cashierName || 'كاشير',
+      customerName: order.customer_name || order.customerName || '',
+      customerPhone: order.customer_phone || order.customerPhone || '',
+      customerAddress: order.customer_address || order.customerAddress || '',
+      customerFloor: order.customer_floor || order.customerFloor || '',
+      customerApartment: order.customer_apartment || order.customerApartment || '',
+      items: order.items || [],
+      subtotal: parseFloat(order.subtotal || order.total || 0),
+      deliveryFee: parseFloat(order.delivery_fee || order.deliveryFee || 0),
+      total: parseFloat(order.total || 0),
+      paidAmount: parseFloat(order.paid_amount || order.paidAmount || order.total || 0),
+      remainingAmount: 0,
+      orderType: 'delivery'
+    });
+  };
+
+  // Stats Counters
+  const preparingCount = deliveryOrders.filter(o => !o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل').length;
+  const dispatchedCount = deliveryOrders.filter(o => !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل').length;
+  const deliveredCount = deliveryOrders.filter(o => o.status === 'delivered' || o.status === 'مكتمل').length;
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom fontWeight="bold" sx={{ mb: 4 }}>
-        إدارة الدليفري
-      </Typography>
+    <Box sx={{ p: { xs: 1.5, md: 3 }, display: 'flex', flexDirection: 'column', gap: 2.5, pb: { xs: 10, md: 4 } }}>
+      {/* Top Banner Header */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{ width: 48, height: 48, borderRadius: '16px', bgcolor: 'rgba(224, 107, 31, 0.1)', color: '#E06B1F', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <DeliveryDining sx={{ fontSize: 32 }} />
+          </Box>
+          <Box>
+            <Typography variant="h4" sx={{ fontWeight: 900, color: '#1A1A2E', fontSize: { xs: '1.4rem', md: '1.8rem' } }}>
+              مركـز إدارة وتنظيـم الدليفـري والتوصيـل
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#6B7280' }}>
+              متابعة حركة الطيارين اللحظية بالتايمر، توجيه الأوردرات للوجهات والمناطق، وإدارة عهد التحصيل
+            </Typography>
+          </Box>
+        </Box>
 
-      <Paper sx={{ width: '100%', mb: 2 }}>
+        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+          {isAdmin && (
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <Select
+                value={selectedBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+                sx={{ borderRadius: '12px', bgcolor: '#FFF', fontWeight: 800 }}
+              >
+                <MenuItem value="all">🏢 كافـة الفـروع</MenuItem>
+                {branches.map(b => (
+                  <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
+          <Button
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={fetchDeliveryData}
+            sx={{ borderRadius: '12px', fontWeight: 800, py: 1 }}
+          >
+            تحديث اللحظة
+          </Button>
+        </Box>
+      </Box>
+
+      {/* KPI Stats Bar */}
+      <Grid container spacing={2}>
+        <Grid item xs={6} sm={3}>
+          <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#FFFBEB', color: '#F59E0B', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <AccessTime sx={{ fontSize: 24 }} />
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary" fontWeight={700}>قيد التجهيز بالمطبخ</Typography>
+              <Typography variant="h6" fontWeight={900} color="#D97706">{preparingCount} طلب</Typography>
+            </Box>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={6} sm={3}>
+          <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #3B82F6', bgcolor: '#EFF6FF', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#3B82F6', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <DeliveryDining sx={{ fontSize: 24 }} />
+            </Box>
+            <Box>
+              <Typography variant="caption" color="#1E40AF" fontWeight={700}>خارج للتوصيل (مع التايمر)</Typography>
+              <Typography variant="h6" fontWeight={900} color="#1D4ED8">{dispatchedCount} طلب</Typography>
+            </Box>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={6} sm={3}>
+          <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #10B981', bgcolor: '#ECFDF5', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#10B981', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CheckCircle sx={{ fontSize: 24 }} />
+            </Box>
+            <Box>
+              <Typography variant="caption" color="#065F46" fontWeight={700}>تم الوصول والتسليم</Typography>
+              <Typography variant="h6" fontWeight={900} color="#047857">{deliveredCount} طلب</Typography>
+            </Box>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={6} sm={3}>
+          <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#F0FDF4', color: '#166534', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <HowToReg sx={{ fontSize: 24 }} />
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary" fontWeight={700}>طابور الطيارين الجاهزين</Typography>
+              <Typography variant="h6" fontWeight={900} color="#15803D">{activeQueue.length} طيار بالشيفت</Typography>
+            </Box>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      {/* Main Control Navigation Tabs */}
+      <Paper sx={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid #E5E7EB' }}>
         <Tabs value={tabValue} onChange={handleTabChange} indicatorColor="primary" textColor="primary" variant="fullWidth">
-          <Tab label="إدارة العملاء" />
-          <Tab label="التعاملات" />
-          <Tab label="غير مسددة" />
-          <Tab label="المناطق" />
+          <Tab icon={<DeliveryDining />} iconPosition="start" label="لوحة الأوردرات والتايمرات اللحظية" sx={{ fontWeight: 800 }} />
+          <Tab icon={<HowToReg />} iconPosition="start" label="طابور دور الطيارين المباشر" sx={{ fontWeight: 800 }} />
+          <Tab icon={<Person />} iconPosition="start" label="سجل العملاء والعناوين المحفوظة" sx={{ fontWeight: 800 }} />
+          <Tab icon={<LocationOn />} iconPosition="start" label="مناطق التوصيل والرسوم" sx={{ fontWeight: 800 }} />
         </Tabs>
       </Paper>
 
-      {/* Tab 1: Customers */}
+      {/* Tab 1: Live Delivery Control Board & Timers */}
       <TabPanel value={tabValue} index={0}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 3 }}>
+          {/* Status Filter Chips */}
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            {[
+              { id: 'all', label: `الكل (${deliveryOrders.length})` },
+              { id: 'preparing', label: `⏳ قيد التجهيز بالمطبخ (${preparingCount})` },
+              { id: 'dispatched', label: `🚀 خارج للتوصيل (${dispatchedCount})` },
+              { id: 'delivered', label: `✅ تم التسليم (${deliveredCount})` },
+            ].map(filter => (
+              <Chip
+                key={filter.id}
+                label={filter.label}
+                onClick={() => setOrderStatusFilter(filter.id)}
+                color={orderStatusFilter === filter.id ? 'primary' : 'default'}
+                variant={orderStatusFilter === filter.id ? 'filled' : 'outlined'}
+                sx={{ fontWeight: 800, borderRadius: '10px', px: 1 }}
+              />
+            ))}
+          </Box>
+
+          <TextField
+            placeholder="بحث برقم الأوردر، العميل، التليفون أو الطيار..."
+            variant="outlined"
+            size="small"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            slotProps={{
+              input: {
+                startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
+              }
+            }}
+            sx={{ width: { xs: '100%', sm: '320px' }, bgcolor: '#FFF' }}
+          />
+        </Box>
+
+        {loadingOrders ? (
+          <Box sx={{ py: 6, textAlign: 'center' }}><CircularProgress size={36} /></Box>
+        ) : filteredOrders.length === 0 ? (
+          <Alert severity="info" sx={{ borderRadius: '16px', fontWeight: 700, py: 3 }}>
+            لا يوجد طلبات دليفري مطابقة للفلتر المحدد حالياً.
+          </Alert>
+        ) : (
+          <Grid container spacing={2.5}>
+            {filteredOrders.map(order => {
+              const isDispatched = !!order.dispatched_at;
+              const isDelivered = order.status === 'delivered' || order.status === 'مكتمل';
+              const branchName = order.branch_name || 'الفرع الرئيسي';
+
+              return (
+                <Grid item xs={12} sm={6} md={4} key={order.id}>
+                  <Card
+                    elevation={0}
+                    sx={{
+                      borderRadius: '20px',
+                      border: '2px solid',
+                      borderColor: isDelivered ? '#10B981' : (isDispatched ? '#3B82F6' : '#F59E0B'),
+                      bgcolor: isDelivered ? '#F0FDF4' : (isDispatched ? '#EFF6FF' : '#FFFFFF'),
+                      boxShadow: isDispatched ? '0 4px 16px rgba(59, 130, 246, 0.15)' : '0 2px 8px rgba(0,0,0,0.04)',
+                      transition: 'all 0.2s ease-in-out',
+                      '&:hover': { transform: 'translateY(-2px)' }
+                    }}
+                  >
+                    <CardContent sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                      {/* Top Header Card */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="h6" fontWeight={900} color="#1A1A2E">
+                            أوردر #{order.order_number || order.orderNumber}
+                          </Typography>
+                          <Chip
+                            icon={<Store sx={{ fontSize: '14px !important' }} />}
+                            label={branchName}
+                            size="small"
+                            variant="outlined"
+                            sx={{ fontWeight: 800, fontSize: '0.7rem' }}
+                          />
+                        </Box>
+
+                        {/* Realtime Delivery Timer Badge */}
+                        <DeliveryTimerBadge dispatchedAt={order.dispatched_at} targetMinutes={deliveryTimerMinutes} />
+                      </Box>
+
+                      <Divider sx={{ my: 0.5 }} />
+
+                      {/* Customer Info */}
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Person sx={{ color: '#4285F4', fontSize: 18 }} />
+                          <Typography variant="body2" fontWeight={800} color="#1E293B">
+                            {order.customer_name || order.customerName || 'عميل دليفري'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Phone sx={{ color: '#6B7280', fontSize: 18 }} />
+                          <Typography variant="body2" fontWeight={700} color="#3B82F6" dir="ltr" sx={{ textAlign: 'right' }}>
+                            {order.customer_phone || order.customerPhone || '—'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mt: 0.5 }}>
+                          <Home sx={{ color: '#9CA3AF', fontSize: 18, mt: 0.3 }} />
+                          <Typography variant="caption" fontWeight={700} color="#475569" sx={{ lineHeight: 1.4 }}>
+                            الوجهة: {order.customer_address || order.customerAddress || 'عنوان غير محدد'}
+                            {order.customer_floor ? ` - (د ${order.customer_floor}` : ''}
+                            {order.customer_apartment ? ` ش ${order.customer_apartment})` : order.customer_floor ? ')' : ''}
+                          </Typography>
+                        </Box>
+                      </Box>
+
+                      {/* Driver Status Banner */}
+                      <Paper sx={{ p: 1.2, borderRadius: '12px', bgcolor: isDispatched ? '#DBEAFE' : '#FFFBEB', border: '1px solid', borderColor: isDispatched ? '#BFDBFE' : '#FDE68A', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <DeliveryDining sx={{ color: isDispatched ? '#1D4ED8' : '#D97706' }} />
+                          <Typography variant="caption" fontWeight={800} color={isDispatched ? '#1E40AF' : '#92400E'}>
+                            الطيار: {order.driver_name || order.driverName || 'لم يحدد طيار بعد'}
+                          </Typography>
+                        </Box>
+                        <Typography variant="subtitle2" fontWeight={900} color="#059669">
+                          {parseFloat(order.total || 0).toLocaleString()} ج.م
+                        </Typography>
+                      </Paper>
+
+                      {/* Action Buttons Footer */}
+                      <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                        {!isDelivered && (
+                          <Button
+                            fullWidth
+                            size="small"
+                            variant="contained"
+                            startIcon={<DeliveryDining />}
+                            onClick={() => handleOpenDispatch(order)}
+                            sx={{ borderRadius: '10px', fontWeight: 800, bgcolor: isDispatched ? '#3B82F6' : '#E06B1F', '&:hover': { bgcolor: isDispatched ? '#2563EB' : '#C85A17' } }}
+                          >
+                            {isDispatched ? 'تغيير الطيار' : 'خروج للتوصيل'}
+                          </Button>
+                        )}
+
+                        {isDispatched && !isDelivered && (
+                          <Button
+                            fullWidth
+                            size="small"
+                            variant="contained"
+                            color="success"
+                            startIcon={<CheckCircle />}
+                            onClick={() => handleMarkDelivered(order.id)}
+                            sx={{ borderRadius: '10px', fontWeight: 800 }}
+                          >
+                            تأكيد التسليم
+                          </Button>
+                        )}
+
+                        <Tooltip title="طباعة بون التوصيل">
+                          <IconButton
+                            size="small"
+                            onClick={() => handlePrintDelivery(order)}
+                            sx={{ border: '1px solid #CBD5E1', borderRadius: '10px', p: 1 }}
+                          >
+                            <Print fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
+          </Grid>
+        )}
+      </TabPanel>
+
+      {/* Tab 2: Live Driver Attendance Queue */}
+      <TabPanel value={tabValue} index={1}>
+        <Paper sx={{ p: 3, borderRadius: '20px', border: '1px solid #E5E7EB' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <HowToReg sx={{ color: '#10B981', fontSize: 28 }} />
+              <Typography variant="h6" fontWeight={800}>
+                طابور دور الطيارين الحاضرين بالشيفت (مرتب أوتوماتيكياً بالدقيقة)
+              </Typography>
+            </Box>
+            <Button variant="contained" href="/attendance" sx={{ borderRadius: '12px', bgcolor: '#10B981', fontWeight: 800 }}>
+              شاشة تمامات الطيارين الكاملة
+            </Button>
+          </Box>
+
+          <Grid container spacing={2}>
+            {(activeQueue || []).map((item, index) => (
+              <Grid item xs={12} sm={6} md={4} key={item.id}>
+                <Card sx={{ p: 2, borderRadius: '16px', border: index === 0 ? '2px solid #10B981' : '1px solid #E5E7EB', bgcolor: index === 0 ? '#F0FDF4' : '#FFF' }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Chip label={index === 0 ? '👑 الدور 1 (التالي)' : `الدور ${index + 1}`} color={index === 0 ? 'success' : 'default'} sx={{ fontWeight: 800 }} />
+                    <Typography variant="caption" fontWeight={700} color="text.secondary">
+                      حضور: {item.check_in_time ? new Date(item.check_in_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                    </Typography>
+                  </Box>
+                  <Typography variant="h6" fontWeight={900} sx={{ mt: 1.5, color: '#1A1A2E' }}>
+                    {item.driver_name}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    الهاتف: {item.driver_phone || '—'} | الفرع: {item.branch_name || 'الرئيسي'}
+                  </Typography>
+                </Card>
+              </Grid>
+            ))}
+
+            {(!activeQueue || activeQueue.length === 0) && (
+              <Grid item xs={12}>
+                <Alert severity="warning" sx={{ borderRadius: '12px', fontWeight: 700 }}>
+                  لا يوجد طيارين حاضرين بالسيستم حالياً. يمكنك إثبات حضورهم من شاشة التمامات.
+                </Alert>
+              </Grid>
+            )}
+          </Grid>
+        </Paper>
+      </TabPanel>
+
+      {/* Tab 3: Customer Management & Multiple Addresses */}
+      <TabPanel value={tabValue} index={2}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
           <TextField
             placeholder="بحث برقم التليفون أو الاسم..."
@@ -101,100 +520,91 @@ export default function DeliveryPage() {
             size="small"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            InputProps={{
-              startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
+            slotProps={{
+              input: {
+                startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
+              }
             }}
-            sx={{ width: '300px' }}
+            sx={{ width: '320px', bgcolor: '#FFF' }}
           />
-          <Button 
-            variant="contained" 
-            startIcon={<AddIcon />} 
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
             onClick={() => {
-              setCurrentCustomer({ phone: '', name: '', address: '', area: '' });
+              setCurrentCustomer({ phone: '', name: '', address: '', area: '', floor: '', apartment: '' });
               setCustomerDialogOpen(true);
             }}
+            sx={{ borderRadius: '12px', fontWeight: 800, bgcolor: '#4285F4' }}
           >
             إضافة عميل جديد
           </Button>
         </Box>
 
-        <TableContainer component={Paper}>
+        <TableContainer component={Paper} sx={{ borderRadius: '16px', border: '1px solid #E5E7EB' }}>
           <Table>
-            <TableHead>
-              <TableRow sx={{ bgcolor: 'background.default' }}>
-                <TableCell fontWeight="bold">التليفون</TableCell>
+            <TableHead sx={{ bgcolor: '#F8FAFC' }}>
+              <TableRow>
                 <TableCell fontWeight="bold">الاسم</TableCell>
-                <TableCell fontWeight="bold">العنوان</TableCell>
-                <TableCell fontWeight="bold">المنطقة</TableCell>
-                <TableCell fontWeight="bold">حجم التعاملات</TableCell>
-                <TableCell fontWeight="bold">إجراءات</TableCell>
+                <TableCell fontWeight="bold">التليفون</TableCell>
+                <TableCell fontWeight="bold">العنوان الرئيسي</TableCell>
+                <TableCell fontWeight="bold">العناوين المحفوظة</TableCell>
+                <TableCell fontWeight="bold">عدد الطلبات</TableCell>
+                <TableCell fontWeight="bold">إجمالي التعاملات</TableCell>
+                <TableCell fontWeight="bold" align="center">إجراءات</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredCustomers.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>{row.phone}</TableCell>
-                  <TableCell>{row.name}</TableCell>
-                  <TableCell>{row.address}</TableCell>
-                  <TableCell>{row.area}</TableCell>
-                  <TableCell>{row.totalDealings} ج.م</TableCell>
-                  <TableCell>
-                    <IconButton color="primary" onClick={() => handleEditCustomer(row)}>
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton color="error" onClick={() => handleDeleteClick(row.id)}>
-                      <DeleteIcon />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {filteredCustomers.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} align="center">لا يوجد عملاء مطابقين للبحث</TableCell>
-                </TableRow>
-              )}
+              {customers.filter(c => (c.name || '').includes(searchTerm) || (c.phone || '').includes(searchTerm)).map((row) => {
+                const addrs = row.addresses || [];
+                return (
+                  <TableRow key={row.id}>
+                    <TableCell fontWeight={800}>{row.name}</TableCell>
+                    <TableCell sx={{ color: '#3B82F6', fontWeight: 800, dir: 'ltr', textAlign: 'right' }}>{row.phone}</TableCell>
+                    <TableCell>{row.address || '—'}</TableCell>
+                    <TableCell>
+                      <Chip
+                        icon={<LocationOn sx={{ fontSize: '14px !important' }} />}
+                        label={`${addrs.length || 1} عناوين`}
+                        size="small"
+                        sx={{ bgcolor: '#EFF6FF', color: '#1E40AF', fontWeight: 800 }}
+                      />
+                    </TableCell>
+                    <TableCell fontWeight={700}>{row.totalTransactions || 0} طلب</TableCell>
+                    <TableCell fontWeight={800} color="#059669">{(row.totalSpend || 0).toLocaleString()} ج.م</TableCell>
+                    <TableCell align="center">
+                      <IconButton color="primary" onClick={() => { setCurrentCustomer(row); setCustomerDialogOpen(true); }}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton color="error" onClick={() => deleteCustomer(row.id)}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>
       </TabPanel>
 
-      {/* Tab 2: Dealings */}
-      <TabPanel value={tabValue} index={1}>
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} md={4}>
-            <Card><CardContent><Typography color="text.secondary">إجمالي التعاملات</Typography><Typography variant="h5">0 ج.م</Typography></CardContent></Card>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Card><CardContent><Typography color="text.secondary">عدد الطلبات</Typography><Typography variant="h5">0</Typography></CardContent></Card>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Card><CardContent><Typography color="text.secondary">آخر تعامل</Typography><Typography variant="h5">-</Typography></CardContent></Card>
-          </Grid>
-        </Grid>
-        <Typography variant="body1" color="text.secondary" align="center">
-          يرجى اختيار عميل لعرض سجل التعاملات الخاص به.
-        </Typography>
-      </TabPanel>
-
-      {/* Tab 3: Unpaid */}
-      <TabPanel value={tabValue} index={2}>
-        <Typography variant="body1" color="text.secondary" align="center">
-          لا يوجد طلبات دليفري غير مسددة.
-        </Typography>
-      </TabPanel>
-
-      {/* Tab 4: Areas */}
+      {/* Tab 4: Delivery Areas & Fees */}
       <TabPanel value={tabValue} index={3}>
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3 }}>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAreaDialogOpen(true)}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h6" fontWeight={800}>
+            مناطق التوصيل ورسوم خدمة الدليفري
+          </Typography>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAreaDialogOpen(true)} sx={{ borderRadius: '12px', fontWeight: 800 }}>
             إضافة منطقة جديدة
           </Button>
         </Box>
-        <Paper>
+        <Paper sx={{ borderRadius: '16px', overflow: 'hidden' }}>
           <List>
             {areas?.map((area) => (
               <ListItem key={area.id} divider>
-                <ListItemText primary={area.name} />
+                <ListItemText
+                  primary={<Typography fontWeight={800}>📍 {area.name}</Typography>}
+                  secondary={`رسوم التوصيل: ${area.delivery_fee || 15} ج.م`}
+                />
                 <ListItemSecondaryAction>
                   <IconButton edge="end" color="error" onClick={() => deleteArea(area.id)}>
                     <DeleteIcon />
@@ -203,55 +613,97 @@ export default function DeliveryPage() {
               </ListItem>
             ))}
             {(!areas || areas.length === 0) && (
-              <ListItem><ListItemText primary="لا يوجد مناطق مضافة." sx={{ textAlign: 'center', color: 'text.secondary' }}/></ListItem>
+              <ListItem><ListItemText primary="لا يوجد مناطق مضافة حالياً." sx={{ textAlign: 'center', color: 'text.secondary' }}/></ListItem>
             )}
           </List>
         </Paper>
       </TabPanel>
 
-      {/* Dialogs */}
-      <Dialog open={customerDialogOpen} onClose={() => setCustomerDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{currentCustomer.id ? 'تعديل بيانات العميل' : 'إضافة عميل جديد'}</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-            <TextField label="التليفون" value={currentCustomer.phone} onChange={(e) => setCurrentCustomer({...currentCustomer, phone: e.target.value})} fullWidth />
-            <TextField label="الاسم" value={currentCustomer.name} onChange={(e) => setCurrentCustomer({...currentCustomer, name: e.target.value})} fullWidth />
-            <TextField label="العنوان" value={currentCustomer.address} onChange={(e) => setCurrentCustomer({...currentCustomer, address: e.target.value})} fullWidth />
-            <FormControl fullWidth>
-              <InputLabel>المنطقة</InputLabel>
-              <Select value={currentCustomer.area} label="المنطقة" onChange={(e) => setCurrentCustomer({...currentCustomer, area: e.target.value})}>
-                {areas?.map(a => <MenuItem key={a.id} value={a.name}>{a.name}</MenuItem>)}
-              </Select>
-            </FormControl>
-          </Box>
+      {/* Dispatch Order Dialog */}
+      <Dialog open={dispatchDialog} onClose={() => setDispatchDialog(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800, color: '#E06B1F' }}>
+          🛵 توجيه وخروج الطلب للتوصيل
+        </DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1.5 }}>
+          {selectedOrderForDispatch && (
+            <>
+              <Typography variant="subtitle2" fontWeight={800}>
+                أوردر رقم #{selectedOrderForDispatch.order_number || selectedOrderForDispatch.orderNumber} لـ {selectedOrderForDispatch.customer_name || selectedOrderForDispatch.customerName}
+              </Typography>
+              <FormControl fullWidth size="small">
+                <InputLabel>اختيار طيار التوصيل المكلف</InputLabel>
+                <Select
+                  value={selectedDriverForOrder}
+                  label="اختيار طيار التوصيل المكلف"
+                  onChange={(e) => setSelectedDriverForOrder(e.target.value)}
+                  sx={{ borderRadius: '10px' }}
+                >
+                  {(activeQueue || []).map((d, idx) => (
+                    <MenuItem key={d.id} value={d.driver_name}>
+                      {idx === 0 ? '👑' : '🟢'} {d.driver_name} (الدور {idx + 1})
+                    </MenuItem>
+                  ))}
+                  {(drivers || []).map(d => (
+                    <MenuItem key={d.id} value={d.name}>
+                      🛵 {d.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <Alert severity="info" sx={{ borderRadius: '10px', fontSize: '0.8rem' }}>
+                عند التأكيد، سيبدأ التايمر التفاعلي اللحظي فوراً بالعداد التنازلي للتوصيل.
+              </Alert>
+            </>
+          )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCustomerDialogOpen(false)}>إلغاء</Button>
-          <Button onClick={handleSaveCustomer} variant="contained" color="primary">حفظ</Button>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setDispatchDialog(false)} variant="outlined">إلغاء</Button>
+          <Button onClick={handleConfirmDispatch} variant="contained" sx={{ bgcolor: '#E06B1F', fontWeight: 800 }}>
+            تأكيد الخروج للتوصيل
+          </Button>
         </DialogActions>
       </Dialog>
 
+      {/* Add / Edit Customer Dialog */}
+      <Dialog open={customerDialogOpen} onClose={() => setCustomerDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>{currentCustomer.id ? 'تعديل بيانات العميل' : 'إضافة عميل جديد'}</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+            <TextField label="التليفون *" value={currentCustomer.phone} onChange={(e) => setCurrentCustomer({...currentCustomer, phone: e.target.value})} fullWidth size="small" />
+            <TextField label="الاسم *" value={currentCustomer.name} onChange={(e) => setCurrentCustomer({...currentCustomer, name: e.target.value})} fullWidth size="small" />
+            <TextField label="العنوان" value={currentCustomer.address} onChange={(e) => setCurrentCustomer({...currentCustomer, address: e.target.value})} fullWidth size="small" />
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <TextField label="الدور" value={currentCustomer.floor} onChange={(e) => setCurrentCustomer({...currentCustomer, floor: e.target.value})} fullWidth size="small" />
+              <TextField label="الشقة" value={currentCustomer.apartment} onChange={(e) => setCurrentCustomer({...currentCustomer, apartment: e.target.value})} fullWidth size="small" />
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setCustomerDialogOpen(false)}>إلغاء</Button>
+          <Button onClick={async () => {
+            await saveOrUpdateCustomer(currentCustomer);
+            setCustomerDialogOpen(false);
+          }} variant="contained" color="primary">حفظ البيانات</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add Area Dialog */}
       <Dialog open={areaDialogOpen} onClose={() => setAreaDialogOpen(false)}>
-        <DialogTitle>إضافة منطقة جديدة</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 800 }}>إضافة منطقة توصيل جديدة</DialogTitle>
         <DialogContent>
           <TextField autoFocus margin="dense" label="اسم المنطقة" fullWidth variant="outlined" value={newAreaName} onChange={(e) => setNewAreaName(e.target.value)} sx={{ mt: 1 }}/>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setAreaDialogOpen(false)}>إلغاء</Button>
-          <Button onClick={handleSaveArea} variant="contained">حفظ</Button>
+          <Button onClick={() => {
+            if (newAreaName) {
+              addArea({ id: Date.now().toString(), name: newAreaName });
+              setNewAreaName('');
+              setAreaDialogOpen(false);
+            }
+          }} variant="contained">حفظ المنطقة</Button>
         </DialogActions>
       </Dialog>
-
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>تأكيد الحذف</DialogTitle>
-        <DialogContent>هل أنت متأكد من حذف هذا العميل نهائياً؟</DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>إلغاء</Button>
-          <Button color="error" variant="contained" onClick={confirmDeleteCustomer}>حذف</Button>
-        </DialogActions>
-      </Dialog>
-
     </Box>
   );
 }
-

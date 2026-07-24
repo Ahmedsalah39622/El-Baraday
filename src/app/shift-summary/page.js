@@ -28,9 +28,9 @@ export default function ShiftSummaryPage() {
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [openDialogOpen, setOpenDialogOpen] = useState(false);
   const [actualDrawerCash, setActualDrawerCash] = useState('');
-  
+
   // New shift form state
-  const [newCashierName, setNewCashierName] = useState(user?.name || 'أحمد محمود');
+  const [newCashierName, setNewCashierName] = useState(user?.name || '');
   const [newStartAmount, setNewStartAmount] = useState('500');
 
   useEffect(() => {
@@ -71,7 +71,7 @@ export default function ShiftSummaryPage() {
     alert('تم فتح وردية جديدة بنجاح!');
   };
 
-  const cashierDisplayName = user?.name || activeShift?.cashierName || 'أحمد محمود (المدير العام)';
+  const cashierDisplayName = user?.name || activeShift?.cashierName || '';
   const roleTitle = user?.role === 'admin' ? 'مدير النظام' : user?.role === 'cashier' ? 'كاشير' : user?.role === 'driver' ? 'طيار دليفري' : 'شيف مطبخ';
 
   const isShiftActive = activeShift && activeShift.status === 'active';

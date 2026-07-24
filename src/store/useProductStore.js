@@ -38,7 +38,7 @@ function mapProduct(row) {
 }
 
 export const useProductStore = create((set, get) => ({
-  products: defaultHawawshiProducts,
+  products: [],
   loading: false,
   error: null,
 

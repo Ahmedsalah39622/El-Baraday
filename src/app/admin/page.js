@@ -21,9 +21,12 @@ const ROLE_OPTIONS = [
   { value: 'custom', label: 'مخصص' }
 ];
 
+import { useBranchStore } from '@/store/useBranchStore';
+
 export default function AdminPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const { branches } = useBranchStore();
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +40,7 @@ export default function AdminPage() {
     username: '',
     pin: '',
     role: 'cashier',
+    branch_id: 'b1',
     permissions: ROLE_PERMISSIONS.cashier,
     status: 'active'
   });
@@ -68,6 +72,7 @@ export default function AdminPage() {
         username: user.username || '',
         pin: user.pin || '1234',
         role: user.role || 'cashier',
+        branch_id: user.branch_id || 'b1',
         permissions: Array.isArray(user.permissions) && user.permissions.length > 0
           ? user.permissions
           : (ROLE_PERMISSIONS[user.role] || ROLE_PERMISSIONS.cashier),
@@ -80,6 +85,7 @@ export default function AdminPage() {
         username: '',
         pin: '',
         role: 'cashier',
+        branch_id: 'b1',
         permissions: [...ROLE_PERMISSIONS.cashier],
         status: 'active'
       });
@@ -342,7 +348,7 @@ export default function AdminPage() {
         >
           {/* Inputs Section */}
           <Grid container spacing={2} sx={{ mt: 0.2 }}>
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 size="small"
@@ -353,7 +359,7 @@ export default function AdminPage() {
               />
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 size="small"
@@ -364,7 +370,7 @@ export default function AdminPage() {
               />
             </Grid>
 
-            <Grid item xs={12} sm={4}>
+            <Grid xs={12} sm={4}>
               <TextField
                 fullWidth
                 size="small"
@@ -376,7 +382,22 @@ export default function AdminPage() {
               />
             </Grid>
 
-            <Grid item xs={12} sm={4}>
+            <Grid xs={12} sm={3}>
+              <FormControl fullWidth size="small">
+                <InputLabel>الفرع المنسوب إليه</InputLabel>
+                <Select
+                  value={currentUser.branch_id || 'b1'}
+                  label="الفرع المنسوب إليه"
+                  onChange={(e) => setCurrentUser({ ...currentUser, branch_id: e.target.value })}
+                >
+                  {(branches || []).map((b) => (
+                    <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid xs={12} sm={3}>
               <FormControl fullWidth size="small">
                 <InputLabel>الدور (Role)</InputLabel>
                 <Select
@@ -391,7 +412,7 @@ export default function AdminPage() {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={4}>
+            <Grid xs={12} sm={3}>
               <FormControl fullWidth size="small">
                 <InputLabel>حالة الحساب</InputLabel>
                 <Select
@@ -421,7 +442,7 @@ export default function AdminPage() {
               {ALL_SYSTEM_SCREENS.map((screen) => {
                 const isChecked = currentUser.permissions.includes(screen.path);
                 return (
-                  <Grid item xs={12} sm={6} md={4} key={screen.path}>
+                  <Grid xs={12} sm={6} md={4} key={screen.path}>
                     <Paper
                       onClick={() => handleTogglePermission(screen.path)}
                       sx={{

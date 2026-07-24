@@ -3,19 +3,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-const defaultEmployees = [
-  { id: 'e1', name: 'محمد علي الصوفي', role: 'طيار دليفري', phone: '01012345678', baseSalary: 4500, bonus: 500, deductions: 0, advances: 1000, status: 'مستحق' },
-  { id: 'e2', name: 'أحمد عبد الفتاح', role: 'طيار دليفري', phone: '01098765432', baseSalary: 4500, bonus: 300, deductions: 200, advances: 500, status: 'مستحق' },
-  { id: 'e3', name: 'محمود السويفي', role: 'طيار دليفري', phone: '01123456789', baseSalary: 4500, bonus: 0, deductions: 0, advances: 0, status: 'تم الصرف' },
-  { id: 'e4', name: 'خالد طارق', role: 'طيار دليفري', phone: '01234567890', baseSalary: 4500, bonus: 200, deductions: 100, advances: 800, status: 'مستحق' },
-  { id: 'e5', name: 'عمر حسن', role: 'كاشير', phone: '01056789012', baseSalary: 5000, bonus: 0, deductions: 0, advances: 2000, status: 'مستحق' },
-  { id: 'e6', name: 'يوسف إبراهيم', role: 'شيف مطبخ', phone: '01067890123', baseSalary: 6000, bonus: 500, deductions: 300, advances: 0, status: 'تم الصرف' },
-];
-
 export const useEmployeeStore = create(
   persist(
     (set, get) => ({
-      employees: defaultEmployees,
+      employees: [],
       loading: false,
 
       fetchEmployees: async () => {
@@ -24,24 +15,24 @@ export const useEmployeeStore = create(
           const res = await fetch('/api/employees');
           if (res.ok) {
             const rows = await res.json();
-            if (rows.length > 0) {
-              set({
-                employees: rows.map(r => ({
-                  id: r.id,
-                  name: r.name,
-                  role: r.role || 'موظف',
-                  phone: r.phone || '',
-                  baseSalary: parseFloat(r.base_salary || 4000),
-                  bonus: parseFloat(r.bonus || 0),
-                  deductions: parseFloat(r.deductions || 0),
-                  advances: parseFloat(r.total_advances || 0),
-                  status: r.status || 'مستحق'
-                })),
-                loading: false
-              });
-            } else {
-              set({ loading: false });
-            }
+            set({
+              employees: (rows || []).map(r => ({
+                id: r.id,
+                name: r.name,
+                role: r.role || 'موظف',
+                phone: r.phone || '',
+                baseSalary: parseFloat(r.base_salary || 4000),
+                bonus: parseFloat(r.bonus || 0),
+                deductions: parseFloat(r.deductions || 0),
+                advances: parseFloat(r.total_advances || 0),
+                status: r.status || 'مستحق',
+                branchId: r.branch_id || 'b1',
+                branchName: r.branch_name || 'الفرع الأول - الرئيسي'
+              })),
+              loading: false
+            });
+          } else {
+            set({ employees: [], loading: false });
           }
         } catch (err) {
           console.warn('⚠️ Using cached employees:', err.message);
@@ -77,21 +68,79 @@ export const useEmployeeStore = create(
         const newEmp = { id: newId, bonus: 0, deductions: 0, advances: 0, status: 'مستحق', ...emp };
         set((state) => ({ employees: [...state.employees, newEmp] }));
         try {
-          await fetch('/api/employees', {
+          const res = await fetch('/api/employees', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               name: newEmp.name,
               phone: newEmp.phone,
               role: newEmp.role,
-              base_salary: newEmp.baseSalary
+              base_salary: newEmp.baseSalary,
+              branch_id: newEmp.branchId || newEmp.branch_id || 'b1'
             })
+          });
+          if (res.ok) {
+            get().fetchEmployees();
+            try {
+              const { useCustomerStore } = await import('@/store/useCustomerStore');
+              useCustomerStore.getState().fetchDrivers();
+            } catch (err) {}
+          }
+        } catch (e) {}
+      },
+
+      updateEmployee: async (id, updates) => {
+        set((state) => ({
+          employees: state.employees.map(e => e.id === id ? { ...e, ...updates } : e)
+        }));
+        try {
+          await fetch(`/api/employees/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: updates.name,
+              phone: updates.phone,
+              role: updates.role,
+              base_salary: updates.baseSalary,
+              bonus: updates.bonus,
+              deductions: updates.deductions,
+              status: updates.status,
+              branch_id: updates.branchId || updates.branch_id
+            })
+          });
+          get().fetchEmployees();
+          try {
+            const { useCustomerStore } = await import('@/store/useCustomerStore');
+            useCustomerStore.getState().fetchDrivers();
+          } catch (err) {}
+        } catch (e) {}
+      },
+
+      deleteEmployee: async (id) => {
+        set((state) => ({ employees: state.employees.filter(e => e.id !== id) }));
+        try {
+          await fetch(`/api/employees/${id}`, { method: 'DELETE' });
+          get().fetchEmployees();
+        } catch (e) {}
+      },
+
+      settleEmployeeAccount: async (id) => {
+        set((state) => ({
+          employees: state.employees.map(e =>
+            e.id === id ? { ...e, status: 'تمت التصفية' } : e
+          )
+        }));
+        try {
+          await fetch(`/api/employees/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'تمت التصفية' })
           });
         } catch (e) {}
       }
     }),
     {
-      name: 'el-baraday-employees-v1',
+      name: 'el-baraday-employees-v5',
     }
   )
 );
