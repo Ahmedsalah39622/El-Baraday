@@ -44,6 +44,9 @@ export default function OrderDetailsPanel({
   const readyDrivers = checkedInDrivers.filter(q => q.status === 'ready');
   const onDeliveryDrivers = checkedInDrivers.filter(q => q.status === 'on_delivery');
 
+  // Filter all registered drivers for THIS BRANCH ONLY
+  const branchRegisteredDrivers = (drivers || []).filter(d => !orderBranchId || orderBranchId === 'all' || d.branch_id === orderBranchId);
+
   const availableDriverOptions = [];
 
   // 1. Ready drivers ranked first (Top ready is #1)
@@ -66,8 +69,8 @@ export default function OrderDetailsPanel({
     });
   });
 
-  // 3. Registered drivers not checked-in
-  (drivers || []).forEach(d => {
+  // 3. Registered drivers of THIS BRANCH ONLY who have not checked-in
+  branchRegisteredDrivers.forEach(d => {
     if (!availableDriverOptions.some(opt => opt.name === d.name)) {
       availableDriverOptions.push({ id: d.id, name: d.name, label: `${d.name} (لم يتمم الحضور)`, isCheckedIn: false, isReady: false });
     }

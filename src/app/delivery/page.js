@@ -121,7 +121,7 @@ export default function DeliveryPage() {
     }
   });
 
-  (drivers || []).forEach(d => {
+  (drivers || []).filter(d => !selectedBranchId || selectedBranchId === 'all' || d.branch_id === selectedBranchId).forEach(d => {
     if (d.name && !dispatchDriverOptions.some(opt => opt.name === d.name)) {
       dispatchDriverOptions.push({
         id: d.id || d.name,
