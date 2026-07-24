@@ -235,7 +235,7 @@ export default function DeliveryPage() {
 
       {/* KPI Stats Bar */}
       <Grid container spacing={2}>
-        <Grid item xs={6} sm={3}>
+        <Grid xs={6} sm={3}>
           <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#FFFBEB', color: '#F59E0B', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <AccessTime sx={{ fontSize: 24 }} />
@@ -247,7 +247,7 @@ export default function DeliveryPage() {
           </Paper>
         </Grid>
 
-        <Grid item xs={6} sm={3}>
+        <Grid xs={6} sm={3}>
           <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #3B82F6', bgcolor: '#EFF6FF', display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#3B82F6', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <DeliveryDining sx={{ fontSize: 24 }} />
@@ -259,7 +259,7 @@ export default function DeliveryPage() {
           </Paper>
         </Grid>
 
-        <Grid item xs={6} sm={3}>
+        <Grid xs={6} sm={3}>
           <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #10B981', bgcolor: '#ECFDF5', display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#10B981', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <CheckCircle sx={{ fontSize: 24 }} />
@@ -271,7 +271,7 @@ export default function DeliveryPage() {
           </Paper>
         </Grid>
 
-        <Grid item xs={6} sm={3}>
+        <Grid xs={6} sm={3}>
           <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#F0FDF4', color: '#166534', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <HowToReg sx={{ fontSize: 24 }} />
@@ -345,7 +345,7 @@ export default function DeliveryPage() {
               const branchName = order.branch_name || 'الفرع الرئيسي';
 
               return (
-                <Grid item xs={12} sm={6} md={4} key={order.id}>
+                <Grid xs={12} sm={6} md={4} key={order.id}>
                   <Card
                     elevation={0}
                     sx={{
@@ -482,7 +482,7 @@ export default function DeliveryPage() {
 
           <Grid container spacing={2}>
             {(activeQueue || []).map((item, index) => (
-              <Grid item xs={12} sm={6} md={4} key={item.id}>
+              <Grid xs={12} sm={6} md={4} key={item.id}>
                 <Card sx={{ p: 2, borderRadius: '16px', border: index === 0 ? '2px solid #10B981' : '1px solid #E5E7EB', bgcolor: index === 0 ? '#F0FDF4' : '#FFF' }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Chip label={index === 0 ? '👑 الدور 1 (التالي)' : `الدور ${index + 1}`} color={index === 0 ? 'success' : 'default'} sx={{ fontWeight: 800 }} />
@@ -501,7 +501,7 @@ export default function DeliveryPage() {
             ))}
 
             {(!activeQueue || activeQueue.length === 0) && (
-              <Grid item xs={12}>
+              <Grid xs={12}>
                 <Alert severity="warning" sx={{ borderRadius: '12px', fontWeight: 700 }}>
                   لا يوجد طيارين حاضرين بالسيستم حالياً. يمكنك إثبات حضورهم من شاشة التمامات.
                 </Alert>

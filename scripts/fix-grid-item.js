@@ -1,25 +1,25 @@
 const fs = require('fs');
 const path = require('path');
 
-function processDir(dir) {
-  const files = fs.readdirSync(dir);
-  for (const file of files) {
-    const fullPath = path.join(dir, file);
-    const stat = fs.statSync(fullPath);
-    if (stat.isDirectory()) {
-      processDir(fullPath);
-    } else if (file.endsWith('.js') || file.endsWith('.jsx')) {
-      let content = fs.readFileSync(fullPath, 'utf8');
-      if (content.includes('<Grid item') || content.includes('<Grid  item')) {
-        console.log('Replacing <Grid item in:', fullPath);
-        // Replace <Grid item with <Grid
-        content = content.replace(/<Grid\s+item\s+/g, '<Grid ');
-        content = content.replace(/<Grid\s+item>/g, '<Grid>');
-        fs.writeFileSync(fullPath, content, 'utf8');
-      }
-    }
-  }
+function walkDir(dir, callback) {
+  fs.readdirSync(dir).forEach(f => {
+    let dirPath = path.join(dir, f);
+    let isDirectory = fs.statSync(dirPath).isDirectory();
+    isDirectory ? walkDir(dirPath, callback) : callback(dirPath);
+  });
 }
 
-processDir('d:/Novix Works/El-Baraday/el-baraday-pos/src');
-console.log('✅ Grid item replacement done.');
+let count = 0;
+walkDir(path.join(__dirname, '../src'), (filePath) => {
+  if (filePath.endsWith('.js') || filePath.endsWith('.jsx')) {
+    let content = fs.readFileSync(filePath, 'utf8');
+    if (content.includes('<Grid item')) {
+      let updated = content.replace(/<Grid\s+item/g, '<Grid');
+      fs.writeFileSync(filePath, updated, 'utf8');
+      console.log(`Updated: ${filePath}`);
+      count++;
+    }
+  }
+});
+
+console.log(`Finished removing <Grid item ...> from ${count} files.`);
