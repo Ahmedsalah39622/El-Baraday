@@ -41,21 +41,35 @@ export default function OrderDetailsPanel({
 
   // Filter drivers checked-in for current active shift & branch
   const checkedInDrivers = (activeQueue || []).filter(q => !orderBranchId || orderBranchId === 'all' || q.branch_id === orderBranchId);
+  const readyDrivers = checkedInDrivers.filter(q => q.status === 'ready');
+  const onDeliveryDrivers = checkedInDrivers.filter(q => q.status === 'on_delivery');
 
   const availableDriverOptions = [];
-  checkedInDrivers.forEach((q, idx) => {
-    const isTop = idx === 0 && q.status === 'ready';
+
+  // 1. Ready drivers ranked first (Top ready is #1)
+  readyDrivers.forEach((q, idx) => {
+    const isTop = idx === 0;
     const label = isTop 
       ? `👑 ${q.driver_name} (الدور 1 - التالي)` 
-      : q.status === 'on_delivery' 
-      ? `🛵 ${q.driver_name} (في مشوار توصيل)` 
       : `🟢 ${q.driver_name} (الدور ${idx + 1})`;
-    availableDriverOptions.push({ id: q.driver_id || q.id, name: q.driver_name, label, isCheckedIn: true });
+    availableDriverOptions.push({ id: q.driver_id || q.id, name: q.driver_name, label, isCheckedIn: true, isReady: true });
   });
 
+  // 2. On-delivery drivers at the bottom
+  onDeliveryDrivers.forEach((q) => {
+    availableDriverOptions.push({
+      id: q.driver_id || q.id,
+      name: q.driver_name,
+      label: `🛵 ${q.driver_name} (في مشوار توصيل)`,
+      isCheckedIn: true,
+      isReady: false
+    });
+  });
+
+  // 3. Registered drivers not checked-in
   (drivers || []).forEach(d => {
     if (!availableDriverOptions.some(opt => opt.name === d.name)) {
-      availableDriverOptions.push({ id: d.id, name: d.name, label: `${d.name} (لم يتمم الحضور)`, isCheckedIn: false });
+      availableDriverOptions.push({ id: d.id, name: d.name, label: `${d.name} (لم يتمم الحضور)`, isCheckedIn: false, isReady: false });
     }
   });
 
@@ -63,8 +77,10 @@ export default function OrderDetailsPanel({
 
   useEffect(() => {
     if (availableDriverOptions.length > 0) {
-      const exists = availableDriverOptions.some(d => d.name === driverName);
-      if (!exists || !driverName) {
+      const topReady = availableDriverOptions.find(d => d.isReady);
+      if (topReady) {
+        setDriverName(topReady.name);
+      } else {
         setDriverName(availableDriverOptions[0].name);
       }
     }

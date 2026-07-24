@@ -90,23 +90,39 @@ export default function DeliveryPage() {
 
   const handleTabChange = (event, newValue) => setTabValue(newValue);
 
-  // Build clean, deduplicated driver options for dispatch selector
+  // Build clean, deduplicated driver options for dispatch selector (Ready drivers ranked first)
+  const checkedInDrivers = (activeQueue || []).filter(q => !selectedBranchId || selectedBranchId === 'all' || q.branch_id === selectedBranchId);
+  const readyDrivers = checkedInDrivers.filter(q => q.status === 'ready');
+  const onDeliveryDrivers = checkedInDrivers.filter(q => q.status === 'on_delivery');
+
   const dispatchDriverOptions = [];
-  (activeQueue || []).forEach((q, idx) => {
+
+  readyDrivers.forEach((q, idx) => {
     if (q.driver_name && !dispatchDriverOptions.some(opt => opt.name === q.driver_name)) {
       dispatchDriverOptions.push({
         id: q.id || `q_${idx}`,
         name: q.driver_name,
-        label: `${idx === 0 ? '👑' : '🟢'} ${q.driver_name} (الدور ${idx + 1})`
+        label: `${idx === 0 ? '👑' : '🟢'} ${q.driver_name} (الدور ${idx + 1} - التالي)`
       });
     }
   });
+
+  onDeliveryDrivers.forEach((q) => {
+    if (q.driver_name && !dispatchDriverOptions.some(opt => opt.name === q.driver_name)) {
+      dispatchDriverOptions.push({
+        id: q.id,
+        name: q.driver_name,
+        label: `🛵 ${q.driver_name} (في مشوار توصيل حالياً)`
+      });
+    }
+  });
+
   (drivers || []).forEach(d => {
     if (d.name && !dispatchDriverOptions.some(opt => opt.name === d.name)) {
       dispatchDriverOptions.push({
         id: d.id || d.name,
         name: d.name,
-        label: `🛵 ${d.name}`
+        label: `${d.name} (غير حاضر بالتمام)`
       });
     }
   });
@@ -114,7 +130,8 @@ export default function DeliveryPage() {
   // Action: Open Dispatch Dialog
   const handleOpenDispatch = (order) => {
     setSelectedOrderForDispatch(order);
-    const initialDriver = order.driver_name || order.driverName || (dispatchDriverOptions[0] ? dispatchDriverOptions[0].name : '');
+    const topReady = dispatchDriverOptions.find(d => d.label.includes('👑') || d.label.includes('🟢'));
+    const initialDriver = order.driver_name || order.driverName || (topReady ? topReady.name : (dispatchDriverOptions[0] ? dispatchDriverOptions[0].name : ''));
     setSelectedDriverForOrder(initialDriver);
     setDispatchDialog(true);
   };
