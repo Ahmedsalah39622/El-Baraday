@@ -468,11 +468,28 @@ export default function DeliveryPage() {
                       </Box>
 
                       {/* Driver Status Banner */}
-                      <Paper sx={{ p: 1.2, borderRadius: '12px', bgcolor: isDispatched ? '#DBEAFE' : '#FFFBEB', border: '1px solid', borderColor: isDispatched ? '#BFDBFE' : '#FDE68A', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Paper
+                        sx={{
+                          p: 1.2,
+                          borderRadius: '12px',
+                          bgcolor: isDelivered ? '#ECFDF5' : (isDispatched ? '#DBEAFE' : '#FFFBEB'),
+                          border: '1px solid',
+                          borderColor: isDelivered ? '#A7F3D0' : (isDispatched ? '#BFDBFE' : '#FDE68A'),
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}
+                      >
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <DeliveryDining sx={{ color: isDispatched ? '#1D4ED8' : '#D97706' }} />
-                          <Typography variant="caption" fontWeight={800} color={isDispatched ? '#1E40AF' : '#92400E'}>
-                            الطيار: {order.driver_name || order.driverName || 'لم يحدد طيار بعد'}
+                          <DeliveryDining sx={{ color: isDelivered ? '#047857' : (isDispatched ? '#1D4ED8' : '#D97706') }} />
+                          <Typography variant="caption" fontWeight={800} color={isDelivered ? '#065F46' : (isDispatched ? '#1E40AF' : '#92400E')}>
+                            {isDelivered
+                              ? `✅ اكتمل التوصيل | الطيار: ${order.driver_name || order.driverName || '—'}`
+                              : (isDispatched
+                                  ? `🚀 خارج للتوصيل | الطيار: ${order.driver_name || order.driverName || '—'}`
+                                  : `⏳ قيد التحضير بالمطبخ | الطيار: ${order.driver_name || order.driverName || 'لم يحدد بعد'}`
+                                )
+                            }
                           </Typography>
                         </Box>
                         <Typography variant="subtitle2" fontWeight={900} color="#059669">
