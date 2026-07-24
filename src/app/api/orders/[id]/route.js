@@ -21,37 +21,44 @@ export async function PUT(request, { params }) {
 
     // 1. Get current order details
     const currentRes = await query('SELECT * FROM orders WHERE id = $1', [id]);
-    if (currentRes.rows.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (currentRes.rows.length === 0) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     const currentOrder = currentRes.rows[0];
 
-    const targetDriverName = driver_name || currentOrder.driver_name;
-    const targetDriverId = driver_id || currentOrder.driver_id;
-    const targetStatus = status || currentOrder.status;
+    const targetDriverName = driver_name !== undefined ? driver_name : currentOrder.driver_name;
+    const targetDriverId = driver_id !== undefined ? driver_id : currentOrder.driver_id;
+    const targetStatus = status !== undefined ? status : currentOrder.status;
 
-    let dispatchedAtValue = currentOrder.dispatched_at;
+    let dispatchedAtValue = currentOrder.dispatched_at || null;
     if (dispatched_at) {
       dispatchedAtValue = dispatched_at;
     } else if ((targetStatus === 'dispatched' || targetStatus === 'out_for_delivery') && !currentOrder.dispatched_at) {
       dispatchedAtValue = new Date().toISOString();
     }
 
-    let deliveredAtValue = currentOrder.delivered_to_customer_at;
+    let deliveredAtValue = currentOrder.delivered_to_customer_at || null;
     if (delivered_to_customer_at) {
       deliveredAtValue = delivered_to_customer_at;
     } else if (targetStatus === 'customer_delivered' && !currentOrder.delivered_to_customer_at) {
       deliveredAtValue = new Date().toISOString();
     }
 
-    // 2. Update orders table
+    // 2. Update orders table with strict null checks (no undefined parameters)
     const result = await query(
       `UPDATE orders SET
        status = COALESCE($1, status),
        driver_name = COALESCE($2, driver_name),
        driver_id = COALESCE($3, driver_id),
-       dispatched_at = COALESCE($4, dispatched_at),
-       delivered_to_customer_at = COALESCE($5, delivered_to_customer_at)
+       dispatched_at = $4,
+       delivered_to_customer_at = $5
        WHERE id = $6 RETURNING *`,
-      [targetStatus, targetDriverName, targetDriverId, dispatchedAtValue, deliveredAtValue, id]
+      [
+        targetStatus || null,
+        targetDriverName || null,
+        targetDriverId || null,
+        dispatchedAtValue || null,
+        deliveredAtValue || null,
+        id
+      ]
     );
 
     const updatedOrder = result.rows[0];
