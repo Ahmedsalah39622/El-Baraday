@@ -51,6 +51,7 @@ export default function CategoryTabs({ selectedCategory, onSelectCategory }) {
             key={cat.id}
             onClick={() => onSelectCategory(cat.id)}
             className={`category-pill ${isActive ? 'active' : ''}`}
+            suppressHydrationWarning
             style={{
               padding: '10px 22px',
               fontSize: '1rem',

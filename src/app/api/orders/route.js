@@ -4,7 +4,9 @@ import { NextResponse } from 'next/server';
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const limit = searchParams.get('limit') || 100;
+    const rawLimit = searchParams.get('limit');
+    const parsedLimit = parseInt(rawLimit, 10);
+    const limit = !isNaN(parsedLimit) && parsedLimit > 0 ? parsedLimit : 100;
     const status = searchParams.get('status');
     const date = searchParams.get('date');
     const branchId = searchParams.get('branch_id');

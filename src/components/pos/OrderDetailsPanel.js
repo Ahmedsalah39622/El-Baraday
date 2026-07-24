@@ -39,6 +39,9 @@ export default function OrderDetailsPanel({
     fetchNextOrderNumber(targetBranch);
   }, [selectedBranchId, user]);
 
+  const currentBranch = branches.find(b => b.id === orderBranchId);
+  const activeBranchName = currentBranch ? currentBranch.name : (orderBranchId === 'all' ? 'جميع الفروع' : 'الفرع الرئيسي');
+
   // Filter drivers checked-in for current active shift & branch
   const checkedInDrivers = (activeQueue || []).filter(q => !orderBranchId || orderBranchId === 'all' || q.branch_id === orderBranchId);
   const readyDrivers = checkedInDrivers.filter(q => q.status === 'ready');
@@ -97,6 +100,7 @@ export default function OrderDetailsPanel({
   const [deliveryFee, setDeliveryFee] = useState(15);
   const [paidAmount, setPaidAmount] = useState('');
   const [showDeliveryForm, setShowDeliveryForm] = useState(true);
+  const [orderNotes, setOrderNotes] = useState('');
 
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [completedOrderData, setCompletedOrderData] = useState(null);
@@ -153,6 +157,8 @@ export default function OrderDetailsPanel({
       customerAddress,
       customerFloor,
       customerApartment,
+      notes: orderNotes,
+      orderNotes,
       items: [...items],
       subtotal,
       discount: 0,
@@ -179,6 +185,7 @@ export default function OrderDetailsPanel({
       paidAmount: numericPaid,
       remainingAmount: remainingChange,
       branch_id: orderBranchId,
+      notes: orderNotes,
     });
 
     setCompletedOrderData(currentOrderData);
@@ -188,6 +195,7 @@ export default function OrderDetailsPanel({
 
     // Clear order cart & close mobile drawer
     if (onClearOrder) onClearOrder();
+    setOrderNotes('');
     if (onCloseMobile) onCloseMobile();
   };
 
@@ -213,10 +221,26 @@ export default function OrderDetailsPanel({
         overflowY: 'auto',
       }}
     >
-      {/* Title */}
-      <Typography variant="h5" sx={{ fontWeight: 800, color: '#1A1A2E' }}>
-        تفاصيل الطلب #{nextOrderNumber || '35'}
-      </Typography>
+      {/* Title & Branch Indicator */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+        <Typography variant="h5" sx={{ fontWeight: 800, color: '#1A1A2E' }}>
+          تفاصيل الطلب #{nextOrderNumber || '35'}
+        </Typography>
+        <Chip
+          icon={<Store sx={{ fontSize: '1rem !important', color: '#1E40AF' }} />}
+          label={activeBranchName}
+          size="small"
+          sx={{
+            fontWeight: 800,
+            bgcolor: '#EFF6FF',
+            color: '#1E40AF',
+            border: '1px solid #BFDBFE',
+            fontSize: '0.813rem',
+            py: 0.5,
+            px: 0.5,
+          }}
+        />
+      </Box>
 
       {/* Order Type Buttons: تيك أوي | دليفري */}
       <Box
@@ -230,6 +254,7 @@ export default function OrderDetailsPanel({
       >
         <Button
           fullWidth
+          suppressHydrationWarning
           onClick={() => onOrderTypeChange && onOrderTypeChange('takeaway')}
           sx={{
             borderRadius: '20px',
@@ -246,6 +271,7 @@ export default function OrderDetailsPanel({
 
         <Button
           fullWidth
+          suppressHydrationWarning
           onClick={() => onOrderTypeChange && onOrderTypeChange('delivery')}
           startIcon={<DeliveryDining sx={{ fontSize: 16 }} />}
           sx={{
@@ -346,6 +372,12 @@ export default function OrderDetailsPanel({
                       size="small"
                       label="رقم الهاتف"
                       placeholder=" "
+                      slotProps={{
+                        htmlInput: {
+                          ...params.inputProps,
+                          suppressHydrationWarning: true,
+                        },
+                      }}
                       sx={{ bgcolor: '#FFF', '& input': { fontSize: '0.813rem' } }}
                     />
                   )}
@@ -359,6 +391,7 @@ export default function OrderDetailsPanel({
                 label="اسم العميل"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
+                slotProps={{ htmlInput: { suppressHydrationWarning: true } }}
                 sx={{ bgcolor: '#FFF', '& input': { fontSize: '0.813rem' } }}
               />
 
@@ -400,6 +433,7 @@ export default function OrderDetailsPanel({
                 placeholder="اسم الشارع - العلامة المميزة"
                 value={customerAddress}
                 onChange={(e) => setCustomerAddress(e.target.value)}
+                slotProps={{ htmlInput: { suppressHydrationWarning: true } }}
                 sx={{ bgcolor: '#FFF', '& input': { fontSize: '0.813rem' } }}
               />
 
@@ -411,6 +445,7 @@ export default function OrderDetailsPanel({
                   placeholder="3"
                   value={customerFloor}
                   onChange={(e) => setCustomerFloor(e.target.value)}
+                  slotProps={{ htmlInput: { suppressHydrationWarning: true } }}
                   sx={{ width: '30%', bgcolor: '#FFF', '& input': { fontSize: '0.813rem' } }}
                 />
                 <TextField
@@ -419,6 +454,7 @@ export default function OrderDetailsPanel({
                   placeholder="5"
                   value={customerApartment}
                   onChange={(e) => setCustomerApartment(e.target.value)}
+                  slotProps={{ htmlInput: { suppressHydrationWarning: true } }}
                   sx={{ width: '30%', bgcolor: '#FFF', '& input': { fontSize: '0.813rem' } }}
                 />
                 <TextField
@@ -427,6 +463,7 @@ export default function OrderDetailsPanel({
                   label="التوصيل"
                   value={deliveryFee}
                   onChange={(e) => setDeliveryFee(parseFloat(e.target.value) || 0)}
+                  slotProps={{ htmlInput: { suppressHydrationWarning: true } }}
                   sx={{ width: '40%', bgcolor: '#FFF', '& input': { textAlign: 'center', fontWeight: 700, fontSize: '0.813rem' } }}
                 />
               </Box>
@@ -541,7 +578,7 @@ export default function OrderDetailsPanel({
               alignItems: 'center',
               justifyContent: 'center',
               height: '100%',
-              minHeight: 100,
+              minHeight: 80,
               color: '#9CA3AF',
               gap: 1,
             }}
@@ -552,6 +589,22 @@ export default function OrderDetailsPanel({
           </Box>
         )}
       </Box>
+
+      {/* Special Notes / Additions Field */}
+      <TextField
+        fullWidth
+        size="small"
+        label="📝 ملاحظات وإضافات الطلب (اختياري)"
+        placeholder="مثال: بدون بصل، زيادة طحينة، مخلل، حار..."
+        value={orderNotes}
+        onChange={(e) => setOrderNotes(e.target.value)}
+        slotProps={{ htmlInput: { suppressHydrationWarning: true } }}
+        sx={{
+          bgcolor: '#FFF',
+          '& input': { fontSize: '0.813rem' },
+          '& .MuiOutlinedInput-root': { borderRadius: '10px' },
+        }}
+      />
 
       {/* Summary Box */}
       <Box
@@ -593,6 +646,7 @@ export default function OrderDetailsPanel({
             placeholder={finalTotal.toFixed(0)}
             value={paidAmount}
             onChange={(e) => setPaidAmount(e.target.value)}
+            slotProps={{ htmlInput: { suppressHydrationWarning: true } }}
             sx={{ width: 100, '& input': { textAlign: 'center', fontWeight: 800, p: 0.6, color: '#1A1A2E', fontSize: '0.875rem' } }}
           />
         </Box>
@@ -610,6 +664,7 @@ export default function OrderDetailsPanel({
       <Button
         variant="contained"
         fullWidth
+        suppressHydrationWarning
         disabled={items.length === 0}
         onClick={handleCompleteOrder}
         sx={{

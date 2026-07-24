@@ -17,10 +17,13 @@ export function printThermalReceipt(orderData) {
     deliveryFee = 0,
     total = 0,
     paidAmount = 0,
+    notes = '',
+    orderNotes = '',
     remainingAmount = 0,
     orderType = 'takeaway',
   } = orderData;
 
+  const orderNoteText = notes || orderNotes || '';
   const isDelivery = orderType === 'delivery';
   const floorApartmentText = [
     customerFloor ? `الدور ${customerFloor}` : '',
@@ -173,6 +176,14 @@ export function printThermalReceipt(orderData) {
           ${floorApartmentText ? `<div class="row"><span style="font-weight: 700;">الدور / الشقة :</span><span class="bold">${floorApartmentText}</span></div>` : ''}
         ` : ''}
 
+        ${orderNoteText ? `
+          <div class="dashed-line"></div>
+          <div class="row" style="background: #FFF8F0; padding: 4px 6px; border-radius: 4px; border: 1px dashed #E06B1F; margin: 4px 0;">
+            <span style="font-weight: 700; color: #E06B1F;">ملاحظات / إضافات:</span>
+            <span class="bold">${orderNoteText}</span>
+          </div>
+        ` : ''}
+
         <div class="dashed-line"></div>
 
         <!-- Items Table Grid -->
@@ -230,6 +241,12 @@ export function printThermalReceipt(orderData) {
         <div style="border: 2px solid #1A1A2E; border-radius: 8px; padding: 8px; margin: 8px 0;">
           ${kitchenItemsHtml}
         </div>
+
+        ${orderNoteText ? `
+          <div style="margin-top: 8px; font-weight: 900; font-size: 14px; color: #D97706; background: #FEF3C7; padding: 6px; border-radius: 6px; border: 1px solid #F59E0B; text-align: center;">
+            📝 ملاحظات الطلب: ${orderNoteText}
+          </div>
+        ` : ''}
 
         <div class="dashed-line"></div>
         <div class="center" style="font-size: 12px; color: #555;">${dateStr}</div>

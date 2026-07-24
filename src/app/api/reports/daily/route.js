@@ -5,8 +5,17 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
+    const branchId = searchParams.get('branch_id');
 
-    // Aggregate daily stats
+    let whereClause = 'WHERE created_at::date = $1';
+    const params = [date];
+
+    if (branchId && branchId !== 'all') {
+      params.push(branchId);
+      whereClause += ` AND branch_id = $${params.length}`;
+    }
+
+    // Aggregate daily stats isolated per branch
     const statsResult = await query(
       `SELECT
          COUNT(*)::INT as total_orders,
@@ -23,21 +32,28 @@ export async function GET(request) {
          COALESCE(SUM(total) FILTER (WHERE payment_method = 'cash'), 0)::NUMERIC as cash_total,
          COALESCE(SUM(total) FILTER (WHERE payment_method = 'visa'), 0)::NUMERIC as visa_total
        FROM orders
-       WHERE created_at::date = $1`,
-      [date]
+       ${whereClause}`,
+      params
     );
 
-    // Top selling products for the day
+    let topProductsWhere = 'WHERE o.created_at::date = $1';
+    const topParams = [date];
+    if (branchId && branchId !== 'all') {
+      topParams.push(branchId);
+      topProductsWhere += ` AND o.branch_id = $${topParams.length}`;
+    }
+
+    // Top selling products for the day isolated per branch
     const topProducts = await query(
       `SELECT oi.product_name, SUM(oi.quantity)::INT as total_qty,
               SUM(oi.price * oi.quantity)::NUMERIC as total_revenue
        FROM order_items oi
        JOIN orders o ON o.id = oi.order_id
-       WHERE o.created_at::date = $1
+       ${topProductsWhere}
        GROUP BY oi.product_name
        ORDER BY total_qty DESC
        LIMIT 10`,
-      [date]
+      topParams
     );
 
     return NextResponse.json({

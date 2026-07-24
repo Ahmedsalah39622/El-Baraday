@@ -12,6 +12,7 @@ export default function SearchBar({ value, onChange, placeholder = "ابحث ع�
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        suppressHydrationWarning
       />
     </div>
   );

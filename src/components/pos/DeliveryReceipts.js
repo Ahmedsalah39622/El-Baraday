@@ -24,8 +24,11 @@ export default function DeliveryReceipts({ orderData }) {
     paidAmount = 100,
     remainingAmount = 5,
     orderType = 'takeaway',
+    notes = '',
+    orderNotes = '',
   } = orderData;
 
+  const orderNoteText = notes || orderNotes || '';
   const isDelivery = orderType === 'delivery';
 
   return (
@@ -120,6 +123,23 @@ export default function DeliveryReceipts({ orderData }) {
               )}
             </Box>
           </>
+        )}
+
+        {orderNoteText && (
+          <Box
+            sx={{
+              border: '1.5px dashed #000',
+              borderRadius: '6px',
+              p: 0.8,
+              my: 1,
+              bgcolor: '#FFFDF5',
+              color: '#000',
+            }}
+          >
+            <Typography variant="body2" sx={{ fontWeight: 900, color: '#000', fontSize: '0.85rem' }}>
+              📝 ملاحظات / إضافات: {orderNoteText}
+            </Typography>
+          </Box>
         )}
 
         <Divider sx={{ my: 1, borderColor: '#000', borderWidth: 1 }} />
@@ -278,6 +298,23 @@ export default function DeliveryReceipts({ orderData }) {
               </Box>
             ))}
           </Box>
+
+          {orderNoteText && (
+            <Box
+              sx={{
+                border: '2px solid #000',
+                borderRadius: '8px',
+                p: 1,
+                my: 1,
+                bgcolor: '#FFFDF5',
+                textAlign: 'center',
+              }}
+            >
+              <Typography variant="subtitle1" sx={{ fontWeight: 900, fontSize: '1rem', color: '#000' }}>
+                📝 ملاحظات الطلب: {orderNoteText}
+              </Typography>
+            </Box>
+          )}
 
           <Divider sx={{ my: 1, borderColor: '#000', borderWidth: 1 }} />
 

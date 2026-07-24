@@ -20,34 +20,50 @@ import {
   DialogActions,
   Button,
   Divider,
+  FormControl,
+  Select,
+  MenuItem
 } from '@mui/material';
-import { Print, VisibilityOutlined, Close, Person, Phone, LocationOn, ReceiptLong } from '@mui/icons-material';
+import { Print, VisibilityOutlined, Close, Person, Phone, LocationOn, ReceiptLong, Store } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
+import { useBranchStore } from '@/store/useBranchStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { printThermalReceipt } from '@/lib/printReceipt';
 import DeliveryTimerBadge from '@/components/delivery/DeliveryTimerBadge';
 
 export default function OrdersPage() {
   const { invoices, fetchInvoices } = useInvoiceStore();
+  const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin';
+
   const [searchQuery, setSearchQuery] = useState('');
 
   // View Order Details Modal State
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
-  useEffect(() => {
-    fetchInvoices();
-  }, []);
+  const targetBranch = selectedBranchId || 'all';
 
-  // Filter orders by search query
-  const filteredOrders = (invoices || []).filter(
-    (inv) =>
-      !searchQuery ||
-      inv.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.orderNumber?.includes(searchQuery) ||
-      inv.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.customerPhone?.includes(searchQuery)
-  );
+  useEffect(() => {
+    fetchInvoices(100, targetBranch);
+  }, [targetBranch]);
+
+  // Filter orders strictly by selected branch & search query
+  const filteredOrders = (invoices || []).filter((inv) => {
+    const matchBranch = !selectedBranchId || selectedBranchId === 'all' || inv.branchId === selectedBranchId || inv.branch_id === selectedBranchId;
+    if (!matchBranch) return false;
+
+    if (!searchQuery) return true;
+    const cleanSearch = searchQuery.toLowerCase().trim();
+    return (
+      inv.id?.toLowerCase().includes(cleanSearch) ||
+      inv.orderNumber?.includes(cleanSearch) ||
+      inv.customerName?.toLowerCase().includes(cleanSearch) ||
+      inv.customerPhone?.includes(cleanSearch)
+    );
+  });
 
   const handleOpenDetails = (order) => {
     setSelectedOrder(order);
@@ -63,10 +79,28 @@ export default function OrdersPage() {
             سجل الطلبات والفواتير
           </Typography>
           <Typography variant="body2" sx={{ color: '#6B7280', mt: 0.5 }}>
-            إجمالي الطلبات المسجلة ({invoices?.length || 0})
+            إجمالي الطلبات المسجلة للفرع المحدد ({filteredOrders.length})
           </Typography>
         </Box>
-        <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="ابحث برقم الطلب أو اسم العميل..." />
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          {isAdmin && (
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <Select
+                value={selectedBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+                sx={{ borderRadius: '12px', bgcolor: '#FFF', fontWeight: 800 }}
+              >
+                <MenuItem value="all">🏢 كافـة الفـروع</MenuItem>
+                {branches.map(b => (
+                  <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
+          <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="ابحث برقم الطلب أو اسم العميل..." />
+        </Box>
       </Box>
 
       {/* Orders Table */}
@@ -75,6 +109,7 @@ export default function OrdersPage() {
           <TableHead sx={{ bgcolor: '#F8FAFC' }}>
             <TableRow>
               <TableCell sx={{ fontWeight: 800 }}>رقم الطلب</TableCell>
+              <TableCell sx={{ fontWeight: 800 }}>الفرع</TableCell>
               <TableCell sx={{ fontWeight: 800 }}>العميل</TableCell>
               <TableCell sx={{ fontWeight: 800 }}>أصناف الطلب</TableCell>
               <TableCell sx={{ fontWeight: 800 }}>التاريخ والوقت</TableCell>
@@ -89,10 +124,29 @@ export default function OrdersPage() {
               const hasItems = Array.isArray(row.items) && row.items.length > 0;
               const isDelivery = row.orderType === 'delivery';
 
+              const branchObj = branches.find((b) => b.id === (row.branchId || row.branch_id));
+              const displayBranchName = row.branchName || (branchObj ? branchObj.name : ((row.branchId || row.branch_id) === 'b2' ? 'الفرع الثاني' : 'الفرع الأول - الرئيسي'));
+
               return (
                 <TableRow key={row.id} hover>
                   <TableCell sx={{ fontWeight: 800, color: '#1A1A2E', fontSize: '0.95rem' }}>
                     #{row.orderNumber || row.id?.slice(0, 8)}
+                  </TableCell>
+
+                  <TableCell>
+                    <Chip
+                      icon={<Store sx={{ fontSize: '0.9rem !important', color: '#1E40AF' }} />}
+                      label={displayBranchName}
+                      size="small"
+                      sx={{
+                        bgcolor: '#EFF6FF',
+                        color: '#1E40AF',
+                        fontWeight: 800,
+                        fontSize: '0.75rem',
+                        border: '1px solid #BFDBFE',
+                        borderRadius: '8px',
+                      }}
+                    />
                   </TableCell>
 
                   <TableCell sx={{ fontWeight: 700, color: '#374151' }}>
@@ -150,13 +204,13 @@ export default function OrdersPage() {
                         sx={{ bgcolor: '#D1FAE5', color: '#065F46', fontWeight: 800 }}
                       />
                       {isDelivery && (row.dispatched_at || row.createdAt) && (
-                        <DeliveryTimerBadge dispatchedAt={row.dispatched_at || row.createdAt} />
+                        <DeliveryTimerBadge dispatchedAt={row.dispatched_at || row.createdAt} status={row.status} />
                       )}
                     </Box>
                   </TableCell>
 
                   <TableCell sx={{ fontWeight: 900, color: '#4285F4', fontSize: '0.95rem' }}>
-                    {(row.total || 0).toFixed(2)} ج.م
+                    {(parseFloat(row.total) || 0).toFixed(2)} ج.م
                   </TableCell>
 
                   <TableCell align="center">
@@ -198,6 +252,14 @@ export default function OrdersPage() {
                 </TableRow>
               );
             })}
+
+            {filteredOrders.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={9} align="center" sx={{ py: 4, color: '#9CA3AF', fontWeight: 700 }}>
+                  لا توجد طلبات مسجلة لهذا الفرع حالياً.
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </TableContainer>
@@ -344,24 +406,24 @@ export default function OrdersPage() {
               <Paper sx={{ p: 2, borderRadius: '16px', bgcolor: '#FFFDF5', border: '1.5px solid #F59E0B', display: 'flex', flexDirection: 'column', gap: 1 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography variant="body2" sx={{ color: '#78350F', fontWeight: 700 }}>المجموع الفرعي:</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{(selectedOrder.subtotal || selectedOrder.total).toFixed(2)} ج.م</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{(parseFloat(selectedOrder.subtotal || selectedOrder.total) || 0).toFixed(2)} ج.م</Typography>
                 </Box>
                 {selectedOrder.deliveryFee > 0 && (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography variant="body2" sx={{ color: '#78350F', fontWeight: 700 }}>رسوم التوصيل الدليفري:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 800 }}>+{selectedOrder.deliveryFee.toFixed(2)} ج.م</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 800 }}>+{parseFloat(selectedOrder.deliveryFee).toFixed(2)} ج.م</Typography>
                   </Box>
                 )}
                 {selectedOrder.discount > 0 && (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography variant="body2" sx={{ color: '#EF4444', fontWeight: 700 }}>الخصم:</Typography>
-                    <Typography variant="body2" sx={{ color: '#EF4444', fontWeight: 800 }}>-{selectedOrder.discount.toFixed(2)} ج.م</Typography>
+                    <Typography variant="body2" sx={{ color: '#EF4444', fontWeight: 800 }}>-{parseFloat(selectedOrder.discount).toFixed(2)} ج.م</Typography>
                   </Box>
                 )}
                 <Divider sx={{ my: 0.5 }} />
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Typography variant="h6" sx={{ fontWeight: 900, color: '#B45309' }}>المبلغ الإجمالي الكلي:</Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 900, color: '#D97706' }}>{(selectedOrder.total || 0).toFixed(2)} ج.م</Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 900, color: '#D97706' }}>{(parseFloat(selectedOrder.total) || 0).toFixed(2)} ج.م</Typography>
                 </Box>
               </Paper>
             </DialogContent>

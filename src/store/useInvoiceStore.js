@@ -17,10 +17,23 @@ export const useInvoiceStore = create((set, get) => ({
   },
 
   // Fetch invoices/orders from DB with optional branch filter
-  fetchInvoices: async (limit = 100, branchId = 'all') => {
+  fetchInvoices: async (limitOrBranch = 100, branchIdArg = 'all') => {
+    let limit = 100;
+    let branchId = 'all';
+
+    if (typeof limitOrBranch === 'string') {
+      branchId = limitOrBranch;
+      if (typeof branchIdArg === 'number') limit = branchIdArg;
+    } else {
+      if (typeof limitOrBranch === 'number') limit = limitOrBranch;
+      if (typeof branchIdArg === 'string') branchId = branchIdArg;
+    }
+
     set({ loading: true });
     try {
-      const url = branchId && branchId !== 'all' ? `/api/orders?limit=${limit}&branch_id=${branchId}` : `/api/orders?limit=${limit}`;
+      const url = branchId && branchId !== 'all' 
+        ? `/api/orders?limit=${limit}&branch_id=${encodeURIComponent(branchId)}` 
+        : `/api/orders?limit=${limit}`;
       const res = await fetch(url);
       if (res.ok) {
         const rows = await res.json();
@@ -31,7 +44,9 @@ export const useInvoiceStore = create((set, get) => ({
           orderType: o.order_type,
           customerName: o.customer_name,
           customerPhone: o.customer_phone,
+          customerAddress: o.customer_address,
           cashierName: o.cashier_name,
+          driverName: o.driver_name,
           subtotal: parseFloat(o.subtotal || 0),
           total: parseFloat(o.total || 0),
           paidAmount: parseFloat(o.paid_amount || 0),
