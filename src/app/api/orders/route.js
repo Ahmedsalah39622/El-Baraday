@@ -70,9 +70,9 @@ export async function POST(request) {
 
     const targetBranch = branch_id || 'b1';
 
-    // Default status: delivery orders start as 'out_for_delivery', others 'completed'
-    const initialStatus = status || (order_type === 'delivery' ? 'out_for_delivery' : 'completed');
-    const isDispatched = initialStatus === 'out_for_delivery' || initialStatus === 'on_way' || initialStatus === 'dispatched';
+    // Default status: delivery orders start as 'preparing' (dispatched_at stays NULL until "الطيار استلم" is clicked)
+    const initialStatus = status || (order_type === 'delivery' ? 'preparing' : 'completed');
+    const isDispatched = initialStatus === 'dispatched' || initialStatus === 'out_for_delivery';
 
     // Get next sequential order number ISOLATED FOR THIS SPECIFIC BRANCH
     const nextRes = await query(
@@ -81,7 +81,7 @@ export async function POST(request) {
     );
     const nextNum = (nextRes.rows && nextRes.rows.length > 0 && nextRes.rows[0].next) ? parseInt(nextRes.rows[0].next) : 1;
 
-    // Insert order into DB with branch_id and dispatched_at
+    // Insert order into DB with branch_id and dispatched_at (dispatched_at is NULL for new delivery orders)
     const orderResult = await query(
       `INSERT INTO orders (id, order_number, order_type, customer_name, customer_phone, customer_area,
         customer_address, driver_name, driver_id, subtotal, delivery_fee, discount, total,
@@ -119,8 +119,8 @@ export async function POST(request) {
       }
     }
 
-    // If driver assigned by name or ID, update driver attendance queue status
-    if (driver_name || driver_id) {
+    // If order was explicitly created as dispatched, update driver status
+    if (isDispatched && (driver_name || driver_id)) {
       const cleanName = (driver_name || '').trim();
       const cleanId = (driver_id || '').trim();
       await query(
@@ -151,7 +151,7 @@ export async function PUT(request) {
     let sql = 'UPDATE orders SET status = $1';
     const params = [status, id];
 
-    if (status === 'out_for_delivery' || status === 'on_way' || status === 'dispatched') {
+    if (status === 'out_for_delivery' || status === 'dispatched') {
       sql += ', dispatched_at = CURRENT_TIMESTAMP';
     }
     if (driver_id) {
@@ -172,7 +172,7 @@ export async function PUT(request) {
       const cleanName = (driver_name || '').trim();
       const cleanId = (driver_id || '').trim();
 
-      if (status === 'out_for_delivery' || status === 'on_way' || status === 'dispatched') {
+      if (status === 'out_for_delivery' || status === 'dispatched') {
         await query(
           `UPDATE driver_attendance
            SET status = 'on_delivery', current_order_id = $1
