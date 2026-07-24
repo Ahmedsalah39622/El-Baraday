@@ -2,25 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { Box, Typography, Chip } from '@mui/material';
-import { AccessTime, Warning, CheckCircle, Home, DirectionsRun } from '@mui/icons-material';
+import { AccessTime, Warning, CheckCircle } from '@mui/icons-material';
 
-export default function DeliveryTimerBadge({ dispatchedAt, deliveredToCustomerAt, targetMinutes = 30, status, isDelivered }) {
+export default function DeliveryTimerBadge({ dispatchedAt, targetMinutes = 30, status, isDelivered }) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const isCompleted = isDelivered || status === 'delivered' || status === 'مكتمل' || status === 'completed';
-  const isCustomerDelivered = status === 'customer_delivered';
 
   useEffect(() => {
-    if (isCompleted) return;
-
-    const startTime = isCustomerDelivered
-      ? (deliveredToCustomerAt || dispatchedAt)
-      : dispatchedAt;
-
-    if (!startTime) return;
+    if (isCompleted || !dispatchedAt) return;
 
     const calculateElapsed = () => {
-      const start = new Date(startTime).getTime();
+      const start = new Date(dispatchedAt).getTime();
       const now = new Date().getTime();
       const diff = Math.max(0, Math.floor((now - start) / 1000));
       setElapsedSeconds(diff);
@@ -29,46 +22,17 @@ export default function DeliveryTimerBadge({ dispatchedAt, deliveredToCustomerAt
     calculateElapsed();
     const interval = setInterval(calculateElapsed, 1000);
     return () => clearInterval(interval);
-  }, [dispatchedAt, deliveredToCustomerAt, isCompleted, isCustomerDelivered]);
+  }, [dispatchedAt, isCompleted]);
 
-  // If order is fully delivered and completed (driver returned to restaurant)
+  // If order is fully delivered and completed
   if (isCompleted) {
     return (
       <Chip
         size="small"
         icon={<CheckCircle sx={{ fontSize: 15, color: '#047857 !important' }} />}
-        label="✅ تم الوصول والرجوع"
+        label="✅ تم التوصيل"
         sx={{ bgcolor: '#ECFDF5', color: '#047857', border: '1.5px solid #10B981', fontWeight: 800 }}
       />
-    );
-  }
-
-  // If order was delivered to customer -> Show return trip timer badge!
-  if (isCustomerDelivered) {
-    const minutes = Math.floor(elapsedSeconds / 60);
-    const seconds = elapsedSeconds % 60;
-    const formattedTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-
-    return (
-      <Box
-        sx={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 0.6,
-          bgcolor: '#F3E8FF',
-          color: '#6B21A8',
-          border: '1.5px solid #A855F7',
-          px: 1.2,
-          py: 0.3,
-          borderRadius: '16px',
-          fontWeight: 800,
-          fontSize: '0.78rem',
-          boxShadow: '0 2px 8px rgba(168, 85, 247, 0.2)'
-        }}
-      >
-        <Home sx={{ fontSize: 15, color: '#9333EA' }} />
-        <span>🏠 تم التسليم للعميل (رحلة العودة ⏱️ {formattedTime})</span>
-      </Box>
     );
   }
 
