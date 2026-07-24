@@ -480,67 +480,102 @@ export default function DeliveryPage() {
                         </Typography>
                       </Paper>
 
-                      {/* Action Buttons Footer: 4 Controls Specified (الطيار استلم | تم التوصيل | تغيير الطيار | الطباعة) */}
-                      <Box sx={{ display: 'flex', gap: 1, mt: 1, alignItems: 'center' }}>
-                        {!isDelivered ? (
-                          isDispatched ? (
-                            /* 2. زر تم التوصيل عند عودة الطيار للمحل */
-                            <Button
-                              fullWidth
-                              size="small"
-                              variant="contained"
-                              color="success"
-                              startIcon={<CheckCircle />}
-                              onClick={() => handleMarkDelivered(order)}
-                              sx={{ borderRadius: '10px', fontWeight: 900, py: 1, bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' } }}
-                            >
-                              تم التوصيل
-                            </Button>
-                          ) : (
-                            /* 1. زر الطيار استلم لبدء العداد التنازلي الخروج */
-                            <Button
-                              fullWidth
-                              size="small"
-                              variant="contained"
-                              startIcon={<DeliveryDining />}
-                              onClick={() => handleDriverPickedUp(order)}
-                              sx={{ borderRadius: '10px', fontWeight: 900, py: 1, bgcolor: '#E06B1F', '&:hover': { bgcolor: '#C85A17' } }}
-                            >
-                              الطيار استلم
-                            </Button>
-                          )
-                        ) : (
-                          <Chip
-                            icon={<CheckCircleOutlined sx={{ fontSize: '16px !important', color: '#047857 !important' }} />}
-                            label="تم التوصيل بنجاح"
-                            variant="filled"
-                            sx={{ width: '100%', py: 1.8, bgcolor: '#ECFDF5', color: '#047857', border: '1.5px solid #10B981', fontWeight: 900 }}
-                          />
-                        )}
-
-                        {/* 3. زر تغيير الطيار */}
-                        {!isDelivered && (
+                      {/* Action Buttons Footer: 4 Distinct Buttons (1-الطيار استلم | 2-تم التوصيل | 3-تغيير الطيار | 4-الطباعة) */}
+                      <Grid container spacing={1} sx={{ mt: 0.5 }}>
+                        {/* 1. الزر الأول: الطيار استلم */}
+                        <Grid xs={3}>
                           <Button
+                            fullWidth
+                            size="small"
+                            variant={isDispatched ? 'outlined' : 'contained'}
+                            disabled={isDelivered}
+                            onClick={() => handleDriverPickedUp(order)}
+                            sx={{
+                              borderRadius: '10px',
+                              fontWeight: 800,
+                              fontSize: '0.72rem',
+                              px: 0.5,
+                              py: 0.8,
+                              bgcolor: isDispatched ? 'transparent' : '#E06B1F',
+                              color: isDispatched ? '#E06B1F' : '#FFF',
+                              borderColor: '#E06B1F',
+                              '&:hover': { bgcolor: isDispatched ? 'rgba(224,107,31,0.08)' : '#C85A17' }
+                            }}
+                          >
+                            الطيار استلم
+                          </Button>
+                        </Grid>
+
+                        {/* 2. الزر الثاني: تم التوصيل */}
+                        <Grid xs={3}>
+                          <Button
+                            fullWidth
+                            size="small"
+                            variant={isDispatched && !isDelivered ? 'contained' : 'outlined'}
+                            disabled={!isDispatched || isDelivered}
+                            onClick={() => handleMarkDelivered(order)}
+                            sx={{
+                              borderRadius: '10px',
+                              fontWeight: 800,
+                              fontSize: '0.72rem',
+                              px: 0.5,
+                              py: 0.8,
+                              bgcolor: isDispatched && !isDelivered ? '#10B981' : 'transparent',
+                              color: isDispatched && !isDelivered ? '#FFF' : '#10B981',
+                              borderColor: '#10B981',
+                              '&:hover': { bgcolor: isDispatched && !isDelivered ? '#059669' : 'rgba(16,185,129,0.08)' }
+                            }}
+                          >
+                            تم التوصيل
+                          </Button>
+                        </Grid>
+
+                        {/* 3. الزر الثالث: تغيير الطيار */}
+                        <Grid xs={3}>
+                          <Button
+                            fullWidth
                             size="small"
                             variant="outlined"
+                            disabled={isDelivered}
                             onClick={() => handleOpenDispatch(order)}
-                            sx={{ borderRadius: '10px', fontWeight: 800, minWidth: '92px', whiteSpace: 'nowrap', py: 0.9 }}
+                            sx={{
+                              borderRadius: '10px',
+                              fontWeight: 800,
+                              fontSize: '0.72rem',
+                              px: 0.5,
+                              py: 0.8,
+                              color: '#3B82F6',
+                              borderColor: '#3B82F6',
+                              '&:hover': { bgcolor: 'rgba(59,130,246,0.08)' }
+                            }}
                           >
                             تغيير الطيار
                           </Button>
-                        )}
+                        </Grid>
 
-                        {/* 4. زر الطباعة */}
-                        <Tooltip title="طباعة بون التوصيل">
-                          <IconButton
+                        {/* 4. الزر الرابع: الطباعة */}
+                        <Grid xs={3}>
+                          <Button
+                            fullWidth
                             size="small"
+                            variant="outlined"
+                            startIcon={<Print sx={{ fontSize: '14px !important' }} />}
                             onClick={() => handlePrintDelivery(order)}
-                            sx={{ border: '1px solid #CBD5E1', borderRadius: '10px', p: 1 }}
+                            sx={{
+                              borderRadius: '10px',
+                              fontWeight: 800,
+                              fontSize: '0.72rem',
+                              px: 0.5,
+                              py: 0.8,
+                              color: '#4B5563',
+                              borderColor: '#9CA3AF',
+                              '&:hover': { bgcolor: 'rgba(156,163,175,0.1)' }
+                            }}
                           >
-                            <Print fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
+                            طباعة
+                          </Button>
+                        </Grid>
+                      </Grid>
                     </CardContent>
                   </Card>
                 </Grid>
