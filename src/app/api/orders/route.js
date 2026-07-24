@@ -120,10 +120,10 @@ export async function POST(request) {
     }
 
     // If driver assigned, update driver attendance queue status
-    if (driver_id) {
+    if (driver_name || driver_id) {
       await query(
-        `UPDATE driver_attendance SET status = 'on_delivery', current_order_id = $1 WHERE driver_id = $2 AND check_out_time IS NULL`,
-        [order.id, driver_id]
+        `UPDATE driver_attendance SET status = 'on_delivery', current_order_id = $1 WHERE (driver_name = $2 OR driver_id = $3) AND check_out_time IS NULL`,
+        [order.id, driver_name || '', driver_id || '']
       );
     }
 
