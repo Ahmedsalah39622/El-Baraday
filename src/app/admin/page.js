@@ -5,13 +5,14 @@ import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Button, Chip, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, IconButton, MenuItem, Select, FormControl,
-  InputLabel, Checkbox, Grid, CircularProgress, Divider, useMediaQuery, useTheme
+  InputLabel, Checkbox, Grid, CircularProgress, Divider, useMediaQuery, useTheme, Tooltip
 } from '@mui/material';
 import {
   AdminPanelSettingsOutlined, PersonOutlined, Add, EditOutlined,
-  DeleteOutlined, LockOutlined, SecurityOutlined, Close
+  DeleteOutlined, LockOutlined, SecurityOutlined, Close, Store, Key
 } from '@mui/icons-material';
 import { ALL_SYSTEM_SCREENS, ROLE_PERMISSIONS } from '@/store/useAuthStore';
+import { useBranchStore } from '@/store/useBranchStore';
 
 const ROLE_OPTIONS = [
   { value: 'admin', label: 'مدير النظام' },
@@ -21,12 +22,10 @@ const ROLE_OPTIONS = [
   { value: 'custom', label: 'مخصص' }
 ];
 
-import { useBranchStore } from '@/store/useBranchStore';
-
 export default function AdminPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const { branches } = useBranchStore();
+  const { branches, fetchBranches } = useBranchStore();
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +37,7 @@ export default function AdminPage() {
     id: '',
     name: '',
     username: '',
-    pin: '',
+    pin: '1234',
     role: 'cashier',
     branch_id: 'b1',
     permissions: ROLE_PERMISSIONS.cashier,
@@ -51,7 +50,7 @@ export default function AdminPage() {
       const res = await fetch('/api/users');
       if (res.ok) {
         const data = await res.json();
-        setUsers(data);
+        setUsers(data || []);
       }
     } catch (err) {
       console.error('Failed to fetch users:', err);
@@ -62,6 +61,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     fetchUsers();
+    fetchBranches();
   }, []);
 
   const handleOpenDialog = (user = null) => {
@@ -83,7 +83,7 @@ export default function AdminPage() {
         id: '',
         name: '',
         username: '',
-        pin: '',
+        pin: '1234',
         role: 'cashier',
         branch_id: 'b1',
         permissions: [...ROLE_PERMISSIONS.cashier],
@@ -189,10 +189,10 @@ export default function AdminPage() {
           </Box>
           <Box>
             <Typography variant="h5" sx={{ fontWeight: 800, color: '#1A1A2E', fontSize: { xs: '1.2rem', md: '1.6rem' } }}>
-              إدارة المستخدمين والصلاحيات
+              إدارة المستخدمين وحسابات الموظفين والصلاحيات
             </Typography>
             <Typography variant="caption" sx={{ color: '#6B7280', display: { xs: 'none', sm: 'block' } }}>
-              التحكم في أدوار المستخدمين وتخصيص الشاشات والصلاحيات لكل حساب
+              التحكم في أدوار موظفي النظام (كاشيرات، طيارين، مدراء) وتعيين فروعهم وترخيص شاشات الدخول لكل حساب
             </Typography>
           </Box>
         </Box>
@@ -203,16 +203,16 @@ export default function AdminPage() {
           onClick={() => handleOpenDialog()}
           sx={{ bgcolor: '#4285F4', borderRadius: '12px', px: 2.5, py: 1, fontWeight: 700, fontSize: { xs: '0.85rem', md: '0.95rem' } }}
         >
-          إضافة مستخدم
+          إضافة حساب مستخدم جديد
         </Button>
       </Box>
 
       {/* Stats Cards */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 1.5 }}>
         {[
-          { label: 'إجمالي المستخدمين', value: users.length, color: '#4285F4', icon: <PersonOutlined /> },
+          { label: 'إجمالي الحسابات المسجلة', value: users.length, color: '#4285F4', icon: <PersonOutlined /> },
           { label: 'الحسابات النشطة', value: users.filter((u) => u.status === 'active').length, color: '#10B981', icon: <SecurityOutlined /> },
-          { label: 'الأدوار المقترحة', value: '4 أدوار', color: '#FF8C42', icon: <LockOutlined /> },
+          { label: 'الأدوار والتخصصات', value: '4 أدوار رئيسية', color: '#FF8C42', icon: <LockOutlined /> },
         ].map((s, i) => (
           <Paper key={i} sx={{ p: 1.5, borderRadius: '14px', border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box sx={{ width: 40, height: 40, borderRadius: '10px', bgcolor: `${s.color}15`, color: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -226,7 +226,7 @@ export default function AdminPage() {
         ))}
       </Box>
 
-      {/* Users Table / Responsive Cards */}
+      {/* Users Table */}
       <TableContainer component={Paper} sx={{ borderRadius: '16px', border: '1px solid #E5E7EB', overflowX: 'auto' }}>
         {loading ? (
           <Box sx={{ p: 4, textAlign: 'center' }}><CircularProgress size={32} /></Box>
@@ -234,21 +234,36 @@ export default function AdminPage() {
           <Table sx={{ minWidth: 650 }}>
             <TableHead sx={{ bgcolor: '#F8FAFC' }}>
               <TableRow>
-                <TableCell sx={{ fontWeight: 800 }}>الاسم</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>اسم المستخدم</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>الدور</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>اسم الموظف / المستخدم</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>اسم الدخول (Username)</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>الفرع المنسوب إليه</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>الدور / الوظيفة</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>رمز ה-PIN</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>الشاشات والصلاحيات</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>الحالة</TableCell>
-                <TableCell sx={{ fontWeight: 800 }}>آخر دخول</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 800 }}>الإجراءات</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 800 }}>الإجراءات والتعديل</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {users.map((u) => (
                 <TableRow key={u.id} hover>
-                  <TableCell sx={{ fontWeight: 700, color: '#1A1A2E' }}>{u.name}</TableCell>
-                  <TableCell sx={{ fontFamily: 'monospace', color: '#4B5563' }}>{u.username}</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: '#1A1A2E' }}>{u.name}</TableCell>
+                  <TableCell sx={{ fontFamily: 'monospace', color: '#3B82F6', fontWeight: 700 }}>{u.username}</TableCell>
+                  <TableCell>
+                    <Chip
+                      icon={<Store sx={{ fontSize: '14px !important' }} />}
+                      label={u.branch_name || (u.branch_id === 'b2' ? 'الفرع الثاني' : 'الفرع الأول - الرئيسي')}
+                      size="small"
+                      sx={{ bgcolor: '#F0FDF4', color: '#166534', fontWeight: 800 }}
+                    />
+                  </TableCell>
                   <TableCell>{getRoleBadge(u.role)}</TableCell>
+                  <TableCell sx={{ fontFamily: 'monospace', fontWeight: 800, color: '#475569' }}>
+                    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                      <Key sx={{ fontSize: 14, color: '#9CA3AF' }} />
+                      {u.pin || '1234'}
+                    </Box>
+                  </TableCell>
                   <TableCell>
                     <Chip
                       label={getPermissionsSummary(u.permissions)}
@@ -268,29 +283,38 @@ export default function AdminPage() {
                       }}
                     />
                   </TableCell>
-                  <TableCell sx={{ fontSize: '0.813rem', color: '#6B7280' }}>
-                    {u.last_login ? new Date(u.last_login).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }) : 'لم يدخل بعد'}
-                  </TableCell>
                   <TableCell align="center">
-                    <IconButton size="small" onClick={() => handleOpenDialog(u)} sx={{ color: '#4285F4' }}>
-                      <EditOutlined fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={() => { setUserToDelete(u); setDeleteDialogOpen(true); }}
-                      sx={{ color: '#EF4444' }}
-                    >
-                      <DeleteOutlined fontSize="small" />
-                    </IconButton>
+                    <Tooltip title="تعديل الحساب والفرع والصلاحيات">
+                      <IconButton size="small" onClick={() => handleOpenDialog(u)} sx={{ color: '#4285F4' }}>
+                        <EditOutlined fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="حذف الحساب">
+                      <IconButton
+                        size="small"
+                        onClick={() => { setUserToDelete(u); setDeleteDialogOpen(true); }}
+                        sx={{ color: '#EF4444' }}
+                      >
+                        <DeleteOutlined fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               ))}
+
+              {users.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={8} align="center" sx={{ py: 4, color: '#9CA3AF' }}>
+                    لا يوجد حسابات مسجلة للنظام حالياً
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         )}
       </TableContainer>
 
-      {/* Fully Responsive & Scrollable User Add / Edit Permissions Dialog */}
+      {/* User Add / Edit Permissions Dialog */}
       <Dialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
@@ -309,7 +333,6 @@ export default function AdminPage() {
           },
         }}
       >
-        {/* Dialog Header */}
         <DialogTitle
           component="div"
           sx={{
@@ -324,7 +347,7 @@ export default function AdminPage() {
           }}
         >
           <Typography variant="h6" sx={{ fontWeight: 800, fontSize: { xs: '1.05rem', sm: '1.25rem' } }}>
-            {currentUser.id ? 'تعديل المستخدم والصلاحيات' : 'إضافة مستخدم جديد وترخيص الصلاحيات'}
+            {currentUser.id ? `✏️ تعديل صلاحيات ودور الفرع لـ (${currentUser.name})` : '➕ إضافة حساب مستخدم وتخصيص الفرع والصلاحيات'}
           </Typography>
           {isMobile && (
             <IconButton onClick={() => setDialogOpen(false)} size="small">
@@ -333,7 +356,6 @@ export default function AdminPage() {
           )}
         </DialogTitle>
 
-        {/* Dialog Scrollable Content */}
         <DialogContent
           sx={{
             p: { xs: 2, sm: 3 },
@@ -352,7 +374,7 @@ export default function AdminPage() {
               <TextField
                 fullWidth
                 size="small"
-                label="الاسم الكامل"
+                label="الاسم الكامل *"
                 placeholder="أحمد محمود"
                 value={currentUser.name}
                 onChange={(e) => setCurrentUser({ ...currentUser, name: e.target.value })}
@@ -363,7 +385,7 @@ export default function AdminPage() {
               <TextField
                 fullWidth
                 size="small"
-                label="اسم المستخدم (User ID)"
+                label="اسم تسجيل الدخول (Username) *"
                 placeholder="cashier1"
                 value={currentUser.username}
                 onChange={(e) => setCurrentUser({ ...currentUser, username: e.target.value })}
@@ -375,53 +397,39 @@ export default function AdminPage() {
                 fullWidth
                 size="small"
                 type="password"
-                label="رمز الـ PIN (4 أرقام)"
+                label="رمز الـ PIN *"
                 placeholder="1234"
                 value={currentUser.pin}
                 onChange={(e) => setCurrentUser({ ...currentUser, pin: e.target.value })}
               />
             </Grid>
 
-            <Grid xs={12} sm={3}>
+            <Grid xs={12} sm={4}>
               <FormControl fullWidth size="small">
-                <InputLabel>الفرع المنسوب إليه</InputLabel>
+                <InputLabel>الفرع المنسوب إليه الموظف *</InputLabel>
                 <Select
                   value={currentUser.branch_id || 'b1'}
-                  label="الفرع المنسوب إليه"
+                  label="الفرع المنسوب إليه الموظف *"
                   onChange={(e) => setCurrentUser({ ...currentUser, branch_id: e.target.value })}
                 >
                   {(branches || []).map((b) => (
-                    <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
+                    <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
 
-            <Grid xs={12} sm={3}>
+            <Grid xs={12} sm={4}>
               <FormControl fullWidth size="small">
-                <InputLabel>الدور (Role)</InputLabel>
+                <InputLabel>الدور (Role) *</InputLabel>
                 <Select
                   value={currentUser.role}
-                  label="الدور (Role)"
+                  label="الدور (Role) *"
                   onChange={(e) => handleRoleChange(e.target.value)}
                 >
                   {ROLE_OPTIONS.map((opt) => (
                     <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
                   ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid xs={12} sm={3}>
-              <FormControl fullWidth size="small">
-                <InputLabel>حالة الحساب</InputLabel>
-                <Select
-                  value={currentUser.status}
-                  label="حالة الحساب"
-                  onChange={(e) => setCurrentUser({ ...currentUser, status: e.target.value })}
-                >
-                  <MenuItem value="active">نشط (مسموح بالدخول)</MenuItem>
-                  <MenuItem value="inactive">غير نشط (معطل)</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -432,10 +440,10 @@ export default function AdminPage() {
           {/* Granular Screen Permissions Checkboxes Grid */}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1A1A2E', fontSize: '0.95rem' }}>
-              🎯 تحديد الشاشات والصلاحيات المسموحة لهذا المستخدم:
+              🎯 الشاشات والصلاحيات المسموحة لهذا المستخدم بالفرع:
             </Typography>
             <Typography variant="caption" sx={{ color: '#6B7280', fontSize: '0.78rem' }}>
-              سيتم إظهار الشاشات المحددة فقط في القائمة الجانبية والشريط العلوي للمستخدم عند تسجيل دخوله.
+              سيتم إظهار الشاشات المحددة فقط للمستخدم عند تسجيل دخوله للنظام.
             </Typography>
 
             <Grid container spacing={1.2} sx={{ mt: 0.5 }}>
@@ -486,7 +494,6 @@ export default function AdminPage() {
           </Box>
         </DialogContent>
 
-        {/* Dialog Actions Sticky Footer */}
         <DialogActions sx={{ p: 2, bgcolor: '#FAFBFC', borderTop: '1px solid #E5E7EB', gap: 1 }}>
           <Button onClick={() => setDialogOpen(false)} sx={{ color: '#6B7280', fontWeight: 700 }}>
             إلغاء
@@ -496,14 +503,14 @@ export default function AdminPage() {
             onClick={handleSave}
             sx={{ bgcolor: '#4285F4', borderRadius: '10px', px: 3, py: 1, fontWeight: 800 }}
           >
-            حفظ المستخدم والصلاحيات
+            حفظ الحساب والصلاحيات
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Delete Confirm Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle sx={{ fontWeight: 800 }}>تأكيد حذف المستخدم</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 800 }}>تأكيد حذف الحساب</DialogTitle>
         <DialogContent>
           <Typography variant="body2">
             هل أنت تأكد من رغبتك في حذف الحساب "{userToDelete?.name}" ({userToDelete?.username})؟
