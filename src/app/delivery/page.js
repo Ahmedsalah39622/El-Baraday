@@ -189,7 +189,7 @@ export default function DeliveryPage() {
   const deliveredCount = deliveryOrders.filter(o => o.status === 'delivered' || o.status === 'مكتمل').length;
 
   return (
-    <Box sx={{ p: { xs: 1.5, md: 3 }, display: 'flex', flexDirection: 'column', gap: 2.5, pb: { xs: 10, md: 4 } }}>
+    <Box sx={{ p: { xs: 1.5, md: 3 }, display: 'flex', flexDirection: 'column', gap: 2.5, height: '100%', overflowY: 'auto', pb: { xs: 14, md: 8 } }}>
       {/* Top Banner Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
