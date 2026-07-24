@@ -140,22 +140,25 @@ export default function DeliveryPage() {
       setDispatchDialog(false);
       setSelectedOrderForDispatch(null);
       fetchDeliveryData();
+      fetchDrivers();
     } catch (e) {
       console.error('❌ Failed to dispatch order:', e);
     }
   };
 
   // Action: Mark Order Delivered
-  const handleMarkDelivered = async (orderId) => {
+  const handleMarkDelivered = async (order) => {
     try {
-      await fetch(`/api/orders/${orderId}`, {
+      await fetch(`/api/orders/${order.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: 'delivered'
+          status: 'delivered',
+          driver_name: order.driver_name || order.driverName
         })
       });
       fetchDeliveryData();
+      fetchDrivers();
     } catch (e) {
       console.error('❌ Failed to mark delivered:', e);
     }
@@ -439,7 +442,7 @@ export default function DeliveryPage() {
                             variant="contained"
                             color="success"
                             startIcon={<CheckCircle />}
-                            onClick={() => handleMarkDelivered(order.id)}
+                            onClick={() => handleMarkDelivered(order)}
                             sx={{ borderRadius: '10px', fontWeight: 800 }}
                           >
                             تأكيد التسليم
