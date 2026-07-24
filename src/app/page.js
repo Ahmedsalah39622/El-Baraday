@@ -24,7 +24,7 @@ export default function POSPage() {
   const { activeShift } = useShiftStore();
   const { selectedBranchId } = useBranchStore();
   const { user } = useAuthStore();
-  const isAdmin = user?.role === 'admin' || !user;
+  const isAdmin = user?.role === 'admin';
 
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
