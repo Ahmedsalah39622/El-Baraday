@@ -225,98 +225,117 @@ export default function AttendancePage() {
           </Alert>
         ) : (
           <Grid container spacing={2}>
-            {activeQueue.map((item, index) => {
-              const isFirstInQueue = index === 0 && item.status === 'ready';
-              const formattedTime = item.check_in_time
-                ? new Date(item.check_in_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-                : '-';
+            {(() => {
+              const readyQueue = (activeQueue || []).filter(q => q.status === 'ready');
 
-              return (
-                <Grid xs={12} sm={6} md={4} key={item.id}>
-                  <Card
-                    elevation={0}
-                    sx={{
-                      borderRadius: '16px',
-                      border: '2px solid',
-                      borderColor: isFirstInQueue ? '#10B981' : (item.status === 'on_delivery' ? '#F59E0B' : '#E5E7EB'),
-                      bgcolor: isFirstInQueue ? '#F0FDF4' : (item.status === 'on_delivery' ? '#FFFBEB' : '#FFFFFF'),
-                      boxShadow: isFirstInQueue ? '0 4px 14px rgba(16, 185, 129, 0.2)' : 'none',
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    <CardContent sx={{ p: 2 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-                        <Chip
-                          label={isFirstInQueue ? '👑 الدور 1 (التالي للخروج)' : `الدور ${index + 1}`}
-                          size="small"
-                          sx={{
-                            bgcolor: isFirstInQueue ? '#10B981' : '#E5E7EB',
-                            color: isFirstInQueue ? '#FFF' : '#374151',
-                            fontWeight: 900,
-                            fontSize: '0.8rem'
-                          }}
-                        />
-                        <Typography variant="caption" sx={{ color: '#6B7280', fontWeight: 700 }}>
-                          الفرع: {item.branch_name || 'الرئيسي'}
+              return activeQueue.map((item) => {
+                const isOnDelivery = item.status === 'on_delivery';
+                const readyIndex = readyQueue.findIndex(q => q.id === item.id);
+                const isTopReady = !isOnDelivery && readyIndex === 0;
+
+                let badgeLabel = `🟢 الدور ${readyIndex + 1}`;
+                let badgeStyle = { bgcolor: '#E5E7EB', color: '#374151' };
+                let cardStyle = { borderColor: '#E5E7EB', bgcolor: '#FFFFFF' };
+
+                if (isOnDelivery) {
+                  badgeLabel = '🛵 في مشوار توصيل (خارج بالطلب)';
+                  badgeStyle = { bgcolor: '#3B82F6', color: '#FFFFFF' };
+                  cardStyle = { borderColor: '#3B82F6', bgcolor: '#EFF6FF' };
+                } else if (isTopReady) {
+                  badgeLabel = '👑 الدور 1 (التالي للخروج)';
+                  badgeStyle = { bgcolor: '#10B981', color: '#FFFFFF' };
+                  cardStyle = { borderColor: '#10B981', bgcolor: '#F0FDF4' };
+                }
+
+                const formattedTime = item.check_in_time
+                  ? new Date(item.check_in_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+                  : '-';
+
+                return (
+                  <Grid xs={12} sm={6} md={4} key={item.id}>
+                    <Card
+                      elevation={0}
+                      sx={{
+                        borderRadius: '16px',
+                        border: '2px solid',
+                        ...cardStyle,
+                        boxShadow: isTopReady ? '0 4px 14px rgba(16, 185, 129, 0.2)' : (isOnDelivery ? '0 4px 14px rgba(59, 130, 246, 0.15)' : 'none'),
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      <CardContent sx={{ p: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+                          <Chip
+                            label={badgeLabel}
+                            size="small"
+                            sx={{
+                              ...badgeStyle,
+                              fontWeight: 900,
+                              fontSize: '0.8rem'
+                            }}
+                          />
+                          <Typography variant="caption" sx={{ color: '#6B7280', fontWeight: 700 }}>
+                            الفرع: {item.branch_name || 'الرئيسي'}
+                          </Typography>
+                        </Box>
+
+                        <Typography variant="h6" fontWeight={800} sx={{ color: '#1A1A2E', mb: 0.5 }}>
+                          {item.driver_name}
                         </Typography>
-                      </Box>
 
-                      <Typography variant="h6" fontWeight={800} sx={{ color: '#1A1A2E', mb: 0.5 }}>
-                        {item.driver_name}
-                      </Typography>
+                        <Typography variant="body2" sx={{ color: '#6B7280', display: 'flex', alignItems: 'center', gap: 0.5, mb: 1.5 }}>
+                          <AccessTime sx={{ fontSize: 16 }} />
+                          <span>وقت التمام: {formattedTime}</span>
+                        </Typography>
 
-                      <Typography variant="body2" sx={{ color: '#6B7280', display: 'flex', alignItems: 'center', gap: 0.5, mb: 1.5 }}>
-                        <AccessTime sx={{ fontSize: 16 }} />
-                        <span>وقت التمام: {formattedTime}</span>
-                      </Typography>
-
-                      {/* Delivery Timer status if out on order */}
-                      <Box sx={{ mb: 2 }}>
-                        {item.status === 'on_delivery' ? (
-                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8 }}>
+                        {/* Delivery Timer status if out on order */}
+                        <Box sx={{ mb: 2 }}>
+                          {item.status === 'on_delivery' ? (
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8 }}>
+                              <Chip
+                                icon={<DeliveryDining />}
+                                label="🛵 خارج في أوردر توصيل"
+                                color="warning"
+                                size="small"
+                                sx={{ fontWeight: 800 }}
+                              />
+                              {item.check_in_time && (
+                                <DeliveryTimerBadge
+                                  dispatchedAt={item.check_in_time}
+                                  targetMinutes={deliveryTimerMinutes}
+                                />
+                              )}
+                            </Box>
+                          ) : (
                             <Chip
-                              icon={<DeliveryDining />}
-                              label="🛵 خارج في أوردر توصيل"
-                              color="warning"
+                              icon={<CheckCircle />}
+                              label="🟢 جاهز للخروج بالطلب"
+                              color="success"
+                              variant="outlined"
                               size="small"
                               sx={{ fontWeight: 800 }}
                             />
-                            {item.check_in_time && (
-                              <DeliveryTimerBadge
-                                dispatchedAt={item.check_in_time}
-                                targetMinutes={deliveryTimerMinutes}
-                              />
-                            )}
-                          </Box>
-                        ) : (
-                          <Chip
-                            icon={<CheckCircle />}
-                            label="🟢 جاهز للخروج بالطلب"
-                            color="success"
-                            variant="outlined"
-                            size="small"
-                            sx={{ fontWeight: 800 }}
-                          />
-                        )}
-                      </Box>
+                          )}
+                        </Box>
 
-                      {/* Actions */}
-                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', pt: 1, borderTop: '1px solid #F3F4F6' }}>
-                        <Button
-                          size="small"
-                          color="error"
-                          startIcon={<Logout />}
-                          onClick={() => handleCheckOut(item.id, item.driver_id)}
-                          sx={{ fontWeight: 700 }}
-                        >
-                          تسجيل انصراف
-                        </Button>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              );
-            })}
+                        {/* Actions */}
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', pt: 1, borderTop: '1px solid #F3F4F6' }}>
+                          <Button
+                            size="small"
+                            color="error"
+                            startIcon={<Logout />}
+                            onClick={() => handleCheckOut(item.id, item.driver_id)}
+                            sx={{ fontWeight: 700 }}
+                          >
+                            تسجيل انصراف
+                          </Button>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                );
+              });
+            })()}
           </Grid>
         )}
       </Paper>

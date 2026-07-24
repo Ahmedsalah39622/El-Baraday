@@ -514,24 +514,48 @@ export default function DeliveryPage() {
           </Box>
 
           <Grid container spacing={2}>
-            {(activeQueue || []).map((item, index) => (
-              <Grid xs={12} sm={6} md={4} key={item.id}>
-                <Card sx={{ p: 2, borderRadius: '16px', border: index === 0 ? '2px solid #10B981' : '1px solid #E5E7EB', bgcolor: index === 0 ? '#F0FDF4' : '#FFF' }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Chip label={index === 0 ? '👑 الدور 1 (التالي)' : `الدور ${index + 1}`} color={index === 0 ? 'success' : 'default'} sx={{ fontWeight: 800 }} />
-                    <Typography variant="caption" fontWeight={700} color="text.secondary">
-                      حضور: {item.check_in_time ? new Date(item.check_in_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '-'}
-                    </Typography>
-                  </Box>
-                  <Typography variant="h6" fontWeight={900} sx={{ mt: 1.5, color: '#1A1A2E' }}>
-                    {item.driver_name}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    الهاتف: {item.driver_phone || '—'} | الفرع: {item.branch_name || 'الرئيسي'}
-                  </Typography>
-                </Card>
-              </Grid>
-            ))}
+            {(() => {
+              const readyQueue = (activeQueue || []).filter(q => q.status === 'ready');
+
+              return (activeQueue || []).map((item) => {
+                const isOnDelivery = item.status === 'on_delivery';
+                const readyIndex = readyQueue.findIndex(q => q.id === item.id);
+                const isTopReady = !isOnDelivery && readyIndex === 0;
+
+                let badgeLabel = `🟢 الدور ${readyIndex + 1}`;
+                let badgeStyle = { bgcolor: '#E5E7EB', color: '#374151' };
+                let cardStyle = { borderColor: '#E5E7EB', bgcolor: '#FFFFFF' };
+
+                if (isOnDelivery) {
+                  badgeLabel = '🛵 في مشوار توصيل (خارج بالطلب)';
+                  badgeStyle = { bgcolor: '#3B82F6', color: '#FFFFFF' };
+                  cardStyle = { borderColor: '#3B82F6', bgcolor: '#EFF6FF' };
+                } else if (isTopReady) {
+                  badgeLabel = '👑 الدور 1 (التالي للخروج)';
+                  badgeStyle = { bgcolor: '#10B981', color: '#FFFFFF' };
+                  cardStyle = { borderColor: '#10B981', bgcolor: '#F0FDF4' };
+                }
+
+                return (
+                  <Grid xs={12} sm={6} md={4} key={item.id}>
+                    <Card sx={{ p: 2, borderRadius: '16px', border: '2px solid', ...cardStyle }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Chip label={badgeLabel} size="small" sx={{ ...badgeStyle, fontWeight: 900, fontSize: '0.8rem' }} />
+                        <Typography variant="caption" fontWeight={700} color="text.secondary">
+                          حضور: {item.check_in_time ? new Date(item.check_in_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                        </Typography>
+                      </Box>
+                      <Typography variant="h6" fontWeight={900} sx={{ mt: 1.5, color: '#1A1A2E' }}>
+                        {item.driver_name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        الهاتف: {item.driver_phone || '—'} | الفرع: {item.branch_name || 'الرئيسي'}
+                      </Typography>
+                    </Card>
+                  </Grid>
+                );
+              });
+            })()}
 
             {(!activeQueue || activeQueue.length === 0) && (
               <Grid xs={12}>
