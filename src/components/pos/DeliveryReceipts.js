@@ -137,7 +137,7 @@ export default function DeliveryReceipts({ orderData }) {
             }}
           >
             <Typography variant="body2" sx={{ fontWeight: 900, color: '#000', fontSize: '0.85rem' }}>
-              📝 ملاحظات / إضافات: {orderNoteText}
+              ملاحظات / إضافات: {orderNoteText}
             </Typography>
           </Box>
         )}
@@ -311,7 +311,7 @@ export default function DeliveryReceipts({ orderData }) {
               }}
             >
               <Typography variant="subtitle1" sx={{ fontWeight: 900, fontSize: '1rem', color: '#000' }}>
-                📝 ملاحظات الطلب: {orderNoteText}
+                ملاحظات الطلب: {orderNoteText}
               </Typography>
             </Box>
           )}

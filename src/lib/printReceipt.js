@@ -243,8 +243,8 @@ export function printThermalReceipt(orderData) {
         </div>
 
         ${orderNoteText ? `
-          <div style="margin-top: 8px; font-weight: 900; font-size: 14px; color: #D97706; background: #FEF3C7; padding: 6px; border-radius: 6px; border: 1px solid #F59E0B; text-align: center;">
-            📝 ملاحظات الطلب: ${orderNoteText}
+          <div style="margin-top: 8px; font-weight: 900; font-size: 14px; color: #1A1A2E; background: #F8FAFC; padding: 6px; border-radius: 6px; border: 1.5px solid #1A1A2E; text-align: center;">
+            ملاحظات الطلب: ${orderNoteText}
           </div>
         ` : ''}
 
