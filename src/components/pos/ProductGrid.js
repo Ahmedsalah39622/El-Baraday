@@ -12,7 +12,7 @@ export default function ProductGrid({ products = [], onSelectProduct, categoryTi
         {categoryTitle}
       </Typography>
 
-      {/* Grid: Responsive 150px columns */}
+      {/* Grid: Responsive 145px columns */}
       <Box
         sx={{
           display: 'grid',
@@ -22,7 +22,10 @@ export default function ProductGrid({ products = [], onSelectProduct, categoryTi
         }}
       >
         {products.map((product) => {
-          const isOffer = product.isOffer || product.categoryId === '5' || (product.originalPrice && product.originalPrice > product.price);
+          const origPrice = parseFloat(product.originalPrice);
+          const currentPrice = parseFloat(product.price);
+          const hasOriginalPrice = !isNaN(origPrice) && origPrice > currentPrice;
+          const isOffer = Boolean(product.isOffer || product.categoryId === '5' || hasOriginalPrice);
 
           return (
             <Box
@@ -41,7 +44,7 @@ export default function ProductGrid({ products = [], onSelectProduct, categoryTi
               }}
             >
               {/* Offer Special Discount Badge */}
-              {isOffer && (
+              {isOffer === true && (
                 <Chip
                   label="🏷️ عرض خاص"
                   size="small"
@@ -99,8 +102,8 @@ export default function ProductGrid({ products = [], onSelectProduct, categoryTi
                 </Typography>
               </Tooltip>
 
-              {/* Offer components preview - Truncated within container */}
-              {product.offerComponents && (
+              {/* Offer components preview */}
+              {Boolean(product.offerComponents) && (
                 <Tooltip title={product.offerComponents} arrow placement="bottom">
                   <Typography
                     variant="caption"
@@ -128,7 +131,7 @@ export default function ProductGrid({ products = [], onSelectProduct, categoryTi
                 <Typography className="product-card-price" sx={{ fontWeight: 900, color: isOffer ? '#D97706' : '#4285F4', fontSize: '0.9rem' }}>
                   {product.price} ج.م
                 </Typography>
-                {product.originalPrice && (
+                {hasOriginalPrice === true && (
                   <Typography variant="caption" sx={{ textDecoration: 'line-through', color: '#9CA3AF', fontSize: '0.72rem', fontWeight: 600 }}>
                     {product.originalPrice}
                   </Typography>

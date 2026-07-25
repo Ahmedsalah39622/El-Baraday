@@ -327,7 +327,10 @@ export default function ProductsPage() {
           </TableHead>
           <TableBody>
             {filteredProducts.map((row, idx) => {
-              const isOffer = row.isOffer || row.categoryId === '5' || (row.originalPrice && row.originalPrice > row.price);
+              const origPrice = parseFloat(row.originalPrice);
+              const currentPrice = parseFloat(row.price);
+              const hasOriginalPrice = !isNaN(origPrice) && origPrice > currentPrice;
+              const isOffer = Boolean(row.isOffer || row.categoryId === '5' || hasOriginalPrice);
               const categoryName = categoriesList.find((c) => c.id === row.categoryId)?.name || 'غير محدد';
 
               return (
@@ -340,7 +343,7 @@ export default function ProductsPage() {
                         alt={row.name}
                         sx={{ width: 52, height: 52, borderRadius: '12px', objectFit: 'cover', bgcolor: '#FFF8F0', border: '1px solid #E5E7EB' }}
                       />
-                      {isOffer && (
+                      {isOffer === true && (
                         <Chip
                           label="عرض"
                           size="small"
