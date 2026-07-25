@@ -362,7 +362,7 @@ export default function OrderDetailsPanel({
                   freeSolo
                   fullWidth
                   options={customers}
-                  getOptionLabel={(option) => typeof option === 'string' ? option : `${option.phone || ''} - ${option.name || ''}`}
+                  getOptionLabel={(option) => (typeof option === 'string' ? option : `${option.phone || ''} - ${option.name || ''}`)}
                   inputValue={customerPhone}
                   onInputChange={(e, val) => setCustomerPhone(val)}
                   onChange={(e, val) => handleSelectCustomer(val)}
@@ -372,12 +372,6 @@ export default function OrderDetailsPanel({
                       size="small"
                       label="رقم الهاتف"
                       placeholder=" "
-                      slotProps={{
-                        htmlInput: {
-                          ...params.inputProps,
-                          suppressHydrationWarning: true,
-                        },
-                      }}
                       sx={{ bgcolor: '#FFF', '& input': { fontSize: '0.813rem' } }}
                     />
                   )}
