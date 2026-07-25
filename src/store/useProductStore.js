@@ -33,7 +33,7 @@ function mapProduct(row) {
     size: row.size,
     image: row.image_url,
     description: row.description,
-    is_available: row.is_available,
+    is_available: row.is_available !== false,
     sortOrder: parseInt(row.sort_order) || 0,
   };
 }
@@ -109,6 +109,7 @@ export const useProductStore = create(
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              id: newProduct.id,
               name: newProduct.name,
               category_id: newProduct.categoryId,
               price: newProduct.price,
@@ -127,26 +128,38 @@ export const useProductStore = create(
       },
 
       updateProduct: async (id, updates) => {
-        set((state) => ({
-          products: state.products.map((p) => (p.id === id ? { ...p, ...updates } : p)),
-        }));
+        let fullProduct = null;
+
+        set((state) => {
+          const nextProducts = state.products.map((p) => {
+            if (p.id === id) {
+              fullProduct = { ...p, ...updates };
+              return fullProduct;
+            }
+            return p;
+          });
+          return { products: nextProducts };
+        });
+
+        if (!fullProduct) return;
 
         try {
           await fetch(`/api/products/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              name: updates.name,
-              category_id: updates.categoryId,
-              price: updates.price,
-              original_price: updates.originalPrice,
-              is_offer: updates.isOffer || updates.categoryId === '5',
-              offer_components: updates.offerComponents,
-              size: updates.size,
-              image_url: updates.image,
-              description: updates.description,
-              is_available: updates.is_available,
-              sort_order: updates.sortOrder,
+              id: fullProduct.id,
+              name: fullProduct.name,
+              category_id: fullProduct.categoryId,
+              price: fullProduct.price,
+              original_price: fullProduct.originalPrice,
+              is_offer: fullProduct.isOffer || fullProduct.categoryId === '5',
+              offer_components: fullProduct.offerComponents,
+              size: fullProduct.size,
+              image_url: fullProduct.image,
+              description: fullProduct.description,
+              is_available: fullProduct.is_available !== false,
+              sort_order: fullProduct.sortOrder || 0,
             }),
           });
         } catch (err) {
@@ -216,7 +229,7 @@ export const useProductStore = create(
       },
     }),
     {
-      name: 'el-baraday-products-v5',
+      name: 'el-baraday-products-v6',
     }
   )
 );
