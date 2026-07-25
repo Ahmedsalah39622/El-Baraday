@@ -336,7 +336,7 @@ export default function FinancesPage() {
         </style>
       </head>
       <body>
-        <h1>📊 تقرير الإيرادات والمصروفات الكلية</h1>
+        <h1> تقرير الإيرادات والمصروفات الكلية</h1>
         <div class="subtitle">مطعم البرادعي POS | ${branchName} | تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')} - ${new Date().toLocaleTimeString('ar-EG')}</div>
         
         <div class="summary-grid">
