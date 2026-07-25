@@ -4,7 +4,11 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     const res = await query('SELECT * FROM branches ORDER BY name ASC');
-    return NextResponse.json(res.rows || []);
+    return NextResponse.json(res.rows || [], {
+      headers: {
+        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=300',
+      },
+    });
   } catch (err) {
     console.error('Error fetching branches:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

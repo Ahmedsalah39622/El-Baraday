@@ -21,6 +21,7 @@ import {
   Close,
   Menu,
   HowToReg,
+  ReceiptLong,
 } from '@mui/icons-material';
 import { useAuthStore } from '@/store/useAuthStore';
 
@@ -30,6 +31,7 @@ const navItems = [
   { id: 'tables', label: 'الطاولات', icon: GridView, path: '/tables' },
   { id: 'customers', label: 'العملاء', icon: PersonOutlined, path: '/customers' },
   { id: 'orders', label: 'الطلبات', icon: ListAlt, path: '/orders' },
+  { id: 'finances', label: 'الإيرادات والمصروفات', icon: ReceiptLong, path: '/finances' },
   { id: 'shift-close', label: 'تقفيل شيفتات', icon: AccessTime, path: '/shift-summary' },
   { id: 'salaries', label: 'المرتبات والقبض', icon: AccountBalanceWallet, path: '/salaries' },
   { id: 'inventory', label: 'الخامات', icon: Inventory2Outlined, path: '/inventory' },

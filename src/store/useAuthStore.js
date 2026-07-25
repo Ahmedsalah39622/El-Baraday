@@ -5,8 +5,8 @@ import { persist } from 'zustand/middleware';
 
 // Default route presets per role
 export const ROLE_PERMISSIONS = {
-  admin: ['/', '/products', '/orders', '/tables', '/customers', '/shift-summary', '/delivery', '/attendance', '/inventory', '/salaries', '/reports', '/admin', '/settings'],
-  cashier: ['/', '/orders', '/tables', '/customers', '/shift-summary', '/delivery', '/attendance'],
+  admin: ['/', '/products', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance', '/inventory', '/salaries', '/reports', '/admin', '/settings'],
+  cashier: ['/', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance'],
   driver: ['/delivery', '/attendance', '/orders'],
   kitchen: ['/orders']
 };
@@ -17,6 +17,7 @@ export const ALL_SYSTEM_SCREENS = [
   { path: '/orders', name: 'سجل الطلبات والفواتير' },
   { path: '/tables', name: 'إدارة الصالة والطاولات' },
   { path: '/customers', name: 'إدارة العملاء والبحث بالهاتف' },
+  { path: '/finances', name: 'الإيرادات والمصروفات والديون' },
   { path: '/shift-summary', name: 'تقفيل الشيفتات والخزنة' },
   { path: '/delivery', name: 'إدارة الدليفري والطيارين' },
   { path: '/attendance', name: 'تمامات الموظفين والطيارين' },

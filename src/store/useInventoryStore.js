@@ -23,7 +23,9 @@ export const useInventoryStore = create(
       inventorySessions: [],
 
       fetchInventory: async () => {
-        set({ loading: true });
+        if (get().items.length === 0) {
+          set({ loading: true });
+        }
         try {
           const res = await fetch('/api/inventory');
           if (res.ok) {
