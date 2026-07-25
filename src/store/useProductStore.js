@@ -41,18 +41,40 @@ function mapProduct(row) {
 export const useProductStore = create(
   persist(
     (set, get) => ({
-      products: defaultHawawshiProducts, // Instant 0ms product list on first load
+      products: defaultHawawshiProducts,
       loading: false,
       error: null,
 
       fetchProducts: async () => {
         try {
           const res = await fetch('/api/products');
-          if (!res.ok) throw new Error('Failed to fetch');
+          if (!res.ok) return;
           const rows = await res.json();
           if (Array.isArray(rows) && rows.length > 0) {
-            const mapped = rows.map(mapProduct).sort((a, b) => a.sortOrder - b.sortOrder);
-            set({ products: mapped, loading: false });
+            const mappedFetched = rows.map(mapProduct);
+
+            set((state) => {
+              const currentProds = state.products && state.products.length > 0 ? state.products : defaultHawawshiProducts;
+              const fetchedMap = new Map(mappedFetched.map(item => [item.id, item]));
+
+              // Merge fetched DB items into current state without deleting local-only additions
+              const merged = currentProds.map(localItem => {
+                if (fetchedMap.has(localItem.id)) {
+                  const fetchedItem = fetchedMap.get(localItem.id);
+                  fetchedMap.delete(localItem.id);
+                  return { ...localItem, ...fetchedItem };
+                }
+                return localItem;
+              });
+
+              // Add newly fetched items from DB
+              fetchedMap.forEach(item => merged.push(item));
+
+              return {
+                products: merged.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
+                loading: false,
+              };
+            });
           }
         } catch (err) {
           console.warn('⚠️ Fetch products notice:', err.message);
@@ -60,40 +82,45 @@ export const useProductStore = create(
       },
 
       addProduct: async (product) => {
-        const localId = Date.now().toString();
+        const localId = 'p_' + Date.now();
         const nextOrder = get().products.length + 1;
         const newProduct = {
-          ...product,
           id: localId,
-          sortOrder: nextOrder,
-          isOffer: product.isOffer || product.categoryId === '5',
+          categoryId: product.categoryId || '1',
+          name: product.name,
+          price: parseFloat(product.price) || 0,
+          originalPrice: product.originalPrice ? parseFloat(product.originalPrice) : null,
+          isOffer: product.isOffer || product.categoryId === '5' || false,
+          offerComponents: product.offerComponents || null,
+          size: product.size || 'كبير',
+          image: product.image || '/images/hawawshi_sade.png',
+          description: product.description || '',
           is_available: true,
+          sortOrder: nextOrder,
         };
 
+        // Immediately update state and persistent storage
         set((state) => ({
-          products: [...state.products, newProduct].sort((a, b) => a.sortOrder - b.sortOrder),
+          products: [...state.products, newProduct].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
         }));
 
         try {
-          const res = await fetch('/api/products', {
+          await fetch('/api/products', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              name: product.name,
-              category_id: product.categoryId,
-              price: product.price,
-              original_price: product.originalPrice,
-              is_offer: product.isOffer || product.categoryId === '5',
-              offer_components: product.offerComponents,
-              size: product.size,
-              image_url: product.image,
-              description: product.description,
+              name: newProduct.name,
+              category_id: newProduct.categoryId,
+              price: newProduct.price,
+              original_price: newProduct.originalPrice,
+              is_offer: newProduct.isOffer,
+              offer_components: newProduct.offerComponents,
+              size: newProduct.size,
+              image_url: newProduct.image,
+              description: newProduct.description,
               sort_order: nextOrder,
             }),
           });
-          if (res.ok) {
-            get().fetchProducts();
-          }
         } catch (err) {
           console.warn('⚠️ Product saved locally only:', err.message);
         }
@@ -122,7 +149,6 @@ export const useProductStore = create(
               sort_order: updates.sortOrder,
             }),
           });
-          get().fetchProducts();
         } catch (err) {
           console.warn('⚠️ Product update saved locally:', err.message);
         }
@@ -150,17 +176,11 @@ export const useProductStore = create(
         set({ products: reordered });
 
         try {
-          const res = await fetch('/api/products', {
+          await fetch('/api/products', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(reordered.map((p) => ({ id: p.id, sort_order: p.sortOrder }))),
           });
-          if (res.ok) {
-            const rows = await res.json();
-            if (Array.isArray(rows) && rows.length > 0) {
-              set({ products: rows.map(mapProduct).sort((a, b) => a.sortOrder - b.sortOrder) });
-            }
-          }
         } catch (err) {
           console.warn('⚠️ Reorder saved locally:', err.message);
         }
@@ -179,17 +199,11 @@ export const useProductStore = create(
         set({ products: reordered });
 
         try {
-          const res = await fetch('/api/products', {
+          await fetch('/api/products', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(reordered.map((p) => ({ id: p.id, sort_order: p.sortOrder }))),
           });
-          if (res.ok) {
-            const rows = await res.json();
-            if (Array.isArray(rows) && rows.length > 0) {
-              set({ products: rows.map(mapProduct).sort((a, b) => a.sortOrder - b.sortOrder) });
-            }
-          }
         } catch (err) {
           console.warn('⚠️ Reorder saved locally:', err.message);
         }
@@ -202,7 +216,7 @@ export const useProductStore = create(
       },
     }),
     {
-      name: 'el-baraday-products-v4',
+      name: 'el-baraday-products-v5',
     }
   )
 );
