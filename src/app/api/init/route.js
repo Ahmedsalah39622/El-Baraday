@@ -100,7 +100,9 @@ export async function GET(req) {
       activeAttendanceQueue: attendanceRes.rows || []
     }, {
       headers: {
-        'Cache-Control': 'public, s-maxage=3, stale-while-revalidate=10'
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
       }
     });
   } catch (error) {

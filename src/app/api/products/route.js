@@ -4,9 +4,15 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     const result = await query('SELECT * FROM products ORDER BY sort_order ASC, created_at ASC');
-    return NextResponse.json(result.rows || []);
+    return NextResponse.json(result.rows || [], {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    });
   } catch (error) {
-    return NextResponse.json([]);
+    return NextResponse.json([], { status: 200 });
   }
 }
 
@@ -56,7 +62,11 @@ export async function PUT(request) {
       }
     }
     const updatedResult = await query('SELECT * FROM products ORDER BY sort_order ASC, created_at ASC');
-    return NextResponse.json(updatedResult.rows || []);
+    return NextResponse.json(updatedResult.rows || [], {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+      },
+    });
   } catch (error) {
     console.error('❌ Error updating product sort orders:', error);
     return NextResponse.json({ success: true });

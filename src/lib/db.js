@@ -20,15 +20,15 @@ if (!pool) {
   global._pgPool = pool;
 }
 
-// Ultra-Fast In-Memory Query Cache (0ms instant response for repeated GET queries)
+// In-Memory Query Cache with 1s TTL for real-time cross-device synchronization
 const queryCache = new Map();
-const CACHE_TTL_MS = 60000; // 60 seconds cache TTL for super fast page transitions
+const CACHE_TTL_MS = 1000; // 1 second cache TTL to ensure instant cross-device updates
 
 export async function query(text, params = []) {
   const isReadQuery = text.trim().toUpperCase().startsWith('SELECT');
   const cacheKey = isReadQuery ? `${text}:${JSON.stringify(params)}` : null;
 
-  // Serve from instant memory cache if valid (0ms latency!)
+  // Serve from instant memory cache if valid (within 1s)
   if (isReadQuery && cacheKey && queryCache.has(cacheKey)) {
     const cached = queryCache.get(cacheKey);
     if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
@@ -45,11 +45,11 @@ export async function query(text, params = []) {
   try {
     const result = await Promise.race([queryPromise, timeoutPromise]);
 
-    // Cache read queries for instant 0ms responses
+    // Cache read queries for 1s
     if (isReadQuery && cacheKey) {
       queryCache.set(cacheKey, { result, timestamp: Date.now() });
     } else {
-      // Clear cache on write operations (INSERT, UPDATE, DELETE)
+      // Clear cache immediately on write operations (INSERT, UPDATE, DELETE)
       queryCache.clear();
     }
 
