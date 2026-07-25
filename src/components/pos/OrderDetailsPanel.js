@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react';
 import {
   Box, Typography, Button, IconButton, Divider, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Select, FormControl, InputLabel, Autocomplete, Chip
 } from '@mui/material';
-import { EditOutlined, DeleteOutlined, CheckCircleOutlined, Print, DeliveryDining, LocationOn, Phone, ExpandMore, ExpandLess } from '@mui/icons-material';
+import { EditOutlined, DeleteOutlined, CheckCircleOutlined, Print, DeliveryDining, LocationOn, Phone, ExpandMore, ExpandLess, WhatsApp } from '@mui/icons-material';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { useCustomerStore } from '@/store/useCustomerStore';
 import DeliveryReceipts from './DeliveryReceipts';
 import { printThermalReceipt } from '@/lib/printReceipt';
+import { sendDeliveryWhatsApp } from '@/lib/whatsapp';
 
 import { useAuthStore } from '@/store/useAuthStore';
 import { useBranchStore } from '@/store/useBranchStore';
@@ -104,6 +105,7 @@ export default function OrderDetailsPanel({
 
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [completedOrderData, setCompletedOrderData] = useState(null);
+  const [whatsAppStatus, setWhatsAppStatus] = useState(null);
 
   const currentDeliveryFee = orderType === 'delivery' ? (parseFloat(deliveryFee) || 15) : 0;
   const finalTotal = subtotal + currentDeliveryFee;
@@ -189,9 +191,36 @@ export default function OrderDetailsPanel({
     });
 
     setCompletedOrderData(currentOrderData);
+    setSuccessDialogOpen(true);
 
     // 🖨️ Isolated Iframe Thermal Print (100% Bulletproof for Epson 80mm Printers)
     printThermalReceipt(currentOrderData);
+
+    // 📱 Automatic WhatsApp Delivery Message to Customer (Order details + Driver phone)
+    const targetCustomerPhone = (customerPhone || '').toString().trim();
+    if (targetCustomerPhone) {
+      setWhatsAppStatus({ loading: true });
+      const foundDriver = (activeQueue || []).find(q => q.driver_name === driverName || q.name === driverName) 
+                       || (drivers || []).find(d => d.name === driverName);
+      const targetDriverPhone = foundDriver?.driver_phone || foundDriver?.phone || '';
+
+      sendDeliveryWhatsApp({
+        orderData: currentOrderData,
+        driverPhone: targetDriverPhone,
+        companySettings: { company_name: activeBranchName },
+        autoOpenBrowser: false
+      })
+      .then(res => {
+        console.log('📱 WhatsApp Send Result:', res);
+        setWhatsAppStatus(res);
+      })
+      .catch(err => {
+        console.error('❌ Error sending WhatsApp message:', err);
+        setWhatsAppStatus({ success: false, error: err.message });
+      });
+    } else {
+      setWhatsAppStatus(null);
+    }
 
     // Clear order cart & close mobile drawer
     if (onClearOrder) onClearOrder();
@@ -201,6 +230,7 @@ export default function OrderDetailsPanel({
 
   const handleCloseDialog = () => {
     setSuccessDialogOpen(false);
+    setWhatsAppStatus(null);
     if (onClearOrder) onClearOrder();
     if (onCloseMobile) onCloseMobile();
   };
@@ -686,10 +716,54 @@ export default function OrderDetailsPanel({
         </DialogTitle>
 
         <DialogContent sx={{ py: 2, bgcolor: '#FAFBFC' }}>
+          {completedOrderData?.customerPhone && (
+            <Box sx={{ mb: 2 }}>
+              {whatsAppStatus?.loading ? (
+                <Chip
+                  icon={<WhatsApp sx={{ color: '#0284C7 !important' }} />}
+                  label="⏳ جاري إرسال الفاتورة وبيانات الطيار للعميل عبر الواتساب أوتوماتيكياً..."
+                  sx={{ width: '100%', py: 2.5, fontWeight: 800, bgcolor: '#E0F2FE', color: '#0369A1', border: '1px solid #BAE6FD' }}
+                />
+              ) : whatsAppStatus?.sentVia === 'api' ? (
+                <Chip
+                  icon={<WhatsApp sx={{ color: '#15803D !important' }} />}
+                  label={`✅ تم إرسال الفاتورة وبيانات الطيار للعميل (${completedOrderData.customerPhone}) عبر الواتساب أوتوماتيكياً!`}
+                  sx={{ width: '100%', py: 2.5, fontWeight: 800, bgcolor: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC' }}
+                />
+              ) : (
+                <Chip
+                  icon={<WhatsApp sx={{ color: '#25D366 !important' }} />}
+                  label={`📱 اضغط الزر الأخضر بالأسفل لإرسال الفاتورة ورقم الطيار للعميل (${completedOrderData.customerPhone})`}
+                  sx={{ width: '100%', py: 2.5, fontWeight: 800, bgcolor: '#F0FDF4', color: '#166534', border: '1px solid #BBF7D0' }}
+                />
+              )}
+            </Box>
+          )}
           {completedOrderData && <DeliveryReceipts orderData={completedOrderData} />}
         </DialogContent>
 
-        <DialogActions sx={{ p: 2.5, justifyContent: 'center', gap: 2, bgcolor: '#FFFFFF' }}>
+        <DialogActions sx={{ p: 2.5, justifyContent: 'center', gap: 1.5, flexWrap: 'wrap', bgcolor: '#FFFFFF' }}>
+          {completedOrderData?.customerPhone && (
+            <Button
+              variant="contained"
+              startIcon={<WhatsApp />}
+              onClick={() => {
+                const foundDriver = (activeQueue || []).find(q => q.driver_name === driverName || q.name === driverName) 
+                                 || (drivers || []).find(d => d.name === driverName);
+                const targetDriverPhone = foundDriver?.driver_phone || foundDriver?.phone || '';
+                sendDeliveryWhatsApp({
+                  orderData: completedOrderData,
+                  driverPhone: targetDriverPhone,
+                  companySettings: { company_name: activeBranchName },
+                  autoOpenBrowser: true
+                });
+              }}
+              sx={{ borderRadius: '12px', px: 3, py: 1.2, fontWeight: 800, bgcolor: '#25D366', color: '#FFF', '&:hover': { bgcolor: '#15803D' } }}
+            >
+              إرسال / فتح الواتساب للعميل
+            </Button>
+          )}
+
           <Button
             variant="contained"
             startIcon={<Print />}

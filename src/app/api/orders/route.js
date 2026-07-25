@@ -134,6 +134,68 @@ export async function POST(request) {
       );
     }
 
+    // 📱 Server-side Automatic WhatsApp Notification via Green API
+    if (customer_phone && String(customer_phone).trim()) {
+      try {
+        // Lookup driver phone
+        let targetDriverPhone = '';
+        if (driver_name || driver_id) {
+          const dRes = await query(
+            'SELECT phone FROM drivers WHERE (id = $1 AND $1 != \'\') OR (name = $2 AND $2 != \'\') LIMIT 1',
+            [driver_id || '', driver_name || '']
+          );
+          if (dRes.rows && dRes.rows.length > 0) targetDriverPhone = dRes.rows[0].phone || '';
+        }
+
+        const settingsRes = await query("SELECT key, value FROM app_settings WHERE key LIKE 'whatsapp_%'");
+        const settings = {};
+        (settingsRes.rows || []).forEach(row => { settings[row.key] = row.value; });
+
+        const isEnabled = settings.whatsapp_enabled !== 'false';
+        const instanceId = (settings.whatsapp_instance_id || '').trim();
+        const token = (settings.whatsapp_token || '').trim();
+
+        if (isEnabled && instanceId && token) {
+          const hostPrefix = instanceId.length >= 4 && !isNaN(instanceId.slice(0, 4)) ? instanceId.slice(0, 4) : '';
+          const hostUrl = hostPrefix ? `https://${hostPrefix}.api.greenapi.com` : 'https://api.green-api.com';
+          const url = `${hostUrl}/waInstance${instanceId}/sendMessage/${token}`;
+
+          let rawDigits = String(customer_phone).replace(/\D/g, '');
+          if (rawDigits.startsWith('01') && rawDigits.length === 11) rawDigits = '2' + rawDigits;
+          const chatId = rawDigits.endsWith('@c.us') ? rawDigits : `${rawDigits}@c.us`;
+
+          let itemsText = (items || []).map((it, idx) => `${idx + 1}. ${it.product_name || it.name || 'صنف'}${it.size ? ` (${it.size})` : ''} × ${it.quantity || 1} = ${(it.price || 0) * (it.quantity || 1)} ج.م`).join('\n');
+
+          let msg = `🍟 *مطعم البرادعي للحواوشي* 🍔\n`;
+          msg += `أهلاً بك يا *${customer_name || 'عميلنا العزيز'}* 👋\n\n`;
+          msg += `تم تنفيذ طلب الدليفري الخاص بك بنجاح! 🎉\n`;
+          msg += `📌 *رقم الطلب:* #${nextNum}\n\n`;
+          msg += `📋 *تفاصيل الطلب:*\n${itemsText || 'تفاصيل الطلب مسجلة بالسيستم'}\n`;
+          msg += `─────────────────\n`;
+          if (delivery_fee > 0) msg += `🚚 *رسوم التوصيل:* ${delivery_fee} ج.م\n`;
+          msg += `💵 *الإجمالي المطلوب:* *${total} ج.م*\n\n`;
+          msg += `🛵 *بيانات طيار التوصيل:*\n`;
+          msg += `👤 *الطيار:* ${driver_name || 'طاقم التوصيل'}\n`;
+          if (targetDriverPhone) msg += `📞 *رقم تليفون الطيار:* ${targetDriverPhone}\n`;
+          if (customer_address) msg += `\n📍 *عنوان التوصيل:* ${customer_address}\n`;
+          msg += `\nنتمنى لك وجبة شهية! 😋❤️`;
+
+          console.log(`📡 [SERVER] Sending automatic WhatsApp to ${chatId} via Green-API`);
+
+          fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chatId, message: msg })
+          })
+          .then(r => r.json())
+          .then(res => console.log('✅ [SERVER] Green API result:', res))
+          .catch(err => console.error('❌ [SERVER] Green API error:', err));
+        }
+      } catch (waErr) {
+        console.error('❌ Error in server-side WhatsApp trigger:', waErr);
+      }
+    }
+
     return NextResponse.json({
       ...order,
       items: items || []

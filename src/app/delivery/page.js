@@ -11,7 +11,7 @@ import {
 import {
   DeliveryDining, AccessTime, LocationOn, Person, Phone, Home, Print, CheckCircle,
   Warning, Add as AddIcon, Search as SearchIcon, Edit as EditIcon, Delete as DeleteIcon,
-  Refresh, HowToReg, Store, CheckCircleOutlined, PlayArrow
+  Refresh, HowToReg, Store, CheckCircleOutlined, PlayArrow, WhatsApp
 } from '@mui/icons-material';
 import { useCustomerStore } from '@/store/useCustomerStore';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
@@ -19,6 +19,7 @@ import { useBranchStore } from '@/store/useBranchStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import DeliveryTimerBadge from '@/components/delivery/DeliveryTimerBadge';
 import { printThermalReceipt } from '@/lib/printReceipt';
+import { sendDeliveryWhatsApp } from '@/lib/whatsapp';
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -231,6 +232,33 @@ export default function DeliveryPage() {
       remainingAmount: 0,
       orderType: 'delivery'
     });
+  };
+
+  // Action: Send / Resend WhatsApp Notification to Customer
+  const handleSendWhatsAppToCustomer = (order) => {
+    const driverName = order.driver_name || order.driverName;
+    const foundDriver = (activeQueue || []).find(q => q.driver_name === driverName || q.name === driverName)
+                     || (drivers || []).find(d => d.name === driverName);
+    const driverPhone = foundDriver?.driver_phone || foundDriver?.phone || '';
+
+    sendDeliveryWhatsApp({
+      orderData: {
+        orderNumber: order.order_number || order.orderNumber,
+        customerName: order.customer_name || order.customerName,
+        customerPhone: order.customer_phone || order.customerPhone,
+        customerAddress: order.customer_address || order.customerAddress,
+        customerFloor: order.customer_floor || order.customerFloor,
+        customerApartment: order.customer_apartment || order.customerApartment,
+        driverName: driverName || 'طاقم التوصيل',
+        subtotal: parseFloat(order.subtotal || 0),
+        deliveryFee: parseFloat(order.delivery_fee || order.deliveryFee || 0),
+        total: parseFloat(order.total || 0),
+        items: order.items || []
+      },
+      driverPhone,
+      companySettings: { company_name: order.branch_name || 'مطعم البرادعي' },
+      autoOpenBrowser: true
+    }).catch(err => console.error('Error sending WhatsApp:', err));
   };
 
   // Filtered Live Delivery Orders
@@ -451,11 +479,35 @@ export default function DeliveryPage() {
                             {order.customer_name || order.customerName || 'عميل دليفري'}
                           </Typography>
                         </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Phone sx={{ color: '#6B7280', fontSize: 18 }} />
-                          <Typography variant="body2" fontWeight={700} color="#3B82F6" dir="ltr" sx={{ textAlign: 'right' }}>
-                            {order.customer_phone || order.customerPhone || '—'}
-                          </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Phone sx={{ color: '#6B7280', fontSize: 18 }} />
+                            <Typography variant="body2" fontWeight={700} color="#3B82F6" dir="ltr" sx={{ textAlign: 'right' }}>
+                              {order.customer_phone || order.customerPhone || '—'}
+                            </Typography>
+                          </Box>
+                          {(order.customer_phone || order.customerPhone) && (
+                            <Tooltip title="إرسال / إعادة إرسال تفاصيل الطلب ورقم الطيار للعميل عبر الواتساب">
+                              <Button
+                                size="small"
+                                startIcon={<WhatsApp sx={{ color: '#25D366', fontSize: '16px !important' }} />}
+                                onClick={() => handleSendWhatsAppToCustomer(order)}
+                                sx={{
+                                  borderRadius: '8px',
+                                  fontWeight: 800,
+                                  fontSize: '0.72rem',
+                                  bgcolor: '#DCFCE7',
+                                  color: '#15803D',
+                                  border: '1px solid #86EFAC',
+                                  py: 0.2,
+                                  px: 1,
+                                  '&:hover': { bgcolor: '#BBF7D0' }
+                                }}
+                              >
+                                إرسال واتساب
+                              </Button>
+                            </Tooltip>
+                          )}
                         </Box>
                         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mt: 0.5 }}>
                           <Home sx={{ color: '#9CA3AF', fontSize: 18, mt: 0.3 }} />
