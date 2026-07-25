@@ -290,89 +290,165 @@ export default function Sidebar() {
         })}
       </Paper>
 
-      {/* Sleek Mobile "المزيد" More Menu Sheet */}
+      {/* Ultra-Sleek Mobile "المزيد" Navigation Sheet */}
       <Drawer
         anchor="bottom"
         open={mobileMoreOpen}
         onClose={() => setMobileMoreOpen(false)}
         PaperProps={{
           sx: {
-            borderTopLeftRadius: '24px',
-            borderTopRightRadius: '24px',
+            borderTopLeftRadius: '28px',
+            borderTopRightRadius: '28px',
             p: 2.5,
+            pb: 10, // Safe padding for bottom navigation bar
             bgcolor: '#FAFCFF',
-            maxHeight: '80vh',
+            maxHeight: '85vh',
             overflowY: 'auto',
+            boxShadow: '0 -10px 40px rgba(0,0,0,0.12)',
           },
         }}
       >
+        {/* Drag Indicator Handle */}
+        <Box
+          sx={{
+            width: 40,
+            height: 5,
+            borderRadius: '10px',
+            bgcolor: '#CBD5E1',
+            mx: 'auto',
+            mb: 2,
+          }}
+        />
+
         {/* Drawer Header */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, pb: 1, borderBottom: '1px solid #E5E7EB' }}>
-          <Typography variant="h6" sx={{ fontWeight: 800, color: '#1A1A2E' }}>
-            🌐 قـائـمـة الـمـزيـد (الصفحات والخدمات)
-          </Typography>
-          <IconButton size="small" onClick={() => setMobileMoreOpen(false)}>
-            <Close />
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            mb: 2.5,
+            pb: 1.5,
+            borderBottom: '1px solid #E2E8F0',
+          }}
+        >
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 900, color: '#1A1A2E', fontSize: '1.1rem' }}>
+              قائمة الخدمات والصفحات
+            </Typography>
+            <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600 }}>
+              نظام مطعم البرادعي POS
+            </Typography>
+          </Box>
+          <IconButton
+            size="small"
+            onClick={() => setMobileMoreOpen(false)}
+            sx={{ bgcolor: '#F1F5F9', color: '#475569', '&:hover': { bgcolor: '#E2E8F0' } }}
+          >
+            <Close sx={{ fontSize: 20 }} />
           </IconButton>
         </Box>
 
-        {/* Grid of allowed pages */}
-        <Grid container spacing={1.5}>
-          {allAllowedItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.path) && !item.isLogout;
+        {/* Uniform 2-Column Mobile Navigation Cards */}
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: 1.5,
+          }}
+        >
+          {allAllowedItems
+            .filter((item) => !item.isLogout)
+            .map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.path);
 
-            return (
-              <Grid xs={6} sm={4} key={item.id}>
+              return (
                 <Paper
+                  key={item.id}
                   onClick={() => handleNavClick(item)}
+                  elevation={active ? 3 : 0}
                   sx={{
-                    p: 1.8,
+                    p: 1.5,
+                    height: 72,
                     borderRadius: '16px',
-                    border: '1.5px solid',
-                    borderColor: item.isLogout ? '#FEE2E2' : (active ? '#4285F4' : '#E2E8F0'),
-                    bgcolor: item.isLogout ? '#FEF2F2' : (active ? '#F0F7FF' : '#FFFFFF'),
+                    border: '1px solid',
+                    borderColor: active ? '#3B82F6' : '#E2E8F0',
+                    background: active
+                      ? 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)'
+                      : '#FFFFFF',
+                    color: active ? '#FFFFFF' : '#1E293B',
                     display: 'flex',
-                    flexDirection: 'column',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 1,
+                    gap: 1.5,
                     cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    boxShadow: active ? '0 4px 12px rgba(66, 133, 244, 0.15)' : 'none',
-                    '&:active': { transform: 'scale(0.96)' },
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: active ? '0 6px 16px rgba(59, 130, 246, 0.3)' : '0 1px 3px rgba(0,0,0,0.03)',
+                    '&:active': { transform: 'scale(0.97)' },
                   }}
                 >
                   <Box
                     sx={{
-                      width: 44,
-                      height: 44,
+                      width: 42,
+                      height: 42,
+                      minWidth: 42,
                       borderRadius: '12px',
-                      bgcolor: item.isLogout ? '#EF444415' : (active ? '#4285F4' : 'rgba(66, 133, 244, 0.08)'),
-                      color: item.isLogout ? '#EF4444' : (active ? '#FFFFFF' : '#4285F4'),
+                      bgcolor: active ? 'rgba(255, 255, 255, 0.2)' : 'rgba(59, 130, 246, 0.08)',
+                      color: active ? '#FFFFFF' : '#3B82F6',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
                   >
-                    <Icon sx={{ fontSize: 24 }} />
+                    <Icon sx={{ fontSize: 22 }} />
                   </Box>
+
                   <Typography
                     variant="body2"
                     sx={{
                       fontWeight: 800,
-                      color: item.isLogout ? '#DC2626' : (active ? '#1E40AF' : '#1A1A2E'),
                       fontSize: '0.85rem',
-                      textAlign: 'center',
+                      lineHeight: 1.25,
+                      color: active ? '#FFFFFF' : '#1E293B',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
                     }}
                   >
                     {item.label}
                   </Typography>
                 </Paper>
-              </Grid>
-            );
-          })}
-        </Grid>
+              );
+            })}
+        </Box>
+
+        {/* Distinct Styled Logout Button */}
+        {allAllowedItems.some((item) => item.isLogout) && (
+          <Box sx={{ mt: 2.5 }}>
+            <Paper
+              onClick={() => handleNavClick({ isLogout: true })}
+              elevation={0}
+              sx={{
+                p: 1.8,
+                borderRadius: '16px',
+                bgcolor: '#FEF2F2',
+                border: '1px solid #FECACA',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 1.5,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                '&:active': { transform: 'scale(0.98)', bgcolor: '#FEE2E2' },
+              }}
+            >
+              <LogoutOutlined sx={{ color: '#EF4444', fontSize: 22 }} />
+              <Typography variant="body1" sx={{ fontWeight: 900, color: '#DC2626', fontSize: '0.95rem' }}>
+                تسجيل الخروج من النظام
+              </Typography>
+            </Paper>
+          </Box>
+        )}
       </Drawer>
     </>
   );
