@@ -23,9 +23,10 @@ import {
   Divider,
   Alert
 } from '@mui/material';
-import { EditOutlined, DeleteOutlined, Add, Phone, Home, LocationOn, StarOutlined, StarBorder } from '@mui/icons-material';
+import { EditOutlined, DeleteOutlined, Add, Phone, Home, LocationOn, StarOutlined, StarBorder, FileDownload, Contacts } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
 import { useCustomerStore } from '@/store/useCustomerStore';
+import { exportCustomersToExcel, exportCustomersToVCF } from '@/lib/exportCustomers';
 
 export default function CustomersPage() {
   const { customers, fetchCustomers, saveOrUpdateCustomer, updateCustomerAddresses, deleteCustomer } = useCustomerStore();
@@ -191,8 +192,28 @@ export default function CustomersPage() {
           </Typography>
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
           <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="ابحث باسم العميل أو رقم الهاتف..." />
+          
+          <Button
+            variant="outlined"
+            color="success"
+            startIcon={<FileDownload />}
+            onClick={() => exportCustomersToExcel(filteredCustomers.length > 0 ? filteredCustomers : customers)}
+            sx={{ borderRadius: '12px', px: 2, py: 1, fontWeight: 800, whiteSpace: 'nowrap', bgcolor: '#F0FDF4' }}
+          >
+            تصدير داتا العملاء (Excel)
+          </Button>
+
+          <Button
+            variant="contained"
+            startIcon={<Contacts />}
+            onClick={() => exportCustomersToVCF(filteredCustomers.length > 0 ? filteredCustomers : customers)}
+            sx={{ bgcolor: '#10B981', color: '#FFF', borderRadius: '12px', px: 2, py: 1, fontWeight: 800, whiteSpace: 'nowrap', '&:hover': { bgcolor: '#059669' } }}
+          >
+            تصدير جهات الاتصال للموبايل (VCF)
+          </Button>
+
           <Button
             variant="contained"
             startIcon={<Add />}
