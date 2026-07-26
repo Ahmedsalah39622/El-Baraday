@@ -1,8 +1,17 @@
 import { query } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
+let orderColumnsChecked = false;
+async function ensureOrderColumns() {
+  if (orderColumnsChecked) return;
+  try { await query('ALTER TABLE orders ADD COLUMN dispatched_at DATETIME DEFAULT NULL'); } catch(e){}
+  try { await query('ALTER TABLE orders ADD COLUMN delivered_to_customer_at DATETIME DEFAULT NULL'); } catch(e){}
+  orderColumnsChecked = true;
+}
+
 export async function GET(request) {
   try {
+    await ensureOrderColumns();
     const { searchParams } = new URL(request.url);
     const rawLimit = searchParams.get('limit');
     const parsedLimit = parseInt(rawLimit, 10);

@@ -7,7 +7,7 @@ export async function GET(request) {
     const branchId = searchParams.get('branch_id') || 'b1';
 
     const result = await query(
-      "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1",
+      "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE branch_id = $1",
       [branchId]
     );
     const nextVal = (result && result.rows && result.rows.length > 0 && result.rows[0].next)
