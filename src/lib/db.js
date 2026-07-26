@@ -124,7 +124,11 @@ export async function query(text, params = []) {
 
     return finalResult;
   } catch (err) {
-    console.error('❌ MySQL Query Error:', err.message);
+    if (err.code === 'ECONNREFUSED') {
+      console.error(`❌ MySQL Connection Error (ECONNREFUSED): Cannot connect to MySQL at ${process.env.MYSQL_HOST || 'localhost'}:${process.env.MYSQL_PORT || 3306}. (Make sure MySQL/XAMPP is running locally, or deploy to Hostinger where localhost connects directly).`);
+    } else {
+      console.error(`❌ MySQL Query Error (${err.code || 'UNKNOWN'}):`, err.message);
+    }
     return {
       rows: [],
       rowCount: 0,
