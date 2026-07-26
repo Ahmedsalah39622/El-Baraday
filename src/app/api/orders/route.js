@@ -6,6 +6,8 @@ async function ensureOrderColumns() {
   if (orderColumnsChecked) return;
   try { await query('ALTER TABLE orders ADD COLUMN dispatched_at DATETIME DEFAULT NULL'); } catch(e){}
   try { await query('ALTER TABLE orders ADD COLUMN delivered_to_customer_at DATETIME DEFAULT NULL'); } catch(e){}
+  try { await query('ALTER TABLE orders ADD COLUMN is_cash_collected TINYINT(1) DEFAULT 0'); } catch(e){}
+  try { await query('ALTER TABLE orders ADD COLUMN cash_collected_at DATETIME DEFAULT NULL'); } catch(e){}
   orderColumnsChecked = true;
 }
 
@@ -72,6 +74,7 @@ export async function GET(request) {
       });
       orders.forEach(o => {
         o.items = itemsMap[o.id] || [];
+        o.is_cash_collected = Boolean(o.is_cash_collected);
       });
     }
 
@@ -84,19 +87,26 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    await ensureOrderColumns();
     const body = await request.json();
     const {
       order_type, customer_name, customer_phone, customer_area,
       customer_address, driver_name, driver_id, subtotal, delivery_fee,
       discount, total, paid_amount, remaining_amount, cashier_name, items,
-      branch_id, status
+      branch_id, status, is_cash_collected
     } = body;
 
     const targetBranch = branch_id || 'b1';
+    const isDelivery = order_type === 'delivery';
 
     // Default status: delivery orders start as 'preparing'
-    const initialStatus = status || (order_type === 'delivery' ? 'preparing' : 'completed');
+    const initialStatus = status || (isDelivery ? 'preparing' : 'completed');
     const isDispatched = initialStatus === 'dispatched' || initialStatus === 'out_for_delivery';
+
+    // Cash is collected immediately for dine_in / takeaway, but pending for delivery until confirmed
+    const cashCollectedBool = is_cash_collected !== undefined ? Boolean(is_cash_collected) : (!isDelivery);
+    const cashCollectedVal = cashCollectedBool ? 1 : 0;
+    const cashCollectedAtVal = cashCollectedBool ? new Date().toISOString() : null;
 
     // Get next sequential order number ISOLATED FOR THIS SPECIFIC BRANCH
     const nextRes = await query(
@@ -111,13 +121,14 @@ export async function POST(request) {
     const orderResult = await query(
       `INSERT INTO orders (id, order_number, order_type, customer_name, customer_phone, customer_area,
         customer_address, driver_name, driver_id, subtotal, delivery_fee, discount, total,
-        paid_amount, remaining_amount, cashier_name, status, branch_id, dispatched_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        paid_amount, remaining_amount, cashier_name, status, branch_id, dispatched_at, is_cash_collected, cash_collected_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
        RETURNING *`,
       [orderId, nextNum, order_type || 'dine_in', customer_name || null, customer_phone || null, customer_area || null,
         customer_address || null, driver_name || null, driver_id || null, parseFloat(subtotal) || 0, parseFloat(delivery_fee) || 0,
         parseFloat(discount) || 0, parseFloat(total) || 0, parseFloat(paid_amount) || 0, parseFloat(remaining_amount) || 0,
-        cashier_name || 'administrator', initialStatus, targetBranch, isDispatched ? new Date().toISOString() : null]
+        cashier_name || 'administrator', initialStatus, targetBranch, isDispatched ? new Date().toISOString() : null,
+        cashCollectedVal, cashCollectedAtVal]
     );
 
     const order = (orderResult.rows && orderResult.rows.length > 0) ? orderResult.rows[0] : {
@@ -129,6 +140,7 @@ export async function POST(request) {
       cashier_name: cashier_name || 'administrator',
       status: initialStatus,
       branch_id: targetBranch,
+      is_cash_collected: cashCollectedBool,
       dispatched_at: isDispatched ? new Date().toISOString() : null,
       created_at: new Date().toISOString()
     };
