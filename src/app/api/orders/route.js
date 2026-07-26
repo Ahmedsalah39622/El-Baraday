@@ -91,9 +91,9 @@ export async function POST(request) {
        VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
        RETURNING *`,
       [nextNum, order_type || 'dine_in', customer_name || null, customer_phone || null, customer_area || null,
-       customer_address || null, driver_name || null, driver_id || null, subtotal || 0, delivery_fee || 0,
-       discount || 0, total || 0, paid_amount || 0, remaining_amount || 0,
-       cashier_name || 'administrator', initialStatus, targetBranch, isDispatched ? new Date().toISOString() : null]
+        customer_address || null, driver_name || null, driver_id || null, subtotal || 0, delivery_fee || 0,
+        discount || 0, total || 0, paid_amount || 0, remaining_amount || 0,
+        cashier_name || 'administrator', initialStatus, targetBranch, isDispatched ? new Date().toISOString() : null]
     );
 
     const order = (orderResult.rows && orderResult.rows.length > 0) ? orderResult.rows[0] : {
@@ -116,7 +116,7 @@ export async function POST(request) {
           `INSERT INTO order_items (id, order_id, product_id, product_name, price, quantity, size, extras, notes)
            VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7, $8)`,
           [order.id, item.product_id || item.id || null, item.product_name || item.name || 'صنف',
-           item.price || 0, item.quantity || 1, item.size || null, item.extras || null, item.notes || null]
+          item.price || 0, item.quantity || 1, item.size || null, item.extras || null, item.notes || null]
         );
       }
     }
@@ -187,9 +187,9 @@ export async function POST(request) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ chatId, message: msg })
           })
-          .then(r => r.json())
-          .then(res => console.log('✅ [SERVER] Green API result:', res))
-          .catch(err => console.error('❌ [SERVER] Green API error:', err));
+            .then(r => r.json())
+            .then(res => console.log('✅ [SERVER] Green API result:', res))
+            .catch(err => console.error('❌ [SERVER] Green API error:', err));
         }
       } catch (waErr) {
         console.error('❌ Error in server-side WhatsApp trigger:', waErr);

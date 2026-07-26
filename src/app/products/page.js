@@ -65,7 +65,7 @@ const presetImages = [
 ];
 
 export default function ProductsPage() {
-  const { products, fetchProducts, addProduct, updateProduct, deleteProduct, moveProductUp, moveProductDown } = useProductStore();
+  const { products, fetchProducts, addProduct, updateProduct, deleteProduct, clearAllProducts, moveProductUp, moveProductDown } = useProductStore();
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -93,6 +93,7 @@ export default function ProductsPage() {
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
+  const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false);
 
   const baseProductsOnly = (products || []).filter((p) => p.categoryId !== '5' && !p.isOffer);
 
@@ -280,6 +281,17 @@ export default function ProductsPage() {
             sx={{ bgcolor: '#4285F4', borderRadius: '12px', px: 2.5, py: 1, fontWeight: 800, whiteSpace: 'nowrap', width: { xs: '100%', sm: 'auto' } }}
           >
             إضافة منتج جديد
+          </Button>
+
+          {/* Delete All Products Button */}
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<DeleteOutlined />}
+            onClick={() => setClearAllDialogOpen(true)}
+            sx={{ borderRadius: '12px', px: 2, py: 1, fontWeight: 700, whiteSpace: 'nowrap', width: { xs: '100%', sm: 'auto' } }}
+          >
+            مسح جميع المنتجات 🗑️
           </Button>
         </Box>
       </Box>
@@ -701,6 +713,30 @@ export default function ProductsPage() {
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setDeleteDialogOpen(false)}>إلغاء</Button>
           <Button variant="contained" color="error" onClick={confirmDelete}>تأكيد الحذف</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Clear All Products Dialog */}
+      <Dialog open={clearAllDialogOpen} onClose={() => setClearAllDialogOpen(false)}>
+        <DialogTitle sx={{ fontWeight: 800, color: '#DC2626' }}>تأكيد مسح جميع المنتجات 🗑️</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            هل أنت أصلًا متأكد من رغبتك في مسح كافة المنتجات والعروض من المنيو ومن قاعدة بيانات Supabase بشكل نهائي؟
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, gap: 1 }}>
+          <Button onClick={() => setClearAllDialogOpen(false)}>إلغاء</Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={async () => {
+              await clearAllProducts();
+              setClearAllDialogOpen(false);
+            }}
+            sx={{ fontWeight: 800 }}
+          >
+            مسح الكل الآن
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

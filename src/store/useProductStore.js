@@ -1,25 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-const defaultHawawshiProducts = [
-  { id: 'p1', categoryId: '1', name: 'حواوشي ساده صغير', price: 45, size: 'صغير', image: '/images/hawawshi_sade.png', sortOrder: 1, is_available: true },
-  { id: 'p2', categoryId: '1', name: 'حواوشي ساده كبير', price: 75, size: 'كبير', image: '/images/hawawshi_sade.png', sortOrder: 2, is_available: true },
-  { id: 'p3', categoryId: '1', name: 'حواوشي فراخ صغير', price: 55, size: 'صغير', image: '/images/hawawshi_chicken.png', sortOrder: 3, is_available: true },
-  { id: 'p4', categoryId: '1', name: 'حواوشي فراخ كبير', price: 90, size: 'كبير', image: '/images/hawawshi_chicken.png', sortOrder: 4, is_available: true },
-  { id: 'p5', categoryId: '1', name: 'حواوشي سلامي صغير', price: 65, size: 'صغير', image: '/images/hawawshi_salami.png', sortOrder: 5, is_available: true },
-  { id: 'p6', categoryId: '1', name: 'حواوشي سلامي كبير', price: 110, size: 'كبير', image: '/images/hawawshi_salami.png', sortOrder: 6, is_available: true },
-  { id: 'p7', categoryId: '1', name: 'حواوشي سجق صغير', price: 60, size: 'صغير', image: '/images/hawawshi_sausage.png', sortOrder: 7, is_available: true },
-  { id: 'p8', categoryId: '1', name: 'حواوشي سجق كبير', price: 100, size: 'كبير', image: '/images/hawawshi_sausage.png', sortOrder: 8, is_available: true },
-  { id: 'p9', categoryId: '2', name: 'حواوشي ميكس أجبان صغير', price: 70, size: 'صغير', image: '/images/hawawshi_mixes.png', sortOrder: 9, is_available: true },
-  { id: 'p10', categoryId: '2', name: 'حواوشي ميكس أجبان كبير', price: 120, size: 'كبير', image: '/images/hawawshi_mixes.png', sortOrder: 10, is_available: true },
-  { id: 'p11', categoryId: '4', name: 'إضافة جبنة موتزاريلا', price: 25, size: 'عادي', image: '/images/cheese_addition.png', sortOrder: 11, is_available: true },
-  { id: 'p12', categoryId: '4', name: 'إضافة جبنة رومي', price: 20, size: 'عادي', image: '/images/cheese_addition.png', sortOrder: 12, is_available: true },
-  { id: 'p13', categoryId: '4', name: 'إضافة جبنة شيدر', price: 20, size: 'عادي', image: '/images/cheese_addition.png', sortOrder: 13, is_available: true },
-  { id: 'p14', categoryId: '3', name: 'بيبسي كولا 1 لتر', price: 30, size: '1L', image: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=300&q=80', sortOrder: 14, is_available: true },
-  { id: 'p15', categoryId: '3', name: 'مياه معدنية', price: 10, size: 'صغير', image: '/images/mineral_water.png', sortOrder: 15, is_available: true },
-  { id: 'p16', categoryId: '5', name: 'عرض ميكس البردعي الفاخر', price: 140, originalPrice: 185, isOffer: true, offerComponents: '2 حواوشي ميكس أجبان + بيبسي 1 لتر', size: 'وجبة عائلية', image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500&q=80', sortOrder: 16, is_available: true },
-  { id: 'p17', categoryId: '5', name: 'عرض الصحاب (4 حواوشي)', price: 220, originalPrice: 270, isOffer: true, offerComponents: '4 حواوشي فراخ/سجق + 2 بطاطس + بيبسي', size: 'وجبة 4 أفراد', image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&q=80', sortOrder: 17, is_available: true },
-];
+
 
 function mapProduct(row) {
   return {
@@ -41,7 +23,7 @@ function mapProduct(row) {
 export const useProductStore = create(
   persist(
     (set, get) => ({
-      products: defaultHawawshiProducts,
+      products: [],
       loading: false,
       error: null,
 
@@ -50,34 +32,24 @@ export const useProductStore = create(
           const res = await fetch('/api/products');
           if (!res.ok) return;
           const rows = await res.json();
-          if (Array.isArray(rows) && rows.length > 0) {
+          if (Array.isArray(rows)) {
             const mappedFetched = rows.map(mapProduct);
-
-            set((state) => {
-              const currentProds = state.products && state.products.length > 0 ? state.products : defaultHawawshiProducts;
-              const fetchedMap = new Map(mappedFetched.map(item => [item.id, item]));
-
-              // Merge fetched DB items into current state without deleting local-only additions
-              const merged = currentProds.map(localItem => {
-                if (fetchedMap.has(localItem.id)) {
-                  const fetchedItem = fetchedMap.get(localItem.id);
-                  fetchedMap.delete(localItem.id);
-                  return { ...localItem, ...fetchedItem };
-                }
-                return localItem;
-              });
-
-              // Add newly fetched items from DB
-              fetchedMap.forEach(item => merged.push(item));
-
-              return {
-                products: merged.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
-                loading: false,
-              };
+            set({
+              products: mappedFetched.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
+              loading: false,
             });
           }
         } catch (err) {
           console.warn('⚠️ Fetch products notice:', err.message);
+        }
+      },
+
+      clearAllProducts: async () => {
+        set({ products: [] });
+        try {
+          await fetch('/api/products', { method: 'DELETE' });
+        } catch (err) {
+          console.warn('⚠️ Clear products saved locally:', err.message);
         }
       },
 
@@ -229,7 +201,7 @@ export const useProductStore = create(
       },
     }),
     {
-      name: 'el-baraday-products-v6',
+      name: 'el-baraday-products-v8',
     }
   )
 );
