@@ -158,21 +158,43 @@ export default function POSPage() {
         return sum; // Skip invoices before shift start
       }
     }
+
+    // Exclude delivery orders from till cash drawer until cash is explicitly collected from driver
+    const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
+    if (isDelivery) {
+      const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
+      if (!isCashCollected) return sum;
+    }
+
     return sum + (parseFloat(inv.paidAmount || inv.total || 0));
   }, 0);
 
   const currentTillCash = isShiftActive ? (startCash + totalCashSales) : 0;
 
-  // Calculate Cash drawer totals for Branch 1 and Branch 2 for Admin View
+  // Calculate Cash drawer totals for Branch 1 and Branch 2 for Admin View (excluding uncollected delivery cash)
   const b1CashSales = (invoices || []).reduce((sum, inv) => {
     const invBranch = inv.branchId || inv.branch_id || 'b1';
     if (invBranch !== 'b1') return sum;
+
+    const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
+    if (isDelivery) {
+      const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
+      if (!isCashCollected) return sum;
+    }
+
     return sum + (parseFloat(inv.paidAmount || inv.total || 0));
   }, 0);
 
   const b2CashSales = (invoices || []).reduce((sum, inv) => {
     const invBranch = inv.branchId || inv.branch_id || 'b1';
     if (invBranch !== 'b2') return sum;
+
+    const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
+    if (isDelivery) {
+      const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
+      if (!isCashCollected) return sum;
+    }
+
     return sum + (parseFloat(inv.paidAmount || inv.total || 0));
   }, 0);
 
