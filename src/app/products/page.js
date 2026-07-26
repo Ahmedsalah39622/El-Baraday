@@ -112,6 +112,9 @@ export default function ProductsPage() {
         originalPrice: product.originalPrice || 0,
         isOffer: product.isOffer || product.categoryId === '5',
         offerComponents: product.offerComponents || '',
+        hasMultipleSizes: Boolean(product.hasMultipleSizes),
+        priceSmall: product.priceSmall || 45,
+        priceLarge: product.priceLarge || product.price || 75,
       });
       setOfferItemsList([]);
     } else if (isNewOffer) {
@@ -124,6 +127,9 @@ export default function ProductsPage() {
         isOffer: true,
         offerComponents: '2 حواوشي ميكس أجبان + 1 بيبسي كولا 1 لتر',
         size: 'عرض خاص',
+        hasMultipleSizes: false,
+        priceSmall: 0,
+        priceLarge: 0,
         image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500&q=80',
       });
       setOfferItemsList([]);
@@ -137,6 +143,9 @@ export default function ProductsPage() {
         isOffer: false,
         offerComponents: '',
         size: 'كبير',
+        hasMultipleSizes: false,
+        priceSmall: 45,
+        priceLarge: 75,
         image: '/images/hawawshi_sade.png',
       });
       setOfferItemsList([]);
@@ -207,6 +216,8 @@ export default function ProductsPage() {
     const payload = {
       ...currentProduct,
       isOffer: currentProduct.isOffer || currentProduct.categoryId === '5',
+      price: currentProduct.hasMultipleSizes ? (parseFloat(currentProduct.priceLarge) || parseFloat(currentProduct.price) || 0) : parseFloat(currentProduct.price || 0),
+      size: currentProduct.hasMultipleSizes ? 'صغير / كبير' : (currentProduct.size || 'كبير'),
     };
 
     if (currentProduct.id) {
@@ -398,15 +409,25 @@ export default function ProductsPage() {
                   </TableCell>
 
                   <TableCell sx={{ fontSize: '0.85rem', color: '#4B5563' }}>
-                    {row.size || 'عادي'}
+                    {row.hasMultipleSizes ? (
+                      <Chip label="📏 صغير / كبير" size="small" sx={{ bgcolor: '#FEF3C7', color: '#B45309', fontWeight: 800 }} />
+                    ) : (
+                      row.size || 'عادي'
+                    )}
                   </TableCell>
 
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 900, color: isOffer ? '#D97706' : '#10B981' }}>
-                        {row.price} ج.م
-                      </Typography>
-                      {row.originalPrice && (
+                      {row.hasMultipleSizes ? (
+                        <Typography variant="body2" sx={{ fontWeight: 900, color: '#D97706' }}>
+                          🟡 صغير: {row.priceSmall} ج.م | 🔵 كبير: {row.priceLarge} ج.م
+                        </Typography>
+                      ) : (
+                        <Typography variant="body2" sx={{ fontWeight: 900, color: isOffer ? '#D97706' : '#10B981' }}>
+                          {row.price} ج.م
+                        </Typography>
+                      )}
+                      {row.originalPrice && !row.hasMultipleSizes && (
                         <Typography variant="caption" sx={{ textDecoration: 'line-through', color: '#9CA3AF', fontWeight: 600 }}>
                           {row.originalPrice} ج.م
                         </Typography>
@@ -627,27 +648,79 @@ export default function ProductsPage() {
             </Select>
           </FormControl>
 
-          {/* Pricing: Price & Original Price */}
-          <Box sx={{ display: 'flex', gap: 1.5 }}>
-            <TextField
-              fullWidth
-              size="small"
-              type="number"
-              label={currentProduct.isOffer ? "سعر العرض بعد الخصم (ج.م)" : "السعر (ج.م)"}
-              value={currentProduct.price}
-              onChange={(e) => setCurrentProduct({ ...currentProduct, price: parseFloat(e.target.value) || 0 })}
+          {/* Toggle Multiple Sizes (Small / Large) */}
+          {!currentProduct.isOffer && (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={Boolean(currentProduct.hasMultipleSizes)}
+                  onChange={(e) => setCurrentProduct({
+                    ...currentProduct,
+                    hasMultipleSizes: e.target.checked,
+                    priceSmall: e.target.checked ? (currentProduct.priceSmall || 45) : null,
+                    priceLarge: e.target.checked ? (currentProduct.priceLarge || currentProduct.price || 75) : null,
+                  })}
+                  color="warning"
+                />
+              }
+              label={
+                <Typography variant="body2" sx={{ fontWeight: 800, color: '#1A1A2E' }}>
+                  📏 تفعيل أحجام متعددة للمنتج (حجم صغير وحجم كبير)
+                </Typography>
+              }
             />
+          )}
 
-            <TextField
-              fullWidth
-              size="small"
-              type="number"
-              label="السعر الأصلي قبل الخصم (اختياري)"
-              placeholder="185"
-              value={currentProduct.originalPrice || ''}
-              onChange={(e) => setCurrentProduct({ ...currentProduct, originalPrice: parseFloat(e.target.value) || 0 })}
-            />
-          </Box>
+          {/* Pricing Section */}
+          {currentProduct.hasMultipleSizes && !currentProduct.isOffer ? (
+            <Box sx={{ display: 'flex', gap: 1.5, bgcolor: '#FFFDF5', p: 1.5, borderRadius: '12px', border: '1px dashed #F59E0B' }}>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="سعر الحجم الصغير (ج.م) 🟡"
+                placeholder="45"
+                value={currentProduct.priceSmall || ''}
+                onChange={(e) => {
+                  const pSm = parseFloat(e.target.value) || 0;
+                  setCurrentProduct({ ...currentProduct, priceSmall: pSm });
+                }}
+              />
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="سعر الحجم الكبير (ج.م) 🔵"
+                placeholder="75"
+                value={currentProduct.priceLarge || ''}
+                onChange={(e) => {
+                  const pLg = parseFloat(e.target.value) || 0;
+                  setCurrentProduct({ ...currentProduct, priceLarge: pLg, price: pLg });
+                }}
+              />
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', gap: 1.5 }}>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label={currentProduct.isOffer ? "سعر العرض بعد الخصم (ج.م)" : "السعر (ج.م)"}
+                value={currentProduct.price}
+                onChange={(e) => setCurrentProduct({ ...currentProduct, price: parseFloat(e.target.value) || 0 })}
+              />
+
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="السعر الأصلي قبل الخصم (اختياري)"
+                placeholder="185"
+                value={currentProduct.originalPrice || ''}
+                onChange={(e) => setCurrentProduct({ ...currentProduct, originalPrice: parseFloat(e.target.value) || 0 })}
+              />
+            </Box>
+          )}
 
           {/* Offer Components Details Field */}
           {currentProduct.isOffer && (

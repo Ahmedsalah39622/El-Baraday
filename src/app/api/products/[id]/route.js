@@ -28,15 +28,21 @@ export async function PUT(request, { params }) {
       is_offer,
       offer_components,
       size,
+      has_sizes,
+      price_small,
+      price_large,
+      sizes,
       image_url,
       description,
       is_available,
       sort_order,
     } = body;
 
+    const sizesVal = sizes ? (typeof sizes === 'string' ? sizes : JSON.stringify(sizes)) : null;
+
     const result = await query(
-      `INSERT INTO products (id, name, category_id, price, original_price, is_offer, offer_components, size, image_url, description, is_available, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `INSERT INTO products (id, name, category_id, price, original_price, is_offer, offer_components, size, has_sizes, price_small, price_large, sizes, image_url, description, is_available, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        ON CONFLICT (id) DO UPDATE SET
          name = EXCLUDED.name,
          category_id = EXCLUDED.category_id,
@@ -45,6 +51,10 @@ export async function PUT(request, { params }) {
          is_offer = EXCLUDED.is_offer,
          offer_components = EXCLUDED.offer_components,
          size = EXCLUDED.size,
+         has_sizes = EXCLUDED.has_sizes,
+         price_small = EXCLUDED.price_small,
+         price_large = EXCLUDED.price_large,
+         sizes = EXCLUDED.sizes,
          image_url = EXCLUDED.image_url,
          description = EXCLUDED.description,
          is_available = EXCLUDED.is_available,
@@ -59,6 +69,10 @@ export async function PUT(request, { params }) {
         is_offer || false,
         offer_components || null,
         size || 'كبير',
+        has_sizes ? 1 : 0,
+        price_small ? parseFloat(price_small) : null,
+        price_large ? parseFloat(price_large) : null,
+        sizesVal,
         image_url || null,
         description || null,
         is_available !== false,

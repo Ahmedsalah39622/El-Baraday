@@ -1,9 +1,17 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-
-
 function mapProduct(row) {
+  let parsedSizes = null;
+  if (row.sizes) {
+    try {
+      parsedSizes = typeof row.sizes === 'string' ? JSON.parse(row.sizes) : row.sizes;
+    } catch(e) {}
+  }
+  const hasMultipleSizes = Boolean(row.has_sizes || (row.price_small && row.price_large) || (parsedSizes && parsedSizes.length > 0));
+  const pSmall = row.price_small !== null && row.price_small !== undefined ? parseFloat(row.price_small) : (parsedSizes?.[0]?.price || null);
+  const pLarge = row.price_large !== null && row.price_large !== undefined ? parseFloat(row.price_large) : (parsedSizes?.[1]?.price || parseFloat(row.price) || null);
+
   return {
     id: row.id,
     categoryId: row.category_id,
@@ -12,7 +20,14 @@ function mapProduct(row) {
     originalPrice: row.original_price ? parseFloat(row.original_price) : null,
     isOffer: row.is_offer || row.category_id === '5' || false,
     offerComponents: row.offer_components || null,
-    size: row.size,
+    size: row.size || 'كبير',
+    hasMultipleSizes,
+    priceSmall: pSmall,
+    priceLarge: pLarge,
+    sizes: parsedSizes || (hasMultipleSizes ? [
+      { size: 'صغير', price: pSmall || 45 },
+      { size: 'كبير', price: pLarge || parseFloat(row.price) }
+    ] : null),
     image: row.image_url,
     description: row.description,
     is_available: row.is_available !== false,
@@ -54,7 +69,7 @@ export const useProductStore = create(
       },
 
       addProduct: async (product) => {
-        const localId = 'p_' + Date.now();
+        const localId = product.id || 'p_' + Date.now();
         const nextOrder = get().products.length + 1;
         const newProduct = {
           id: localId,
@@ -65,6 +80,13 @@ export const useProductStore = create(
           isOffer: product.isOffer || product.categoryId === '5' || false,
           offerComponents: product.offerComponents || null,
           size: product.size || 'كبير',
+          hasMultipleSizes: Boolean(product.hasMultipleSizes),
+          priceSmall: product.hasMultipleSizes && product.priceSmall ? parseFloat(product.priceSmall) : null,
+          priceLarge: product.hasMultipleSizes && product.priceLarge ? parseFloat(product.priceLarge) : (parseFloat(product.price) || 0),
+          sizes: product.hasMultipleSizes ? [
+            { size: 'صغير', price: parseFloat(product.priceSmall) || 0 },
+            { size: 'كبير', price: parseFloat(product.priceLarge) || parseFloat(product.price) || 0 }
+          ] : null,
           image: product.image || '/images/hawawshi_sade.png',
           description: product.description || '',
           is_available: true,
@@ -73,7 +95,7 @@ export const useProductStore = create(
 
         // Immediately update state and persistent storage
         set((state) => ({
-          products: [...state.products, newProduct].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
+          products: [...state.products.filter(p => p.id !== localId), newProduct].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
         }));
 
         try {
@@ -89,6 +111,10 @@ export const useProductStore = create(
               is_offer: newProduct.isOffer,
               offer_components: newProduct.offerComponents,
               size: newProduct.size,
+              has_sizes: newProduct.hasMultipleSizes,
+              price_small: newProduct.priceSmall,
+              price_large: newProduct.priceLarge,
+              sizes: newProduct.sizes,
               image_url: newProduct.image,
               description: newProduct.description,
               sort_order: nextOrder,
@@ -105,7 +131,21 @@ export const useProductStore = create(
         set((state) => {
           const nextProducts = state.products.map((p) => {
             if (p.id === id) {
-              fullProduct = { ...p, ...updates };
+              const updatedHasSizes = updates.hasMultipleSizes !== undefined ? updates.hasMultipleSizes : p.hasMultipleSizes;
+              const pSmall = updatedHasSizes ? (updates.priceSmall !== undefined ? parseFloat(updates.priceSmall) : p.priceSmall) : null;
+              const pLarge = updatedHasSizes ? (updates.priceLarge !== undefined ? parseFloat(updates.priceLarge) : (updates.price !== undefined ? parseFloat(updates.price) : p.priceLarge)) : null;
+
+              fullProduct = {
+                ...p,
+                ...updates,
+                hasMultipleSizes: updatedHasSizes,
+                priceSmall: pSmall,
+                priceLarge: pLarge,
+                sizes: updatedHasSizes ? [
+                  { size: 'صغير', price: pSmall || 0 },
+                  { size: 'كبير', price: pLarge || 0 }
+                ] : null
+              };
               return fullProduct;
             }
             return p;
@@ -128,6 +168,10 @@ export const useProductStore = create(
               is_offer: fullProduct.isOffer || fullProduct.categoryId === '5',
               offer_components: fullProduct.offerComponents,
               size: fullProduct.size,
+              has_sizes: fullProduct.hasMultipleSizes,
+              price_small: fullProduct.priceSmall,
+              price_large: fullProduct.priceLarge,
+              sizes: fullProduct.sizes,
               image_url: fullProduct.image,
               description: fullProduct.description,
               is_available: fullProduct.is_available !== false,
@@ -201,7 +245,7 @@ export const useProductStore = create(
       },
     }),
     {
-      name: 'el-baraday-products-v8',
+      name: 'el-baraday-products-v9',
     }
   )
 );

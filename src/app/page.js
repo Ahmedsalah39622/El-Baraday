@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Box, Typography, Button, Drawer, Badge } from '@mui/material';
+import { Box, Typography, Button, Drawer, Badge, Dialog, DialogTitle, DialogContent, DialogActions, Chip } from '@mui/material';
 import { ShoppingBagOutlined, AccountBalanceWallet, Store } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
 import CategoryTabs from '@/components/pos/CategoryTabs';
@@ -29,6 +29,8 @@ export default function POSPage() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const [sizeModalOpen, setSizeModalOpen] = useState(false);
+  const [selectedProductForSize, setSelectedProductForSize] = useState(null);
 
   useEffect(() => {
     // Ultra-Fast Combined Single Init Request (Populates all stores in ~30ms)
@@ -189,13 +191,18 @@ export default function POSPage() {
   const total = subtotal + tax;
 
   const handleSelectProduct = (product) => {
-    addItem({
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      image: product.image,
-      quantity: 1,
-    });
+    if (product.hasMultipleSizes) {
+      setSelectedProductForSize(product);
+      setSizeModalOpen(true);
+    } else {
+      addItem({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        image: product.image,
+        quantity: 1,
+      });
+    }
   };
 
   return (
@@ -462,6 +469,117 @@ export default function POSPage() {
           onCloseMobile={() => setMobileCartOpen(false)}
         />
       </Drawer>
+
+      {/* Size Selection Dialog Modal */}
+      <Dialog
+        open={sizeModalOpen}
+        onClose={() => setSizeModalOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: { borderRadius: '24px', p: 1.5 }
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, textAlign: 'center', color: '#1A1A2E', pb: 0.5, fontSize: '1.3rem' }}>
+          📏 اختر الحجم المطلـوب
+        </DialogTitle>
+        <DialogContent sx={{ textAlign: 'center', pt: 1 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#4285F4', mb: 2.5, fontSize: '1.1rem' }}>
+            {selectedProductForSize?.name}
+          </Typography>
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* Small Size Option Button */}
+            <Button
+              variant="contained"
+              onClick={() => {
+                const p = selectedProductForSize;
+                const pSmall = p.priceSmall || p.sizes?.[0]?.price || 45;
+                addItem({
+                  id: `${p.id}_صغير`,
+                  name: `${p.name} (صغير)`,
+                  price: pSmall,
+                  image: p.image,
+                  size: 'صغير',
+                  quantity: 1,
+                });
+                setSizeModalOpen(false);
+              }}
+              sx={{
+                bgcolor: '#FFFBEB',
+                color: '#D97706',
+                border: '2px solid #F59E0B',
+                borderRadius: '16px',
+                py: 2,
+                px: 2.5,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                boxShadow: 'none',
+                '&:hover': {
+                  bgcolor: '#FEF3C7',
+                  boxShadow: '0 6px 16px rgba(245, 158, 11, 0.25)',
+                },
+              }}
+            >
+              <Typography variant="body1" sx={{ fontWeight: 900, fontSize: '1.1rem' }}>
+                🟡 حجم صغير
+              </Typography>
+              <Chip
+                label={`${selectedProductForSize?.priceSmall || selectedProductForSize?.sizes?.[0]?.price || 45} ج.م`}
+                sx={{ bgcolor: '#F59E0B', color: '#FFF', fontWeight: 900, fontSize: '1rem', px: 1 }}
+              />
+            </Button>
+
+            {/* Large Size Option Button */}
+            <Button
+              variant="contained"
+              onClick={() => {
+                const p = selectedProductForSize;
+                const pLarge = p.priceLarge || p.sizes?.[1]?.price || p.price || 75;
+                addItem({
+                  id: `${p.id}_كبير`,
+                  name: `${p.name} (كبير)`,
+                  price: pLarge,
+                  image: p.image,
+                  size: 'كبير',
+                  quantity: 1,
+                });
+                setSizeModalOpen(false);
+              }}
+              sx={{
+                bgcolor: '#F0F7FF',
+                color: '#1D4ED8',
+                border: '2px solid #3B82F6',
+                borderRadius: '16px',
+                py: 2,
+                px: 2.5,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                boxShadow: 'none',
+                '&:hover': {
+                  bgcolor: '#DBEAFE',
+                  boxShadow: '0 6px 16px rgba(59, 130, 246, 0.25)',
+                },
+              }}
+            >
+              <Typography variant="body1" sx={{ fontWeight: 900, fontSize: '1.1rem' }}>
+                🔵 حجم كبير
+              </Typography>
+              <Chip
+                label={`${selectedProductForSize?.priceLarge || selectedProductForSize?.sizes?.[1]?.price || selectedProductForSize?.price || 75} ج.م`}
+                sx={{ bgcolor: '#3B82F6', color: '#FFF', fontWeight: 900, fontSize: '1rem', px: 1 }}
+              />
+            </Button>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'center', pt: 1 }}>
+          <Button onClick={() => setSizeModalOpen(false)} sx={{ color: '#6B7280', fontWeight: 800, fontSize: '0.95rem' }}>
+            إلغاء
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

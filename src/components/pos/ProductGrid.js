@@ -126,15 +126,42 @@ export default function ProductGrid({ products = [], onSelectProduct, categoryTi
                 </Tooltip>
               )}
 
+              {/* Multi-size indicator badge */}
+              {product.hasMultipleSizes === true && (
+                <Chip
+                  label="📏 اختر الحجم"
+                  size="small"
+                  sx={{
+                    position: 'absolute',
+                    top: 6,
+                    left: 6,
+                    bgcolor: '#F59E0B',
+                    color: '#FFFFFF',
+                    fontWeight: 800,
+                    fontSize: '0.62rem',
+                    height: 18,
+                    zIndex: 2,
+                  }}
+                />
+              )}
+
               {/* Price & Strikethrough Original Price */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, justifyContent: 'center', mt: 0.5, width: '100%' }}>
-                <Typography className="product-card-price" sx={{ fontWeight: 900, color: isOffer ? '#D97706' : '#4285F4', fontSize: '0.9rem' }}>
-                  {product.price} ج.م
-                </Typography>
-                {hasOriginalPrice === true && (
-                  <Typography variant="caption" sx={{ textDecoration: 'line-through', color: '#9CA3AF', fontSize: '0.72rem', fontWeight: 600 }}>
-                    {product.originalPrice}
+                {product.hasMultipleSizes ? (
+                  <Typography className="product-card-price" sx={{ fontWeight: 900, color: '#D97706', fontSize: '0.8rem' }}>
+                    {product.priceSmall} - {product.priceLarge} ج.م
                   </Typography>
+                ) : (
+                  <>
+                    <Typography className="product-card-price" sx={{ fontWeight: 900, color: isOffer ? '#D97706' : '#4285F4', fontSize: '0.9rem' }}>
+                      {product.price} ج.م
+                    </Typography>
+                    {hasOriginalPrice === true && (
+                      <Typography variant="caption" sx={{ textDecoration: 'line-through', color: '#9CA3AF', fontSize: '0.72rem', fontWeight: 600 }}>
+                        {product.originalPrice}
+                      </Typography>
+                    )}
+                  </>
                 )}
               </Box>
             </Box>
