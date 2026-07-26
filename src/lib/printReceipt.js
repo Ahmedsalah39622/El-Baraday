@@ -1,4 +1,4 @@
-// Thermal Receipt Printing Helper - 100% Guaranteed 80mm (8cm) Paper Roll Alignment without Clipping
+// Thermal Receipt Printing Helper - 100% Bulletproof for 80mm Thermal POS Printers (Xprinter / POS80)
 export function printThermalReceipt(orderData) {
   if (!orderData) return;
 
@@ -41,9 +41,18 @@ export function printThermalReceipt(orderData) {
     customerApartment ? `شقة ${customerApartment}` : ''
   ].filter(Boolean).join(' - ');
 
-  // Format Items Table Rows with safe padding
+  // Format Items Table Rows with strict string sanitization
   const itemsHtml = (items || []).map((item, idx) => {
-    const itemName = item.name || item.product_name || item.productName || 'صنف';
+    let rawName = item.name || item.product_name || item.productName || 'صنف';
+    if (typeof rawName === 'object') {
+      rawName = rawName.name || rawName.ar || JSON.stringify(rawName);
+    }
+    let itemName = String(rawName).trim();
+    // Clean up dummy placeholder brackets if present
+    if (itemName.startsWith('[[') && itemName.endsWith(']]')) {
+      itemName = itemName.replace(/^\[+/, '').replace(/\]+$/, '').trim() || 'صنف';
+    }
+
     const itemSize = item.size ? `(حجم ${item.size})` : '';
     const itemNotes = item.notes ? `(${item.notes})` : '';
     const itemPrice = parseFloat(item.price || 0).toFixed(0);
@@ -63,7 +72,7 @@ export function printThermalReceipt(orderData) {
     `;
   }).join('');
 
-  // HTML Template for 80mm Thermal Printer (SAFE 68mm PRINTABLE INNER AREA TO PREVENT CLIPPING)
+  // 100% Bulletproof HTML Template using 2-Column Tables for Metadata & Totals
   let html = `
     <!DOCTYPE html>
     <html lang="ar" dir="rtl">
@@ -71,6 +80,7 @@ export function printThermalReceipt(orderData) {
       <meta charset="UTF-8">
       <title>فاتورة #${orderNumber}</title>
       <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&display=swap');
         @page {
           size: 80mm auto;
           margin: 0mm !important;
@@ -81,9 +91,9 @@ export function printThermalReceipt(orderData) {
             margin: 0mm !important;
           }
           html, body {
-            width: 80mm !important;
-            margin: 0 auto !important;
-            padding: 0 !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 4mm !important;
             background: #FFF !important;
             color: #000 !important;
             -webkit-print-color-adjust: exact !important;
@@ -100,17 +110,14 @@ export function printThermalReceipt(orderData) {
         html, body {
           font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif;
           margin: 0 auto;
-          padding: 0;
-          width: 80mm;
-          max-width: 80mm;
+          padding: 0 4mm;
+          width: 100%;
           color: #000000;
           background: #FFFFFF;
           direction: rtl;
         }
-        /* Safe 68mm Centered Container with 6mm Margin on Each Side to Prevent Edge Clipping */
         .print-wrapper {
-          width: 68mm !important;
-          max-width: 68mm !important;
+          width: 100% !important;
           margin: 0 auto !important;
           padding: 2mm 0 !important;
           box-sizing: border-box !important;
@@ -120,7 +127,7 @@ export function printThermalReceipt(orderData) {
         .dashed-sep { border-bottom: 1.5px dashed #000000; margin: 5px 0; }
         .solid-sep { border-bottom: 2px solid #000000; margin: 6px 0; }
         .double-sep { border-bottom: 3px double #000000; margin: 6px 0; }
-        .row { display: flex; justify-content: space-between; align-items: center; margin: 3px 0; font-size: 11px; color: #000000; }
+        
         .badge {
           border: 1.5px solid #000000;
           background: #F3F4F6;
@@ -132,13 +139,18 @@ export function printThermalReceipt(orderData) {
           font-size: 11px;
           margin-top: 3px;
         }
-        table {
-          width: 100%;
-          border-collapse: collapse;
-          margin: 5px 0;
-          border: 1.5px solid #000000;
+        
+        /* Table Layout for Metadata & Totals to prevent side clipping */
+        table.meta-table, table.totals-table, table.items-table {
+          width: 100% !important;
+          border-collapse: collapse !important;
+          margin: 3px 0 !important;
+          table-layout: fixed !important;
         }
-        th {
+        table.items-table {
+          border: 1.5px solid #000000 !important;
+        }
+        table.items-table th {
           background: #E5E7EB;
           color: #000000;
           padding: 4px 2px;
@@ -147,6 +159,7 @@ export function printThermalReceipt(orderData) {
           border-bottom: 1.5px solid #000000;
           text-align: center;
         }
+        
         .total-box {
           border: 2px solid #000000;
           padding: 4px 6px;
@@ -154,9 +167,6 @@ export function printThermalReceipt(orderData) {
           margin-top: 5px;
           font-weight: 900;
           font-size: 13px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
           background: #F9FAFB;
         }
         .cash-box {
@@ -167,9 +177,6 @@ export function printThermalReceipt(orderData) {
           margin-top: 4px;
           font-weight: 900;
           font-size: 12px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
         }
         .page-break {
           page-break-before: always !important;
@@ -179,10 +186,10 @@ export function printThermalReceipt(orderData) {
       </style>
     </head>
     <body>
-      <!-- Main Receipt Body inside Safe 68mm Inner Bounds -->
+      <!-- Main Receipt Body -->
       <div class="print-wrapper">
         <div class="center">
-          <h1 style="margin: 0; font-size: 38px; font-weight: 900; line-height: 1; color: #000000;">#${orderNumber}</h1>
+          <h1 style="margin: 0; font-size: 36px; font-weight: 900; line-height: 1; color: #000000;">#${orderNumber}</h1>
           <h2 style="margin: 3px 0 0 0; font-size: 14px; font-weight: 900; color: #000000;">مطعم البرادعي للحواوشي واللحوم</h2>
           <div style="font-size: 10px; font-weight: 700; color: #333; margin-top: 1px;">فرع: ${branchName}</div>
           <div class="badge">
@@ -192,18 +199,49 @@ export function printThermalReceipt(orderData) {
 
         <div class="solid-sep"></div>
 
-        <!-- Meta Details -->
-        <div class="row"><span style="font-weight: 700;">الكاشير:</span><span class="bold">${cashierName}</span></div>
-        <div class="row"><span style="color: #333;">التاريخ والوقت:</span><span class="bold" style="font-size: 10px;">${dateStr}</span></div>
-
-        ${isDelivery ? `
-          <div class="dashed-sep"></div>
-          ${cleanDriver ? `<div class="row"><span style="font-weight: 700;">الطيار المسؤول:</span><span class="bold" style="font-size: 12px;">🚴 ${cleanDriver}</span></div>` : ''}
-          ${cleanName ? `<div class="row"><span style="font-weight: 700;">اسم العميل:</span><span class="bold">${cleanName}</span></div>` : ''}
-          ${cleanPhone ? `<div class="row"><span style="font-weight: 700;">رقم الهاتف:</span><span class="bold" style="font-size: 12px;">📞 ${cleanPhone}</span></div>` : ''}
-          ${cleanAddress ? `<div class="row"><span style="font-weight: 700;">العنوان:</span><span class="bold" style="font-size: 11px;">📍 ${cleanAddress}</span></div>` : ''}
-          ${floorApartmentText ? `<div class="row"><span style="font-weight: 700;">الدور / الشقة:</span><span class="bold">🏠 ${floorApartmentText}</span></div>` : ''}
-        ` : ''}
+        <!-- Meta Details Table (Strict 2 Columns to eliminate right/left clipping) -->
+        <table class="meta-table">
+          <tr>
+            <td style="text-align: right; font-weight: 700; font-size: 11px; width: 35%;">الكاشير:</td>
+            <td style="text-align: left; font-weight: 900; font-size: 11px; width: 65%;">${cashierName}</td>
+          </tr>
+          <tr>
+            <td style="text-align: right; font-weight: 700; font-size: 11px; width: 35%;">التاريخ والوقت:</td>
+            <td style="text-align: left; font-weight: 900; font-size: 10px; width: 65%;">${dateStr}</td>
+          </tr>
+          ${isDelivery ? `
+            ${cleanDriver ? `
+              <tr>
+                <td style="text-align: right; font-weight: 700; font-size: 11px;">الطيار المسؤول:</td>
+                <td style="text-align: left; font-weight: 900; font-size: 12px;">🚴 ${cleanDriver}</td>
+              </tr>
+            ` : ''}
+            ${cleanName ? `
+              <tr>
+                <td style="text-align: right; font-weight: 700; font-size: 11px;">اسم العميل:</td>
+                <td style="text-align: left; font-weight: 900; font-size: 11px;">${cleanName}</td>
+              </tr>
+            ` : ''}
+            ${cleanPhone ? `
+              <tr>
+                <td style="text-align: right; font-weight: 700; font-size: 11px;">رقم الهاتف:</td>
+                <td style="text-align: left; font-weight: 900; font-size: 12px;">📞 ${cleanPhone}</td>
+              </tr>
+            ` : ''}
+            ${cleanAddress ? `
+              <tr>
+                <td style="text-align: right; font-weight: 700; font-size: 11px;">العنوان:</td>
+                <td style="text-align: left; font-weight: 900; font-size: 11px;">📍 ${cleanAddress}</td>
+              </tr>
+            ` : ''}
+            ${floorApartmentText ? `
+              <tr>
+                <td style="text-align: right; font-weight: 700; font-size: 11px;">الدور / الشقة:</td>
+                <td style="text-align: left; font-weight: 900; font-size: 11px;">🏠 ${floorApartmentText}</td>
+              </tr>
+            ` : ''}
+          ` : ''}
+        </table>
 
         ${orderNoteText ? `
           <div class="dashed-sep"></div>
@@ -216,7 +254,7 @@ export function printThermalReceipt(orderData) {
         <div class="solid-sep"></div>
 
         <!-- Items Table -->
-        <table>
+        <table class="items-table">
           <thead>
             <tr>
               <th style="text-align: right; width: 45%;">المنتج</th>
@@ -232,22 +270,50 @@ export function printThermalReceipt(orderData) {
 
         <div class="dashed-sep"></div>
 
-        <!-- Financial Totals -->
-        <div class="row"><span style="color: #333;">المجموع الفرعي:</span><span class="bold">${parseFloat(subtotal).toFixed(2)} ج.م</span></div>
-        ${isDelivery && parseFloat(deliveryFee) > 0 ? `<div class="row"><span style="font-weight: 800;">🛵 خدمة التوصيل:</span><span class="bold">+${parseFloat(deliveryFee).toFixed(2)} ج.م</span></div>` : ''}
-        ${parseFloat(discount) > 0 ? `<div class="row"><span style="font-weight: 800;">🎁 الخصم:</span><span class="bold">-${parseFloat(discount).toFixed(2)} ج.م</span></div>` : ''}
+        <!-- Totals Table -->
+        <table class="totals-table">
+          <tr>
+            <td style="text-align: right; font-weight: 700; font-size: 11px; width: 50%;">المجموع الفرعي:</td>
+            <td style="text-align: left; font-weight: 900; font-size: 11px; width: 50%;">${parseFloat(subtotal).toFixed(2)} ج.م</td>
+          </tr>
+          ${isDelivery && parseFloat(deliveryFee) > 0 ? `
+            <tr>
+              <td style="text-align: right; font-weight: 800; font-size: 11px;">🛵 خدمة التوصيل:</td>
+              <td style="text-align: left; font-weight: 900; font-size: 11px;">+${parseFloat(deliveryFee).toFixed(2)} ج.م</td>
+            </tr>
+          ` : ''}
+          ${parseFloat(discount) > 0 ? `
+            <tr>
+              <td style="text-align: right; font-weight: 800; font-size: 11px;">🎁 الخصم:</td>
+              <td style="text-align: left; font-weight: 900; font-size: 11px;">-${parseFloat(discount).toFixed(2)} ج.م</td>
+            </tr>
+          ` : ''}
+        </table>
         
         <div class="total-box">
-          <span>الصافي / الإجمالي النهائي:</span>
-          <span style="font-size: 15px; color: #000000;">${parseFloat(total).toFixed(2)} ج.م</span>
+          <table style="width: 100%; border: none;">
+            <tr>
+              <td style="text-align: right; font-weight: 900; font-size: 12px; width: 60%;">الصافي / الإجمالي النهائي:</td>
+              <td style="text-align: left; font-weight: 900; font-size: 15px; width: 40%; color: #000000;">${parseFloat(total).toFixed(2)} ج.م</td>
+            </tr>
+          </table>
         </div>
 
-        <div class="row" style="margin-top: 4px;"><span style="font-weight: 700;">المبلغ المدفوع:</span><span class="bold">${parseFloat(paidAmount || total).toFixed(2)} ج.م</span></div>
+        <table class="totals-table" style="margin-top: 4px;">
+          <tr>
+            <td style="text-align: right; font-weight: 700; font-size: 11px; width: 50%;">المبلغ المدفوع:</td>
+            <td style="text-align: left; font-weight: 900; font-size: 11px; width: 50%;">${parseFloat(paidAmount || total).toFixed(2)} ج.م</td>
+          </tr>
+        </table>
 
-        <!-- Remaining Change -->
+        <!-- Remaining Change Box -->
         <div class="cash-box">
-          <span>المتبقي للعميل (الباقي):</span>
-          <span style="font-size: 14px;">${parseFloat(remainingAmount).toFixed(2)} ج.م</span>
+          <table style="width: 100%; border: none;">
+            <tr>
+              <td style="text-align: right; font-weight: 900; font-size: 11px; color: #FFF; width: 60%;">المتبقي للعميل (الباقي):</td>
+              <td style="text-align: left; font-weight: 900; font-size: 14px; color: #FFF; width: 40%;">${parseFloat(remainingAmount).toFixed(2)} ج.م</td>
+            </tr>
+          </table>
         </div>
 
         <!-- Cash Collection Status Indicator -->
@@ -267,30 +333,36 @@ export function printThermalReceipt(orderData) {
         <div class="page-break"></div>
         <div class="print-wrapper">
           <div class="center">
-            <h1 style="margin: 0; font-size: 44px; font-weight: 900; line-height: 1; color: #000000;">#${orderNumber}</h1>
-            <div class="badge" style="font-size: 13px; padding: 3px 10px;">🛵 بون المطبخ والدليفري</div>
-            ${cleanDriver ? `<h3 style="margin: 4px 0 0 0; font-size: 13px; font-weight: 900; color: #000000;">الطيار: ${cleanDriver}</h3>` : ''}
-            ${cleanName ? `<h3 style="margin: 2px 0 0 0; font-size: 12px; font-weight: 800; color: #000000;">العميل: ${cleanName} ${cleanPhone ? `(${cleanPhone})` : ''}</h3>` : ''}
+            <h1 style="margin: 0; font-size: 42px; font-weight: 900; line-height: 1; color: #000000;">#${orderNumber}</h1>
+            <div class="badge" style="font-size: 12px; padding: 3px 10px;">🛵 بون المطبخ والدليفري</div>
+            ${cleanDriver ? `<h3 style="margin: 4px 0 0 0; font-size: 12px; font-weight: 900; color: #000000;">الطيار: ${cleanDriver}</h3>` : ''}
+            ${cleanName ? `<h3 style="margin: 2px 0 0 0; font-size: 11px; font-weight: 800; color: #000000;">العميل: ${cleanName} ${cleanPhone ? `(${cleanPhone})` : ''}</h3>` : ''}
             ${cleanAddress ? `<h3 style="margin: 2px 0 0 0; font-size: 11px; font-weight: 800; color: #000000;">الوجهة: ${cleanAddress} ${floorApartmentText ? `(${floorApartmentText})` : ''}</h3>` : ''}
           </div>
 
           <div class="solid-sep"></div>
 
           <div style="border: 1.5px solid #000000; border-radius: 6px; padding: 4px; margin: 4px 0;">
-            ${(items || []).map((item, idx) => `
-              <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: ${idx < items.length - 1 ? '1px dashed #000' : 'none'};">
-                <span style="font-weight: 900; font-size: 13px; color: #000000;">
-                  ${item.name || item.product_name || item.productName || 'صنف'} ${item.size ? `(${item.size})` : ''} ${item.notes ? `(${item.notes})` : ''}
-                </span>
-                <span style="font-weight: 900; font-size: 16px; color: #000000; border: 1.5px solid #000; padding: 1px 6px; border-radius: 4px; background: #E5E7EB;">
-                  x${item.quantity}
-                </span>
-              </div>
-            `).join('')}
+            ${(items || []).map((item, idx) => {
+              let rawN = item.name || item.product_name || item.productName || 'صنف';
+              if (typeof rawN === 'object') rawN = rawN.name || rawN.ar || JSON.stringify(rawN);
+              let iName = String(rawN).trim().replace(/^\[+/, '').replace(/\]+$/, '').trim() || 'صنف';
+
+              return `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: ${idx < items.length - 1 ? '1px dashed #000' : 'none'};">
+                  <span style="font-weight: 900; font-size: 12px; color: #000000;">
+                    ${iName} ${item.size ? `(${item.size})` : ''} ${item.notes ? `(${item.notes})` : ''}
+                  </span>
+                  <span style="font-weight: 900; font-size: 15px; color: #000000; border: 1.5px solid #000; padding: 1px 6px; border-radius: 4px; background: #E5E7EB;">
+                    x${item.quantity}
+                  </span>
+                </div>
+              `;
+            }).join('')}
           </div>
 
           ${orderNoteText ? `
-            <div style="margin-top: 4px; font-weight: 900; font-size: 11px; color: #000000; background: #E5E7EB; padding: 4px; border-radius: 4px; border: 1px solid #000000; text-align: center;">
+            <div style="margin-top: 4px; font-weight: 900; font-size: 10px; color: #000000; background: #E5E7EB; padding: 4px; border-radius: 4px; border: 1px solid #000000; text-align: center;">
               ملاحظات: ${orderNoteText}
             </div>
           ` : ''}
