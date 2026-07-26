@@ -137,6 +137,21 @@ CREATE TABLE IF NOT EXISTS `employee_advances` (
   FOREIGN KEY (`employee_id`) REFERENCES `employees`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ==================== DRIVER ATTENDANCE (حضور وحالة الطيارين) ====================
+CREATE TABLE IF NOT EXISTS `driver_attendance` (
+  `id` VARCHAR(100) PRIMARY KEY,
+  `driver_id` VARCHAR(100),
+  `driver_name` VARCHAR(255) NOT NULL,
+  `branch_id` VARCHAR(100) DEFAULT 'b1',
+  `status` VARCHAR(50) DEFAULT 'ready',
+  `queue_position` INT DEFAULT 1,
+  `current_order_id` VARCHAR(100),
+  `check_in_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `check_out_time` DATETIME DEFAULT NULL,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`driver_id`) REFERENCES `drivers`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ==================== USERS (نظام المستخدمين والصلاحيات) ====================
 CREATE TABLE IF NOT EXISTS `users` (
   `id` VARCHAR(100) PRIMARY KEY,

@@ -1,8 +1,31 @@
 import { query } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
+let driverAttendanceChecked = false;
+async function ensureDriverAttendanceTable() {
+  if (driverAttendanceChecked) return;
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS driver_attendance (
+        id VARCHAR(100) PRIMARY KEY,
+        driver_id VARCHAR(100),
+        driver_name VARCHAR(255) NOT NULL,
+        branch_id VARCHAR(100) DEFAULT 'b1',
+        status VARCHAR(50) DEFAULT 'ready',
+        queue_position INT DEFAULT 1,
+        current_order_id VARCHAR(100),
+        check_in_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+        check_out_time DATETIME DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } catch(e) {}
+  driverAttendanceChecked = true;
+}
+
 export async function GET(req) {
   try {
+    await ensureDriverAttendanceTable();
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get('branch_id');
 

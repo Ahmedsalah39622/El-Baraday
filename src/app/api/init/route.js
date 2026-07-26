@@ -1,8 +1,32 @@
 import { query } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
+let driverAttendanceChecked = false;
+async function ensureDriverAttendanceTable() {
+  if (driverAttendanceChecked) return;
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS driver_attendance (
+        id VARCHAR(100) PRIMARY KEY,
+        driver_id VARCHAR(100),
+        driver_name VARCHAR(255) NOT NULL,
+        branch_id VARCHAR(100) DEFAULT 'b1',
+        status VARCHAR(50) DEFAULT 'ready',
+        queue_position INT DEFAULT 1,
+        current_order_id VARCHAR(100),
+        check_in_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+        check_out_time DATETIME DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } catch(e) {}
+  driverAttendanceChecked = true;
+}
+
 export async function GET(req) {
   try {
+    await ensureDriverAttendanceTable();
+
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get('branch_id');
 
@@ -21,8 +45,8 @@ export async function GET(req) {
     }
 
     const nextOrderSql = (branchId && branchId !== 'all')
-      ? "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1"
-      : "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders";
+      ? "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE branch_id = $1"
+      : "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders";
 
     const [
       branchesRes,
@@ -45,27 +69,10 @@ export async function GET(req) {
       query(`SELECT * FROM restaurant_tables ${tablesWhere} ORDER BY number`, params),
       query(nextOrderSql, params),
       query(`
-        SELECT o.*, b.name as branch_name,
-               COALESCE(
-                 json_agg(
-                   json_build_object(
-                     'id', oi.id,
-                     'product_id', oi.product_id,
-                     'product_name', oi.product_name,
-                     'name', oi.product_name,
-                     'price', oi.price,
-                     'quantity', oi.quantity,
-                     'size', oi.size,
-                     'extras', oi.extras,
-                     'notes', oi.notes
-                   )
-                 ) FILTER (WHERE oi.id IS NOT NULL), '[]'
-               ) as items
+        SELECT o.*, b.name as branch_name
         FROM orders o
-        LEFT JOIN order_items oi ON o.id = oi.order_id
         LEFT JOIN branches b ON o.branch_id = b.id
         ${ordersWhere}
-        GROUP BY o.id, b.name
         ORDER BY o.created_at DESC
         LIMIT 50
       `, params),
@@ -98,27 +105,9 @@ export async function GET(req) {
       settings: settingsObj,
       shifts: shiftsRes.rows || [],
       activeAttendanceQueue: attendanceRes.rows || []
-    }, {
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-      }
     });
   } catch (error) {
-    console.error('❌ Error in /api/init:', error);
-    return NextResponse.json({
-      branches: [],
-      products: [],
-      customers: [],
-      areas: [],
-      drivers: [],
-      tables: [],
-      nextOrderNumber: 1,
-      orders: [],
-      settings: {},
-      shifts: [],
-      activeAttendanceQueue: []
-    });
+    console.error('❌ Init Route Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

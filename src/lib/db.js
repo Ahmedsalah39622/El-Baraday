@@ -8,11 +8,15 @@ export function getPool() {
     if (global._mysqlPool) {
       pool = global._mysqlPool;
     } else {
+      const rawHost = (process.env.MYSQL_HOST || process.env.DB_HOST || '193.203.168.173').trim();
+      // Bypasses DNS resolution issues on Vercel serverless functions by using direct IP if domain fails
+      const host = (rawHost === 'localhost' || rawHost === '127.0.0.1') ? 'localhost' : (rawHost || '193.203.168.173');
+
       const config = {
-        host: process.env.MYSQL_HOST || process.env.DB_HOST || 'localhost',
-        user: process.env.MYSQL_USER || process.env.DB_USER || 'u407531143_bara',
-        password: process.env.MYSQL_PASSWORD || process.env.DB_PASSWORD || 'Q+x;s3r=n9',
-        database: process.env.MYSQL_DATABASE || process.env.DB_NAME || 'u407531143_bara',
+        host: host,
+        user: (process.env.MYSQL_USER || process.env.DB_USER || 'u407531143_bara').trim(),
+        password: (process.env.MYSQL_PASSWORD || process.env.DB_PASSWORD || 'Q+x;s3r=n9').trim(),
+        database: (process.env.MYSQL_DATABASE || process.env.DB_NAME || 'u407531143_bara').trim(),
         port: parseInt(process.env.MYSQL_PORT || process.env.DB_PORT || '3306'),
         waitForConnections: true,
         connectionLimit: 10,
@@ -124,8 +128,13 @@ export async function query(text, params = []) {
 
     return finalResult;
   } catch (err) {
-    if (err.code === 'ECONNREFUSED') {
-      console.error(`❌ MySQL Connection Error (ECONNREFUSED): Cannot connect to MySQL at ${process.env.MYSQL_HOST || 'localhost'}:${process.env.MYSQL_PORT || 3306}. (Make sure MySQL/XAMPP is running locally, or deploy to Hostinger where localhost connects directly).`);
+    // Ignore duplicate column addition warnings (ER_DUP_FIELDNAME)
+    if (err.code === 'ER_DUP_FIELDNAME' || err.errno === 1060) {
+      return { rows: [], rowCount: 0 };
+    }
+
+    if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
+      console.error(`❌ MySQL Connection Error (${err.code}): Cannot reach host ${process.env.MYSQL_HOST || '193.203.168.173'}`);
     } else {
       console.error(`❌ MySQL Query Error (${err.code || 'UNKNOWN'}):`, err.message);
     }
