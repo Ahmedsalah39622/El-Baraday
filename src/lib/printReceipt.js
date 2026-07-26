@@ -1,4 +1,4 @@
-// Thermal Receipt Printing Helper - 100% Optimized for 80mm Thermal POS Printers (Xprinter POS80 / XP-D200N)
+// Thermal Receipt Printing Helper - 100% Guaranteed 80mm (8cm) Paper Roll Alignment without Clipping
 export function printThermalReceipt(orderData) {
   if (!orderData) return;
 
@@ -41,21 +41,29 @@ export function printThermalReceipt(orderData) {
     customerApartment ? `شقة ${customerApartment}` : ''
   ].filter(Boolean).join(' - ');
 
-  // Format Items Table Rows with clear responsive font scaling
-  const itemsHtml = items.map((item, idx) => `
-    <tr style="border-bottom: ${idx < items.length - 1 ? '1px dashed #444' : '1.5px solid #000'};">
-      <td style="padding: 4px 1px; font-weight: 800; text-align: right; font-size: 12px; color: #000; word-break: break-word;">
-        ${item.name || item.product_name || 'صنف'}
-        ${item.size ? `<br><span style="font-size: 10px; font-weight: 700; color: #222;">📏 (حجم ${item.size})</span>` : ''}
-        ${item.notes ? `<br><span style="font-size: 10px; font-weight: 700; color: #000;">📝 [${item.notes}]</span>` : ''}
-      </td>
-      <td style="padding: 4px 1px; font-weight: 900; text-align: center; font-size: 14px; color: #000;">${item.quantity}</td>
-      <td style="padding: 4px 1px; font-weight: 700; text-align: center; font-size: 11px; color: #000;">${parseFloat(item.price).toFixed(0)}</td>
-      <td style="padding: 4px 1px; font-weight: 900; text-align: center; font-size: 13px; color: #000;">${(parseFloat(item.price) * item.quantity).toFixed(0)}</td>
-    </tr>
-  `).join('');
+  // Format Items Table Rows with safe padding
+  const itemsHtml = (items || []).map((item, idx) => {
+    const itemName = item.name || item.product_name || item.productName || 'صنف';
+    const itemSize = item.size ? `(حجم ${item.size})` : '';
+    const itemNotes = item.notes ? `(${item.notes})` : '';
+    const itemPrice = parseFloat(item.price || 0).toFixed(0);
+    const itemTotal = (parseFloat(item.price || 0) * (parseInt(item.quantity) || 1)).toFixed(0);
 
-  // HTML Template for 80mm Thermal Printer
+    return `
+      <tr style="border-bottom: ${idx < items.length - 1 ? '1px dashed #666' : '1.5px solid #000'};">
+        <td style="padding: 4px 2px; font-weight: 800; text-align: right; font-size: 11px; color: #000; word-break: break-word;">
+          ${itemName}
+          ${itemSize ? `<br><span style="font-size: 10px; font-weight: 700; color: #333;">${itemSize}</span>` : ''}
+          ${itemNotes ? `<br><span style="font-size: 10px; font-weight: 700; color: #333;">${itemNotes}</span>` : ''}
+        </td>
+        <td style="padding: 4px 2px; font-weight: 900; text-align: center; font-size: 13px; color: #000;">${item.quantity}</td>
+        <td style="padding: 4px 2px; font-weight: 700; text-align: center; font-size: 11px; color: #000;">${itemPrice}</td>
+        <td style="padding: 4px 2px; font-weight: 900; text-align: center; font-size: 12px; color: #000;">${itemTotal}</td>
+      </tr>
+    `;
+  }).join('');
+
+  // HTML Template for 80mm Thermal Printer (SAFE 68mm PRINTABLE INNER AREA TO PREVENT CLIPPING)
   let html = `
     <!DOCTYPE html>
     <html lang="ar" dir="rtl">
@@ -73,7 +81,7 @@ export function printThermalReceipt(orderData) {
             margin: 0mm !important;
           }
           html, body {
-            width: 78mm !important;
+            width: 80mm !important;
             margin: 0 auto !important;
             padding: 0 !important;
             background: #FFF !important;
@@ -83,7 +91,7 @@ export function printThermalReceipt(orderData) {
           }
         }
         * {
-          box-sizing: border-box;
+          box-sizing: border-box !important;
           margin: 0;
           padding: 0;
           page-break-inside: avoid !important;
@@ -92,19 +100,27 @@ export function printThermalReceipt(orderData) {
         html, body {
           font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif;
           margin: 0 auto;
-          padding: 1mm 2mm;
-          width: 78mm;
-          max-width: 78mm;
+          padding: 0;
+          width: 80mm;
+          max-width: 80mm;
           color: #000000;
           background: #FFFFFF;
           direction: rtl;
+        }
+        /* Safe 68mm Centered Container with 6mm Margin on Each Side to Prevent Edge Clipping */
+        .print-wrapper {
+          width: 68mm !important;
+          max-width: 68mm !important;
+          margin: 0 auto !important;
+          padding: 2mm 0 !important;
+          box-sizing: border-box !important;
         }
         .center { text-align: center; }
         .bold { font-weight: 900; }
         .dashed-sep { border-bottom: 1.5px dashed #000000; margin: 5px 0; }
         .solid-sep { border-bottom: 2px solid #000000; margin: 6px 0; }
         .double-sep { border-bottom: 3px double #000000; margin: 6px 0; }
-        .row { display: flex; justify-content: space-between; align-items: center; margin: 2px 0; font-size: 12px; color: #000000; }
+        .row { display: flex; justify-content: space-between; align-items: center; margin: 3px 0; font-size: 11px; color: #000000; }
         .badge {
           border: 1.5px solid #000000;
           background: #F3F4F6;
@@ -113,7 +129,7 @@ export function printThermalReceipt(orderData) {
           border-radius: 4px;
           display: inline-block;
           font-weight: 900;
-          font-size: 12px;
+          font-size: 11px;
           margin-top: 3px;
         }
         table {
@@ -125,7 +141,7 @@ export function printThermalReceipt(orderData) {
         th {
           background: #E5E7EB;
           color: #000000;
-          padding: 4px 1px;
+          padding: 4px 2px;
           font-size: 11px;
           font-weight: 900;
           border-bottom: 1.5px solid #000000;
@@ -137,7 +153,7 @@ export function printThermalReceipt(orderData) {
           border-radius: 6px;
           margin-top: 5px;
           font-weight: 900;
-          font-size: 14px;
+          font-size: 13px;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -150,7 +166,7 @@ export function printThermalReceipt(orderData) {
           border-radius: 6px;
           margin-top: 4px;
           font-weight: 900;
-          font-size: 13px;
+          font-size: 12px;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -163,129 +179,126 @@ export function printThermalReceipt(orderData) {
       </style>
     </head>
     <body>
-      <!-- Main Receipt Body -->
-      <div class="center">
-        <h1 style="margin: 0; font-size: 42px; font-weight: 900; line-height: 1; color: #000000;">#${orderNumber}</h1>
-        <h2 style="margin: 2px 0 0 0; font-size: 15px; font-weight: 900; color: #000000;">مطعم البرادعي للحواوشي واللحوم</h2>
-        <div style="font-size: 10px; font-weight: 700; color: #222; margin-top: 1px;">فرع: ${branchName}</div>
-        <div class="badge">
-          ${isDelivery ? '🛵 دليفري (توصيل للمنزل)' : (orderType === 'takeaway' ? '🥡 تيك أوي (Takeaway)' : '🍽️ صالة / طاولات')}
+      <!-- Main Receipt Body inside Safe 68mm Inner Bounds -->
+      <div class="print-wrapper">
+        <div class="center">
+          <h1 style="margin: 0; font-size: 38px; font-weight: 900; line-height: 1; color: #000000;">#${orderNumber}</h1>
+          <h2 style="margin: 3px 0 0 0; font-size: 14px; font-weight: 900; color: #000000;">مطعم البرادعي للحواوشي واللحوم</h2>
+          <div style="font-size: 10px; font-weight: 700; color: #333; margin-top: 1px;">فرع: ${branchName}</div>
+          <div class="badge">
+            ${isDelivery ? '🛵 دليفري (توصيل للمنزل)' : (orderType === 'takeaway' ? '🥡 تيك أوي (Takeaway)' : '🍽️ صالة / طاولات')}
+          </div>
+        </div>
+
+        <div class="solid-sep"></div>
+
+        <!-- Meta Details -->
+        <div class="row"><span style="font-weight: 700;">الكاشير:</span><span class="bold">${cashierName}</span></div>
+        <div class="row"><span style="color: #333;">التاريخ والوقت:</span><span class="bold" style="font-size: 10px;">${dateStr}</span></div>
+
+        ${isDelivery ? `
+          <div class="dashed-sep"></div>
+          ${cleanDriver ? `<div class="row"><span style="font-weight: 700;">الطيار المسؤول:</span><span class="bold" style="font-size: 12px;">🚴 ${cleanDriver}</span></div>` : ''}
+          ${cleanName ? `<div class="row"><span style="font-weight: 700;">اسم العميل:</span><span class="bold">${cleanName}</span></div>` : ''}
+          ${cleanPhone ? `<div class="row"><span style="font-weight: 700;">رقم الهاتف:</span><span class="bold" style="font-size: 12px;">📞 ${cleanPhone}</span></div>` : ''}
+          ${cleanAddress ? `<div class="row"><span style="font-weight: 700;">العنوان:</span><span class="bold" style="font-size: 11px;">📍 ${cleanAddress}</span></div>` : ''}
+          ${floorApartmentText ? `<div class="row"><span style="font-weight: 700;">الدور / الشقة:</span><span class="bold">🏠 ${floorApartmentText}</span></div>` : ''}
+        ` : ''}
+
+        ${orderNoteText ? `
+          <div class="dashed-sep"></div>
+          <div style="background: #F3F4F6; padding: 4px 6px; border-radius: 4px; border: 1px solid #000000; margin: 3px 0; font-size: 10px;">
+            <span style="font-weight: 900;">📝 ملاحظات الطلب:</span>
+            <span class="bold"> ${orderNoteText}</span>
+          </div>
+        ` : ''}
+
+        <div class="solid-sep"></div>
+
+        <!-- Items Table -->
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align: right; width: 45%;">المنتج</th>
+              <th style="width: 15%;">الكمية</th>
+              <th style="width: 20%;">السعر</th>
+              <th style="width: 20%;">الإجمالي</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+
+        <div class="dashed-sep"></div>
+
+        <!-- Financial Totals -->
+        <div class="row"><span style="color: #333;">المجموع الفرعي:</span><span class="bold">${parseFloat(subtotal).toFixed(2)} ج.م</span></div>
+        ${isDelivery && parseFloat(deliveryFee) > 0 ? `<div class="row"><span style="font-weight: 800;">🛵 خدمة التوصيل:</span><span class="bold">+${parseFloat(deliveryFee).toFixed(2)} ج.م</span></div>` : ''}
+        ${parseFloat(discount) > 0 ? `<div class="row"><span style="font-weight: 800;">🎁 الخصم:</span><span class="bold">-${parseFloat(discount).toFixed(2)} ج.م</span></div>` : ''}
+        
+        <div class="total-box">
+          <span>الصافي / الإجمالي النهائي:</span>
+          <span style="font-size: 15px; color: #000000;">${parseFloat(total).toFixed(2)} ج.م</span>
+        </div>
+
+        <div class="row" style="margin-top: 4px;"><span style="font-weight: 700;">المبلغ المدفوع:</span><span class="bold">${parseFloat(paidAmount || total).toFixed(2)} ج.م</span></div>
+
+        <!-- Remaining Change -->
+        <div class="cash-box">
+          <span>المتبقي للعميل (الباقي):</span>
+          <span style="font-size: 14px;">${parseFloat(remainingAmount).toFixed(2)} ج.م</span>
+        </div>
+
+        <!-- Cash Collection Status Indicator -->
+        <div style="margin-top: 6px; text-align: center; padding: 3px; border: 1.5px solid #000; border-radius: 4px; font-weight: 900; font-size: 10px; background: ${isCashCollected ? '#E5E7EB' : '#FFFFFF'};">
+          ${isCashCollected ? '🟢 تم استلام النقدية وتوريد المبلغ بالشيفت' : '🔴 عهدة دليفري مع الطيار (لم تُورد بعد)'}
+        </div>
+
+        <div class="double-sep"></div>
+        <div class="center" style="font-size: 10px; font-weight: 800; color: #000000;">
+          شكراً لزيارتكم مطعم البرادعي! ❤️<br>
+          نتمنى لكم وجبة شهية ولذيذة 🍔🥩
         </div>
       </div>
 
-      <div class="solid-sep"></div>
-
-      <!-- Meta Details -->
-      <div class="row"><span style="font-weight: 700;">الكاشير:</span><span class="bold">${cashierName}</span></div>
-      <div class="row"><span style="color: #222;">التاريخ والوقت:</span><span class="bold" style="font-size: 11px;">${dateStr}</span></div>
-
+      <!-- Kitchen / Driver Slip for Delivery Orders -->
       ${isDelivery ? `
-        <div class="dashed-sep"></div>
-        ${cleanDriver ? `<div class="row"><span style="font-weight: 700;">الطيار المسؤول:</span><span class="bold" style="font-size: 13px;">🚴 ${cleanDriver}</span></div>` : ''}
-        ${cleanName ? `<div class="row"><span style="font-weight: 700;">اسم العميل:</span><span class="bold">${cleanName}</span></div>` : ''}
-        ${cleanPhone ? `<div class="row"><span style="font-weight: 700;">رقم الهاتف:</span><span class="bold" style="font-size: 13px;">📞 ${cleanPhone}</span></div>` : ''}
-        ${cleanAddress ? `<div class="row"><span style="font-weight: 700;">العنوان:</span><span class="bold" style="font-size: 12px;">📍 ${cleanAddress}</span></div>` : ''}
-        ${floorApartmentText ? `<div class="row"><span style="font-weight: 700;">الدور / الشقة:</span><span class="bold">🏠 ${floorApartmentText}</span></div>` : ''}
-      ` : ''}
+        <div class="page-break"></div>
+        <div class="print-wrapper">
+          <div class="center">
+            <h1 style="margin: 0; font-size: 44px; font-weight: 900; line-height: 1; color: #000000;">#${orderNumber}</h1>
+            <div class="badge" style="font-size: 13px; padding: 3px 10px;">🛵 بون المطبخ والدليفري</div>
+            ${cleanDriver ? `<h3 style="margin: 4px 0 0 0; font-size: 13px; font-weight: 900; color: #000000;">الطيار: ${cleanDriver}</h3>` : ''}
+            ${cleanName ? `<h3 style="margin: 2px 0 0 0; font-size: 12px; font-weight: 800; color: #000000;">العميل: ${cleanName} ${cleanPhone ? `(${cleanPhone})` : ''}</h3>` : ''}
+            ${cleanAddress ? `<h3 style="margin: 2px 0 0 0; font-size: 11px; font-weight: 800; color: #000000;">الوجهة: ${cleanAddress} ${floorApartmentText ? `(${floorApartmentText})` : ''}</h3>` : ''}
+          </div>
 
-      ${orderNoteText ? `
-        <div class="dashed-sep"></div>
-        <div style="background: #F3F4F6; padding: 4px 6px; border-radius: 4px; border: 1px solid #000000; margin: 3px 0; font-size: 11px;">
-          <span style="font-weight: 900;">📝 ملاحظات الطلب:</span>
-          <span class="bold"> ${orderNoteText}</span>
+          <div class="solid-sep"></div>
+
+          <div style="border: 1.5px solid #000000; border-radius: 6px; padding: 4px; margin: 4px 0;">
+            ${(items || []).map((item, idx) => `
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: ${idx < items.length - 1 ? '1px dashed #000' : 'none'};">
+                <span style="font-weight: 900; font-size: 13px; color: #000000;">
+                  ${item.name || item.product_name || item.productName || 'صنف'} ${item.size ? `(${item.size})` : ''} ${item.notes ? `(${item.notes})` : ''}
+                </span>
+                <span style="font-weight: 900; font-size: 16px; color: #000000; border: 1.5px solid #000; padding: 1px 6px; border-radius: 4px; background: #E5E7EB;">
+                  x${item.quantity}
+                </span>
+              </div>
+            `).join('')}
+          </div>
+
+          ${orderNoteText ? `
+            <div style="margin-top: 4px; font-weight: 900; font-size: 11px; color: #000000; background: #E5E7EB; padding: 4px; border-radius: 4px; border: 1px solid #000000; text-align: center;">
+              ملاحظات: ${orderNoteText}
+            </div>
+          ` : ''}
+
+          <div class="dashed-sep"></div>
+          <div class="center" style="font-size: 10px; font-weight: 800; color: #000000;">${dateStr}</div>
         </div>
       ` : ''}
-
-      <div class="solid-sep"></div>
-
-      <!-- Items Table -->
-      <table>
-        <thead>
-          <tr>
-            <th style="text-align: right; width: 48%;">المنتج</th>
-            <th style="width: 14%;">الكمية</th>
-            <th style="width: 19%;">السعر</th>
-            <th style="width: 19%;">الإجمالي</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${itemsHtml}
-        </tbody>
-      </table>
-
-      <div class="dashed-sep"></div>
-
-      <!-- Financial Totals -->
-      <div class="row"><span style="color: #222;">المجموع الفرعي:</span><span class="bold">${parseFloat(subtotal).toFixed(2)} ج.م</span></div>
-      ${isDelivery && parseFloat(deliveryFee) > 0 ? `<div class="row"><span style="font-weight: 800;">🛵 خدمة التوصيل:</span><span class="bold">+${parseFloat(deliveryFee).toFixed(2)} ج.م</span></div>` : ''}
-      ${parseFloat(discount) > 0 ? `<div class="row"><span style="font-weight: 800;">🎁 الخصم:</span><span class="bold">-${parseFloat(discount).toFixed(2)} ج.م</span></div>` : ''}
-      
-      <div class="total-box">
-        <span>الصافي / الإجمالي النهائي:</span>
-        <span style="font-size: 16px; color: #000000;">${parseFloat(total).toFixed(2)} ج.م</span>
-      </div>
-
-      <div class="row" style="margin-top: 4px;"><span style="font-weight: 700;">المبلغ المدفوع:</span><span class="bold">${parseFloat(paidAmount || total).toFixed(2)} ج.م</span></div>
-
-      <!-- Remaining Change -->
-      <div class="cash-box">
-        <span>المتبقي للعميل (الباقي):</span>
-        <span style="font-size: 15px;">${parseFloat(remainingAmount).toFixed(2)} ج.م</span>
-      </div>
-
-      <!-- Cash Collection Status Indicator -->
-      <div style="margin-top: 6px; text-align: center; padding: 3px; border: 1.5px solid #000; border-radius: 4px; font-weight: 900; font-size: 11px; background: ${isCashCollected ? '#E5E7EB' : '#FFFFFF'};">
-        ${isCashCollected ? '🟢 تم استلام النقدية وتوريد المبلغ بالشيفت' : '🔴 عهدة دليفري مع الطيار (لم تُورد بعد)'}
-      </div>
-
-      <div class="double-sep"></div>
-      <div class="center" style="font-size: 11px; font-weight: 800; color: #000000;">
-        شكراً لزيارتكم مطعم البرادعي! ❤️<br>
-        نتمنى لكم وجبة شهية ولذيذة 🍔🥩
-      </div>
-  `;
-
-  // Kitchen / Driver Slip for Delivery Orders
-  if (isDelivery) {
-    const kitchenItemsHtml = items.map((item, idx) => `
-      <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: ${idx < items.length - 1 ? '1px dashed #000' : 'none'};">
-        <span style="font-weight: 900; font-size: 14px; color: #000000;">
-          ${item.name || item.product_name} ${item.size ? `(${item.size})` : ''} ${item.notes ? `[${item.notes}]` : ''}
-        </span>
-        <span style="font-weight: 900; font-size: 17px; color: #000000; border: 1.5px solid #000; padding: 1px 6px; border-radius: 4px; background: #E5E7EB;">
-          x${item.quantity}
-        </span>
-      </div>
-    `).join('');
-
-    html += `
-      <div class="page-break"></div>
-      <div class="center">
-        <h1 style="margin: 0; font-size: 48px; font-weight: 900; line-height: 1; color: #000000;">#${orderNumber}</h1>
-        <div class="badge" style="font-size: 14px; padding: 3px 10px;">🛵 بون المطبخ والدليفري</div>
-        ${cleanDriver ? `<h3 style="margin: 4px 0 0 0; font-size: 14px; font-weight: 900; color: #000000;">الطيار: ${cleanDriver}</h3>` : ''}
-        ${cleanName ? `<h3 style="margin: 2px 0 0 0; font-size: 13px; font-weight: 800; color: #000000;">العميل: ${cleanName} ${cleanPhone ? `(${cleanPhone})` : ''}</h3>` : ''}
-        ${cleanAddress ? `<h3 style="margin: 2px 0 0 0; font-size: 12px; font-weight: 800; color: #000000;">الوجهة: ${cleanAddress} ${floorApartmentText ? `(${floorApartmentText})` : ''}</h3>` : ''}
-      </div>
-
-      <div class="solid-sep"></div>
-
-      <div style="border: 1.5px solid #000000; border-radius: 6px; padding: 4px; margin: 4px 0;">
-        ${kitchenItemsHtml}
-      </div>
-
-      ${orderNoteText ? `
-        <div style="margin-top: 4px; font-weight: 900; font-size: 12px; color: #000000; background: #E5E7EB; padding: 4px; border-radius: 4px; border: 1px solid #000000; text-align: center;">
-          ملاحظات: ${orderNoteText}
-        </div>
-      ` : ''}
-
-      <div class="dashed-sep"></div>
-      <div class="center" style="font-size: 10px; font-weight: 800; color: #000000;">${dateStr}</div>
-    `;
-  }
-
-  html += `
     </body>
     </html>
   `;
