@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS `products` (
   `price_small` DECIMAL(10, 2) DEFAULT NULL,
   `price_large` DECIMAL(10, 2) DEFAULT NULL,
   `sizes` JSON DEFAULT NULL,
-  `image_url` TEXT,
+  `image_url` LONGTEXT,
   `description` TEXT,
   `is_available` TINYINT(1) DEFAULT 1,
   `sort_order` INT DEFAULT 0,

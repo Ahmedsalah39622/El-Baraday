@@ -8,6 +8,7 @@ async function ensureSizeColumns() {
   try { await query('ALTER TABLE products ADD COLUMN price_small DECIMAL(10, 2) DEFAULT NULL'); } catch(e){}
   try { await query('ALTER TABLE products ADD COLUMN price_large DECIMAL(10, 2) DEFAULT NULL'); } catch(e){}
   try { await query('ALTER TABLE products ADD COLUMN sizes JSON DEFAULT NULL'); } catch(e){}
+  try { await query('ALTER TABLE products MODIFY COLUMN image_url LONGTEXT'); } catch(e){}
   sizeColumnsChecked = true;
 }
 
