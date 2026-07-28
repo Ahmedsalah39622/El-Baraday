@@ -248,7 +248,10 @@ export default function SalariesPage() {
       branchId: newEmpData.branchId || 'b1'
     });
     if (newEmpData.role === 'كاشير' && newEmpData.cashierPin.trim()) {
-      const username = newEmpData.name.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^\w_]/g, '');
+      let username = newEmpData.name.trim().toLowerCase().replace(/\s+/g, '_');
+      if (!username || username === '_') {
+        username = `cashier_${Date.now().toString().slice(-4)}`;
+      }
       try {
         await fetch('/api/users', {
           method: 'POST',

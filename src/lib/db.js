@@ -9,9 +9,9 @@ export function getPool() {
     if (global._mysqlPool) {
       pool = global._mysqlPool;
     } else {
-      const rawHost = (process.env.MYSQL_HOST || process.env.DB_HOST || '193.203.168.173').trim();
+      const rawHost = (process.env.MYSQL_HOST || process.env.DB_HOST || 'srv1788.hstgr.io').trim();
       // Bypasses DNS resolution issues on Vercel serverless functions by using direct IP if domain fails
-      const host = (rawHost === 'localhost' || rawHost === '127.0.0.1') ? 'localhost' : (rawHost || '193.203.168.173');
+      const host = (rawHost === 'localhost' || rawHost === '127.0.0.1') ? 'localhost' : (rawHost || 'srv1788.hstgr.io');
 
       const config = {
         host: host,
@@ -50,8 +50,12 @@ export async function query(text, params = []) {
     // 2. Convert Postgres typecasts
     sql = sql.replace(/::(TEXT|jsonb|timestamptz|integer|int|numeric)/gi, '');
 
-    // 3. Convert gen_random_uuid() to UUID()
-    sql = sql.replace(/gen_random_uuid\(\)/gi, 'UUID()');
+    // 3. Convert gen_random_uuid() to explicit generated UUID string
+    let genUuid = null;
+    if (/gen_random_uuid\(\)/i.test(sql)) {
+      genUuid = randomUUID();
+      sql = sql.replace(/gen_random_uuid\(\)/gi, `'${genUuid}'`);
+    }
 
     // 4. Convert ILIKE to LIKE
     sql = sql.replace(/\bILIKE\b/gi, 'LIKE');
@@ -122,8 +126,8 @@ export async function query(text, params = []) {
     } else if (result && typeof result === 'object') {
       rowCount = result.affectedRows || 0;
       if (hasReturning && tableName) {
-        // Use injected UUID, or MySQL insertId, or first param as fallback
-        const idParam = injectedId || result.insertId || params[0];
+        // Use injected UUID, or genUuid, or MySQL insertId, or first param as fallback
+        const idParam = injectedId || genUuid || (result.insertId !== 0 ? result.insertId : null) || params[0];
         if (idParam) {
           try {
             const [fetchedRows] = await currentPool.query(`SELECT * FROM \`${tableName}\` WHERE id = ?`, [idParam]);

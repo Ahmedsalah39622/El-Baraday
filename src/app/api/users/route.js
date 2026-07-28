@@ -50,11 +50,17 @@ export async function POST(request) {
       ? JSON.stringify(permissions)
       : JSON.stringify([]);
 
+    let cleanUsername = username.trim().toLowerCase();
+    const existing = await query('SELECT id FROM users WHERE LOWER(username) = $1', [cleanUsername]);
+    if (existing.rows && existing.rows.length > 0) {
+      cleanUsername = `${cleanUsername}_${Math.floor(100 + Math.random() * 900)}`;
+    }
+
     const result = await query(
       `INSERT INTO users (id, username, name, pin, role, permissions, status, avatar, branch_id)
        VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
       [
-        username.trim().toLowerCase(),
+        cleanUsername,
         name.trim(),
         pin.trim(),
         role || 'cashier',
