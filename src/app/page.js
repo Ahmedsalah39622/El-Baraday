@@ -209,8 +209,7 @@ export default function POSPage() {
 
   // Calculate totals
   const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const tax = subtotal * 0.05;
-  const total = subtotal + tax;
+  const total = subtotal;
 
   const handleSelectProduct = (product) => {
     if (product.hasMultipleSizes) {
@@ -249,7 +248,6 @@ export default function POSPage() {
           onRemoveItem={(id) => removeItem(id)}
           onClearOrder={clearOrder}
           subtotal={subtotal}
-          tax={tax}
           total={total}
         />
       </Box>
@@ -486,7 +484,6 @@ export default function POSPage() {
           onRemoveItem={(id) => removeItem(id)}
           onClearOrder={clearOrder}
           subtotal={subtotal}
-          tax={tax}
           total={total}
           onCloseMobile={() => setMobileCartOpen(false)}
         />

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Box, Typography, Button, IconButton, Divider, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Select, FormControl, InputLabel, Autocomplete, Chip
 } from '@mui/material';
-import { EditOutlined, DeleteOutlined, CheckCircleOutlined, Print, DeliveryDining, LocationOn, Phone, ExpandMore, ExpandLess, WhatsApp, ConfirmationNumber } from '@mui/icons-material';
+import { EditOutlined, DeleteOutlined, CheckCircleOutlined, Print, DeliveryDining, LocationOn, Phone, ExpandMore, ExpandLess, WhatsApp, ConfirmationNumber, Close } from '@mui/icons-material';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { useCustomerStore } from '@/store/useCustomerStore';
 import DeliveryReceipts from './DeliveryReceipts';
@@ -25,6 +25,7 @@ export default function OrderDetailsPanel({
   onClearOrder,
   subtotal = 0,
   onCloseMobile,
+  // tax and total are no longer used here; subtotal is the only source of truth
 }) {
   const { addInvoice, nextOrderNumber, fetchNextOrderNumber } = useInvoiceStore();
   const { customers = [], drivers = [], activeQueue = [], saveOrUpdateCustomer } = useCustomerStore();
@@ -269,20 +270,37 @@ export default function OrderDetailsPanel({
         <Typography variant="h5" sx={{ fontWeight: 800, color: '#1A1A2E' }}>
           تفاصيل الطلب #{nextOrderNumber || '35'}
         </Typography>
-        <Chip
-          icon={<Store sx={{ fontSize: '1rem !important', color: '#1E40AF' }} />}
-          label={activeBranchName}
-          size="small"
-          sx={{
-            fontWeight: 800,
-            bgcolor: '#EFF6FF',
-            color: '#1E40AF',
-            border: '1px solid #BFDBFE',
-            fontSize: '0.813rem',
-            py: 0.5,
-            px: 0.5,
-          }}
-        />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Chip
+            icon={<Store sx={{ fontSize: '1rem !important', color: '#1E40AF' }} />}
+            label={activeBranchName}
+            size="small"
+            sx={{
+              fontWeight: 800,
+              bgcolor: '#EFF6FF',
+              color: '#1E40AF',
+              border: '1px solid #BFDBFE',
+              fontSize: '0.813rem',
+              py: 0.5,
+              px: 0.5,
+            }}
+          />
+          {onCloseMobile && (
+            <IconButton
+              onClick={onCloseMobile}
+              size="small"
+              sx={{
+                bgcolor: '#F3F4F6',
+                color: '#6B7280',
+                '&:hover': { bgcolor: '#FEE2E2', color: '#DC2626' },
+                width: 28,
+                height: 28,
+              }}
+            >
+              <Close sx={{ fontSize: 16 }} />
+            </IconButton>
+          )}
+        </Box>
       </Box>
 
       {/* Order Type Buttons: تيك أوي | دليفري */}
