@@ -460,14 +460,47 @@ export default function DeliveryPage() {
         </Grid>
       </Grid>
 
-      {/* Main Control Navigation Tabs */}
-      <Paper sx={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid #E5E7EB' }}>
-        <Tabs value={tabValue} onChange={handleTabChange} indicatorColor="primary" textColor="primary" variant="fullWidth">
-          <Tab icon={<DeliveryDining />} iconPosition="start" label="لوحة الأوردرات اللحظية" sx={{ fontWeight: 800 }} />
-          <Tab icon={<HowToReg />} iconPosition="start" label="طابور دور الطيارين" sx={{ fontWeight: 800 }} />
-          <Tab icon={<AccountBalanceWallet />} iconPosition="start" label="💰 عُهَد وحسابات الطيارين" sx={{ fontWeight: 900, color: '#D97706' }} />
-          <Tab icon={<Person />} iconPosition="start" label="سجل العملاء والعناوين" sx={{ fontWeight: 800 }} />
-          <Tab icon={<LocationOn />} iconPosition="start" label="مناطق التوصيل والرسوم" sx={{ fontWeight: 800 }} />
+      {/* Main Control Navigation Tabs Bar */}
+      <Paper
+        elevation={2}
+        sx={{
+          borderRadius: '16px',
+          border: '1.5px solid #CBD5E1',
+          bgcolor: '#FFFFFF',
+          position: 'sticky',
+          top: 0,
+          zIndex: 20,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.06)'
+        }}
+      >
+        <Tabs
+          value={tabValue}
+          onChange={handleTabChange}
+          indicatorColor="primary"
+          textColor="primary"
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{
+            minHeight: 54,
+            '& .MuiTab-root': {
+              minHeight: 54,
+              fontSize: { xs: '0.85rem', md: '0.95rem' },
+              fontWeight: 800,
+              px: { xs: 2, md: 3 },
+              color: '#475569',
+              '&.Mui-selected': {
+                color: '#2563EB',
+                fontWeight: 900
+              }
+            }
+          }}
+        >
+          <Tab icon={<DeliveryDining sx={{ fontSize: 22 }} />} iconPosition="start" label="لوحة الأوردرات اللحظية" />
+          <Tab icon={<HowToReg sx={{ fontSize: 22 }} />} iconPosition="start" label="طابور دور الطيارين" />
+          <Tab icon={<AccountBalanceWallet sx={{ fontSize: 22, color: '#D97706' }} />} iconPosition="start" label="💰 عُهَد وحسابات الطيارين" />
+          <Tab icon={<Person sx={{ fontSize: 22 }} />} iconPosition="start" label="سجل العملاء والعناوين" />
+          <Tab icon={<LocationOn sx={{ fontSize: 22 }} />} iconPosition="start" label="مناطق التوصيل والرسوم" />
         </Tabs>
       </Paper>
 
