@@ -2,69 +2,73 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Box, CircularProgress, Typography } from '@mui/material';
+import { Box, CircularProgress } from '@mui/material';
 import Sidebar from './Sidebar';
 import { useAuthStore } from '@/store/useAuthStore';
+
+const PUBLIC_ROUTES = ['/login'];
 
 export default function AppShell({ children }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isAuthenticated, hasPermission } = useAuthStore();
-  const [mounted, setMounted] = useState(false);
+  const { isAuthenticated, hasPermission } = useAuthStore();
+
+  // Tracks whether Zustand has rehydrated from localStorage
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    // Zustand persisted store needs a tick to rehydrate
+    setHydrated(true);
   }, []);
 
+  const isPublic = PUBLIC_ROUTES.includes(pathname);
+
   useEffect(() => {
-    if (!mounted) return;
+    if (!hydrated) return;
 
-    const isLoginPage = pathname === '/login';
-
-    // 1. Unauthenticated users on protected routes -> Redirect to /login
-    if (!isAuthenticated && !isLoginPage) {
+    if (!isAuthenticated && !isPublic) {
       router.replace('/login');
       return;
     }
 
-    // 2. Authenticated users on /login -> Redirect to homepage /
-    if (isAuthenticated && isLoginPage) {
+    if (isAuthenticated && isPublic) {
       router.replace('/');
       return;
     }
 
-    // 3. Granular Permission Check for authenticated users
-    if (isAuthenticated && !isLoginPage) {
-      const permitted = hasPermission(pathname);
-      if (!permitted) {
-        router.replace('/');
-      }
+    if (isAuthenticated && !isPublic && !hasPermission(pathname)) {
+      router.replace('/');
     }
-  }, [mounted, isAuthenticated, pathname, user, router, hasPermission]);
+  }, [hydrated, isAuthenticated, pathname, isPublic, hasPermission, router]);
 
-  const isLoginPage = pathname === '/login';
-
-  // While checking hydration / auth status, display a secure loading screen
-  if (!mounted) {
+  // While Zustand is rehydrating from localStorage, show nothing to prevent flash
+  if (!hydrated) {
     return (
-      <Box sx={{ height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', bgcolor: '#0F172A', color: '#FFF', gap: 2 }}>
-        <CircularProgress color="warning" size={48} />
-        <Typography variant="body2" sx={{ fontWeight: 800, color: '#94A3B8' }}>جاري التحقق من أمان وحساب المستخدم...</Typography>
+      <Box sx={{
+        height: '100vh', width: '100vw',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        bgcolor: '#0F172A'
+      }}>
+        <CircularProgress color="warning" size={44} thickness={5} />
       </Box>
     );
   }
 
-  // 🔒 GATEKEEPER: Strict Deny for unauthenticated users on protected routes
-  if (!isAuthenticated && !isLoginPage) {
+  // Block render of protected content while redirect is pending
+  if (!isAuthenticated && !isPublic) {
     return (
-      <Box sx={{ height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', bgcolor: '#0F172A', color: '#FFF', gap: 2 }}>
-        <CircularProgress color="warning" size={48} />
-        <Typography variant="body2" sx={{ fontWeight: 800, color: '#EF4444' }}>غير مسموح بالدخول! جاري التوجيه لشاشة تسجيل الدخول...</Typography>
+      <Box sx={{
+        height: '100vh', width: '100vw',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        bgcolor: '#0F172A'
+      }}>
+        <CircularProgress color="error" size={44} thickness={5} />
       </Box>
     );
   }
 
-  if (isLoginPage) {
+  // Login page - full screen, no sidebar
+  if (isPublic) {
     return (
       <Box sx={{ height: '100vh', width: '100vw', overflow: 'hidden' }}>
         {children}
@@ -72,35 +76,30 @@ export default function AppShell({ children }) {
     );
   }
 
+  // Authenticated layout with sidebar
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'row',
+    <Box sx={{
+      display: 'flex',
+      flexDirection: 'row',
+      height: '100vh',
+      width: '100vw',
+      overflow: 'hidden',
+      bgcolor: 'background.default',
+    }}>
+      <Box sx={{
+        flex: 1,
         height: '100vh',
-        width: '100vw',
-        overflow: 'hidden',
-        bgcolor: 'background.default',
-      }}
-    >
-      {/* Main Content */}
-      <Box
-        sx={{
-          flex: 1,
-          height: '100vh',
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          '&::-webkit-scrollbar': { width: 8 },
-          '&::-webkit-scrollbar-thumb': { bgcolor: '#CBD5E1', borderRadius: 4 },
-        }}
-      >
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        '&::-webkit-scrollbar': { width: 8 },
+        '&::-webkit-scrollbar-thumb': { bgcolor: '#CBD5E1', borderRadius: 4 },
+      }}>
         {children}
       </Box>
 
-      {/* Sidebar - Renders only for authenticated users */}
-      {mounted && isAuthenticated && <Sidebar />}
+      <Sidebar />
     </Box>
   );
 }

@@ -37,7 +37,7 @@ export default function AdminPage() {
     id: '',
     name: '',
     username: '',
-    pin: '1234',
+    pin: '',
     role: 'cashier',
     branch_id: 'b1',
     permissions: ROLE_PERMISSIONS.cashier,
@@ -70,7 +70,7 @@ export default function AdminPage() {
         id: user.id,
         name: user.name || '',
         username: user.username || '',
-        pin: user.pin || '1234',
+        pin: '',           // Never show saved PIN - admin must re-enter to change
         role: user.role || 'cashier',
         branch_id: user.branch_id || 'b1',
         permissions: Array.isArray(user.permissions) && user.permissions.length > 0
@@ -83,7 +83,7 @@ export default function AdminPage() {
         id: '',
         name: '',
         username: '',
-        pin: '1234',
+        pin: '',
         role: 'cashier',
         branch_id: 'b1',
         permissions: [...ROLE_PERMISSIONS.cashier],

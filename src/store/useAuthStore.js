@@ -3,31 +3,30 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-// Default route presets per role
 export const ROLE_PERMISSIONS = {
-  admin: ['/', '/invoices', '/products', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance', '/inventory', '/salaries', '/reports', '/admin', '/settings'],
+  admin:   ['/', '/invoices', '/products', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance', '/inventory', '/salaries', '/reports', '/admin', '/settings'],
   cashier: ['/', '/invoices', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance'],
-  driver: ['/delivery', '/attendance', '/orders'],
-  kitchen: ['/orders']
+  driver:  ['/delivery', '/attendance', '/orders'],
+  kitchen: ['/orders'],
 };
 
 export const ALL_SYSTEM_SCREENS = [
-  { path: '/', name: 'الرئيسية (الكاشير والـ POS)' },
-  { path: '/invoices', name: 'الفواتير والتحصيل المالي' },
-  { path: '/products', name: 'إدارة المنتجات والمنيو' },
-  { path: '/prizes', name: 'السحب والجوائز وعجلة الحظ' },
-  { path: '/orders', name: 'سجل الطلبات والفواتير' },
-  { path: '/tables', name: 'إدارة الصالة والطاولات' },
-  { path: '/customers', name: 'إدارة العملاء والبحث بالهاتف' },
-  { path: '/finances', name: 'الإيرادات والمصروفات والديون' },
+  { path: '/',              name: 'الرئيسية (الكاشير والـ POS)' },
+  { path: '/invoices',      name: 'الفواتير والتحصيل المالي' },
+  { path: '/products',      name: 'إدارة المنتجات والمنيو' },
+  { path: '/prizes',        name: 'السحب والجوائز وعجلة الحظ' },
+  { path: '/orders',        name: 'سجل الطلبات والفواتير' },
+  { path: '/tables',        name: 'إدارة الصالة والطاولات' },
+  { path: '/customers',     name: 'إدارة العملاء والبحث بالهاتف' },
+  { path: '/finances',      name: 'الإيرادات والمصروفات والديون' },
   { path: '/shift-summary', name: 'تقفيل الشيفتات والخزنة' },
-  { path: '/delivery', name: 'إدارة الدليفري والطيارين' },
-  { path: '/attendance', name: 'تمامات الموظفين والطيارين' },
-  { path: '/inventory', name: 'المخزن والمواد الخام' },
-  { path: '/salaries', name: 'المرتبات والسلف للموظفين' },
-  { path: '/reports', name: 'التقارير والإحصائيات الحية' },
-  { path: '/admin', name: 'إدارة المستخدمين والأدمن' },
-  { path: '/settings', name: 'إعدادات النظام والبرنتر' },
+  { path: '/delivery',      name: 'إدارة الدليفري والطيارين' },
+  { path: '/attendance',    name: 'تمامات الموظفين والطيارين' },
+  { path: '/inventory',     name: 'المخزن والمواد الخام' },
+  { path: '/salaries',      name: 'المرتبات والسلف للموظفين' },
+  { path: '/reports',       name: 'التقارير والإحصائيات الحية' },
+  { path: '/admin',         name: 'إدارة المستخدمين والأدمن' },
+  { path: '/settings',      name: 'إعدادات النظام والبرنتر' },
 ];
 
 export const useAuthStore = create(
@@ -45,29 +44,38 @@ export const useAuthStore = create(
       },
 
       hasPermission: (pathname) => {
-        const user = get().user;
-        const isAuthenticated = get().isAuthenticated;
-        
-        // STRICT SECURITY: Unauthenticated users have 0 permissions!
+        const { user, isAuthenticated } = get();
+
+        // Unauthenticated = no access to anything
         if (!isAuthenticated || !user) return false;
 
         const role = user.role || 'cashier';
-        if (role === 'admin') return true; // Admin has full access to all system screens
 
-        // Custom granular screen permissions set on user by Admin
+        // Admin always has full access
+        if (role === 'admin') return true;
+
+        // Custom per-user permissions set by Admin
         if (Array.isArray(user.permissions) && user.permissions.length > 0) {
-          if (pathname === '/') return user.permissions.includes('/') || user.permissions.includes('pos');
-          if (pathname === '/attendance') return true; // Always allow attendance screen for employees
-          return user.permissions.some(r => r !== '/' && (pathname.startsWith(r) || pathname.startsWith('/' + r)));
+          // Always allow attendance for any logged in user
+          if (pathname === '/attendance') return true;
+          // Match by full path or short path (e.g. 'pos' matches '/', 'orders' matches '/orders')
+          return user.permissions.some(p => {
+            const normalized = p.startsWith('/') ? p : `/${p}`;
+            if (normalized === '/pos' || normalized === '/') {
+              return pathname === '/';
+            }
+            return pathname === normalized || pathname.startsWith(normalized + '/');
+          });
         }
 
-        const allowedRoutes = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.cashier;
-        if (pathname === '/') return allowedRoutes.includes('/');
-        return allowedRoutes.some(r => r !== '/' && pathname.startsWith(r));
+        // Fall back to role defaults
+        const allowed = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.cashier;
+        if (pathname === '/') return allowed.includes('/');
+        return allowed.some(r => r !== '/' && pathname.startsWith(r));
       }
     }),
     {
-      name: 'el-baraday-auth-v4',
+      name: 'el-baraday-auth-v5',
     }
   )
 );

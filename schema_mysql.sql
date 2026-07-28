@@ -423,9 +423,7 @@ INSERT IGNORE INTO `employees` (`id`, `name`, `phone`, `role`, `base_salary`, `b
   ('e5', 'عمر حسن', '01056789012', 'كاشير', 5000, 'b1'),
   ('e6', 'يوسف إبراهيم', '01067890123', 'شيف مطبخ', 6000, 'b1');
 
-INSERT IGNORE INTO `users` (`id`, `username`, `name`, `pin`, `role`, `permissions`, `branch_id`) VALUES
-  ('u1', 'admin', 'المدير العام', '1234', 'admin', '["pos","tables","delivery","inventory","salaries","reports","settings","admin","attendance","shift-summary"]', 'b1'),
-  ('u2', 'cashier', 'كاشير 1', '1234', 'cashier', '["pos","tables","delivery","attendance"]', 'b1');
+-- NOTE: No default users are seeded. Use the /admin panel to create users manually.
 
 INSERT IGNORE INTO `inventory_items` (`id`, `name`, `unit`, `current_stock`, `min_stock`, `cost_per_unit`, `category`) VALUES
   ('inv1', 'لحمة مفرومة', 'كجم', 50, 10, 250, 'لحوم'),

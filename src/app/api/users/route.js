@@ -3,9 +3,10 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    // Query only users explicitly created in the users table
     const result = await query(`
-      SELECT u.id, u.username, u.name, u.role, u.permissions, u.status, u.avatar, u.last_login, u.created_at, u.branch_id, COALESCE(b.name, 'الفرع الرئيسي') as branch_name
+      SELECT u.id, u.username, u.name, u.role, u.permissions, u.status,
+             u.avatar, u.last_login, u.created_at, u.branch_id,
+             COALESCE(b.name, 'الفرع الرئيسي') as branch_name
       FROM users u
       LEFT JOIN branches b ON u.branch_id = b.id
       ORDER BY u.created_at ASC
@@ -14,14 +15,13 @@ export async function GET() {
     const rows = (result.rows || []).map((u) => {
       let parsedPerms = [];
       try {
-        parsedPerms = u.permissions ? (typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions) : [];
+        parsedPerms = u.permissions
+          ? (typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions)
+          : [];
       } catch (e) {
         parsedPerms = [];
       }
-      return {
-        ...u,
-        permissions: parsedPerms
-      };
+      return { ...u, permissions: parsedPerms };
     });
 
     return NextResponse.json(rows);
@@ -36,27 +36,46 @@ export async function POST(request) {
     const body = await request.json();
     const { username, name, pin, role, permissions, status, avatar, branch_id } = body;
 
-    if (!username || !name || !pin) {
-      return NextResponse.json({ error: 'اسم المستخدم والاسم والـ PIN مطلوبين' }, { status: 400 });
+    if (!username || !username.trim()) {
+      return NextResponse.json({ error: 'اسم المستخدم مطلوب' }, { status: 400 });
+    }
+    if (!name || !name.trim()) {
+      return NextResponse.json({ error: 'الاسم مطلوب' }, { status: 400 });
+    }
+    if (!pin || pin.trim().length < 4) {
+      return NextResponse.json({ error: 'رمز PIN يجب أن يتكون من 4 أرقام على الأقل' }, { status: 400 });
     }
 
-    const permsStr = Array.isArray(permissions) ? JSON.stringify(permissions) : JSON.stringify(permissions || []);
+    const permsStr = Array.isArray(permissions)
+      ? JSON.stringify(permissions)
+      : JSON.stringify([]);
 
     const result = await query(
       `INSERT INTO users (id, username, name, pin, role, permissions, status, avatar, branch_id)
        VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [username.trim().toLowerCase(), name.trim(), pin.trim(), role || 'cashier', permsStr, status || 'active', avatar || null, branch_id || 'b1']
+      [
+        username.trim().toLowerCase(),
+        name.trim(),
+        pin.trim(),
+        role || 'cashier',
+        permsStr,
+        status || 'active',
+        avatar || null,
+        branch_id || 'b1'
+      ]
     );
 
     if (result.rows && result.rows.length > 0) {
       const u = result.rows[0];
       return NextResponse.json({
         ...u,
-        permissions: u.permissions ? (typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions) : []
+        permissions: u.permissions
+          ? (typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions)
+          : []
       }, { status: 201 });
     }
 
-    return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
+    return NextResponse.json({ error: 'فشل إنشاء المستخدم' }, { status: 500 });
   } catch (error) {
     console.error('❌ Error creating user:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
