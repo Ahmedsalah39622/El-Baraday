@@ -28,6 +28,7 @@ import {
 } from '@mui/icons-material';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { printCustomInvoice } from '@/lib/printReceipt';
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -230,8 +231,11 @@ export default function InvoicesPage() {
     setViewDialogOpen(true);
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = (invToPrint = null) => {
+    const target = invToPrint || viewInvoice;
+    if (target) {
+      printCustomInvoice(target, settings);
+    }
   };
 
   const getWhatsAppShareUrl = (inv) => {

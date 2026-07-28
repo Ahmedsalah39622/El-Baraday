@@ -402,3 +402,317 @@ export function printThermalReceipt(orderData) {
     }, 2000);
   }, 250);
 }
+
+// Custom General / Collection Invoice Printing Helper
+export function printCustomInvoice(invoiceData, settings = {}) {
+  if (!invoiceData) return;
+
+  const {
+    invoice_number = 'INV-1001',
+    customer_name = 'عميل',
+    customer_phone = '',
+    title = 'فاتورة تحصيل',
+    amount = 0,
+    paid_amount = 0,
+    remaining_amount = 0,
+    payment_status = 'paid',
+    payment_method = 'cash',
+    invoice_date = new Date().toISOString().split('T')[0],
+    notes = '',
+    items = [],
+  } = invoiceData;
+
+  const companyName = settings?.company_name || 'مطعم البرادعي للحواوشي';
+  const companyAddress = settings?.company_address || 'المحل الرئيسي';
+  const companyPhone = settings?.company_phone || '01012345678';
+
+  const getStatusLabel = (status) => {
+    switch (status) {
+      case 'paid': return 'محصل بالكامل';
+      case 'partial': return 'تحصيل جزئي';
+      case 'unpaid': return 'غير محصل (آجل)';
+      default: return 'مكتمل';
+    }
+  };
+
+  const getPaymentMethodLabel = (method) => {
+    switch (method) {
+      case 'cash': return 'نقداً (كاش)';
+      case 'visa': return 'فيزا / بطاقة';
+      case 'transfer': return 'تحويل بنكي';
+      case 'vodafone_cash': return 'فودافون كاش';
+      default: return method || 'كاش';
+    }
+  };
+
+  const itemsHtml = Array.isArray(items) && items.length > 0
+    ? items.map((item) => `
+        <tr style="border-bottom: 1px solid #ddd;">
+          <td style="padding: 8px; text-align: right;">${item.description || item.name || item.product_name || 'بند'}</td>
+          <td style="padding: 8px; text-align: center;">${item.qty || item.quantity || 1}</td>
+          <td style="padding: 8px; text-align: center;">${parseFloat(item.price || 0).toLocaleString()} ج.م</td>
+          <td style="padding: 8px; text-align: center; font-weight: bold;">${parseFloat(item.total || ((item.price || 0) * (item.qty || item.quantity || 1)) || 0).toLocaleString()} ج.م</td>
+        </tr>
+      `).join('')
+    : '';
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="ar" dir="rtl">
+    <head>
+      <meta charset="UTF-8">
+      <title>فاتورة ${invoice_number}</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
+        @page {
+          size: auto;
+          margin: 10mm;
+        }
+        @media print {
+          html, body {
+            background: #ffffff !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
+        body {
+          font-family: 'Cairo', system-ui, -apple-system, sans-serif;
+          margin: 0;
+          padding: 15px;
+          color: #000000;
+          background: #ffffff;
+          direction: rtl;
+        }
+        .invoice-box {
+          max-width: 800px;
+          margin: auto;
+          padding: 24px;
+          border: 2px solid #000000;
+          border-radius: 12px;
+          box-sizing: border-box;
+        }
+        .header {
+          text-align: center;
+          border-bottom: 2px solid #000000;
+          padding-bottom: 15px;
+          margin-bottom: 20px;
+        }
+        .header h1 {
+          margin: 0 0 6px 0;
+          font-size: 26px;
+          font-weight: 900;
+          color: #000000;
+        }
+        .header p {
+          margin: 0;
+          font-size: 14px;
+          color: #222222;
+          font-weight: 700;
+        }
+        .doc-title {
+          display: inline-block;
+          margin-top: 12px;
+          padding: 6px 24px;
+          border: 2px solid #000000;
+          font-size: 19px;
+          font-weight: 900;
+          background: #F1F5F9;
+          border-radius: 6px;
+          color: #000000;
+        }
+        .meta-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 20px;
+        }
+        .meta-table td {
+          padding: 10px 14px;
+          border: 1.5px solid #000000;
+          font-size: 14px;
+          font-weight: 700;
+          color: #000000;
+        }
+        .meta-table td strong {
+          color: #000000;
+          font-weight: 900;
+        }
+        .items-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 20px;
+        }
+        .items-table th {
+          background: #E2E8F0;
+          border: 1.5px solid #000000;
+          padding: 10px;
+          font-size: 14px;
+          font-weight: 900;
+          color: #000000;
+        }
+        .items-table td {
+          border: 1px solid #000000;
+          padding: 8px 10px;
+          font-size: 13px;
+          font-weight: 700;
+          color: #000000;
+        }
+        .totals-box {
+          width: 100%;
+          border: 2px solid #000000;
+          background: #F8FAFC;
+          padding: 16px;
+          box-sizing: border-box;
+          margin-bottom: 20px;
+          border-radius: 8px;
+        }
+        .totals-row {
+          display: flex;
+          justify-content: space-between;
+          font-size: 16px;
+          font-weight: 800;
+          margin-bottom: 8px;
+          color: #000000;
+        }
+        .totals-row.main {
+          font-size: 21px;
+          font-weight: 900;
+          border-bottom: 2px solid #000000;
+          padding-bottom: 10px;
+          margin-bottom: 12px;
+        }
+        .notes-box {
+          border: 1.5px dashed #000000;
+          padding: 12px;
+          margin-bottom: 25px;
+          font-size: 13px;
+          font-weight: 700;
+          background: #FAFAFA;
+          border-radius: 6px;
+          color: #000000;
+        }
+        .signatures {
+          margin-top: 40px;
+          display: flex;
+          justify-content: space-between;
+          text-align: center;
+        }
+        .signatures strong {
+          font-size: 14px;
+          font-weight: 900;
+          color: #000000;
+        }
+        .signatures .sign-line {
+          margin-top: 45px;
+          width: 180px;
+          border-top: 2px solid #000000;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="invoice-box">
+        <div class="header">
+          <h1>${companyName}</h1>
+          <p>${companyAddress} ${companyPhone ? ` | هاتف: ${companyPhone}` : ''}</p>
+          <div class="doc-title">فاتورة تحصيل مالي</div>
+        </div>
+
+        <table class="meta-table">
+          <tr>
+            <td><strong>رقم الفاتورة:</strong> ${invoice_number}</td>
+            <td><strong>تاريخ الفاتورة (يوم كذا):</strong> ${invoice_date ? invoice_date.split('T')[0] : ''}</td>
+          </tr>
+          <tr>
+            <td><strong>اسم العميل/الجهة (باسم كذا):</strong> ${customer_name}</td>
+            <td><strong>رقم الهاتف:</strong> ${customer_phone || '-'}</td>
+          </tr>
+          <tr>
+            <td colspan="2"><strong>البيان / الوصف:</strong> ${title || 'فاتورة تحصيل'}</td>
+          </tr>
+        </table>
+
+        ${itemsHtml ? `
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="text-align: right;">البند / البيان</th>
+                <th>الكمية</th>
+                <th>سعر الوحدة</th>
+                <th>الإجمالي</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+        ` : ''}
+
+        <div class="totals-box">
+          <div class="totals-row main">
+            <span>مبلغ التحصيل الإجمالي:</span>
+            <span>${parseFloat(amount).toLocaleString()} ج.م</span>
+          </div>
+          <div class="totals-row" style="color: #15803D;">
+            <span>المبلغ المستلم (المحصل):</span>
+            <span>${parseFloat(paid_amount).toLocaleString()} ج.م</span>
+          </div>
+          ${parseFloat(remaining_amount) > 0 ? `
+            <div class="totals-row" style="color: #B91C1C;">
+              <span>المبلغ المتبقي (الآجل):</span>
+              <span>${parseFloat(remaining_amount).toLocaleString()} ج.م</span>
+            </div>
+          ` : ''}
+          <div style="margin-top: 12px; font-size: 14px; font-weight: 800; border-top: 1.5px dashed #000000; padding-top: 10px; display: flex; justify-content: space-between;">
+            <span><strong>طريقة الدفع:</strong> ${getPaymentMethodLabel(payment_method)}</span>
+            <span><strong>حالة التحصيل:</strong> ${getStatusLabel(payment_status)}</span>
+          </div>
+        </div>
+
+        ${notes ? `
+          <div class="notes-box">
+            <strong>ملاحظات:</strong> ${notes}
+          </div>
+        ` : ''}
+
+        <div class="signatures">
+          <div>
+            <strong>توقيع الموظف / المسؤول</strong>
+            <div class="sign-line"></div>
+          </div>
+          <div>
+            <strong>توقيع المستلم / العميل</strong>
+            <div class="sign-line"></div>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.style.visibility = 'hidden';
+
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  setTimeout(() => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => {
+      try {
+        document.body.removeChild(iframe);
+      } catch (e) { }
+    }, 2000);
+  }, 250);
+}
+
