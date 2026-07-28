@@ -23,9 +23,39 @@ async function ensureDriverAttendanceTable() {
   driverAttendanceChecked = true;
 }
 
+let invoicesChecked = false;
+async function ensureInvoicesTable() {
+  if (invoicesChecked) return;
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS invoices (
+        id VARCHAR(100) PRIMARY KEY,
+        invoice_number VARCHAR(100) NOT NULL UNIQUE,
+        title VARCHAR(255) DEFAULT 'فاتورة تحصيل',
+        customer_name VARCHAR(255) NOT NULL,
+        customer_phone VARCHAR(100),
+        amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+        paid_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+        remaining_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+        payment_status VARCHAR(50) DEFAULT 'paid',
+        payment_method VARCHAR(50) DEFAULT 'cash',
+        invoice_date DATE NOT NULL,
+        notes TEXT,
+        items JSON DEFAULT NULL,
+        branch_id VARCHAR(100) DEFAULT 'b1',
+        created_by VARCHAR(100) DEFAULT 'administrator',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } catch(e) {}
+  invoicesChecked = true;
+}
+
 export async function GET(req) {
   try {
     await ensureDriverAttendanceTable();
+    await ensureInvoicesTable();
 
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get('branch_id');

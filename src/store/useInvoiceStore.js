@@ -3,6 +3,7 @@ import { useCustomerStore } from '@/store/useCustomerStore';
 
 export const useInvoiceStore = create((set, get) => ({
   invoices: [],
+  customInvoices: [],
   nextOrderNumber: 1,
   loading: false,
 
@@ -16,7 +17,7 @@ export const useInvoiceStore = create((set, get) => ({
     } catch (e) {}
   },
 
-  // Fetch invoices/orders from DB with optional branch filter
+  // Fetch POS order invoices from DB
   fetchInvoices: async (limitOrBranch = 100, branchIdArg = 'all') => {
     let limit = 100;
     let branchId = 'all';
@@ -67,6 +68,97 @@ export const useInvoiceStore = create((set, get) => ({
     } catch (err) {
       console.warn('⚠️ Using cached invoices:', err.message);
       set({ loading: false });
+    }
+  },
+
+  // Fetch custom created invoices (التحصيل والفواتير العامة)
+  fetchCustomInvoices: async (filters = {}) => {
+    set({ loading: true });
+    try {
+      const queryParams = new URLSearchParams();
+      if (filters.search) queryParams.set('search', filters.search);
+      if (filters.date) queryParams.set('date', filters.date);
+      if (filters.status) queryParams.set('status', filters.status);
+      if (filters.branch_id && filters.branch_id !== 'all') queryParams.set('branch_id', filters.branch_id);
+
+      const res = await fetch(`/api/invoices?${queryParams.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        set({ customInvoices: data, loading: false });
+        return data;
+      }
+    } catch (err) {
+      console.error('Failed to fetch custom invoices:', err);
+    } finally {
+      set({ loading: false });
+    }
+    return [];
+  },
+
+  // Add custom invoice (اسم كذا، تحصيل كذا، يوم كذا)
+  addCustomInvoice: async (invoiceData) => {
+    set({ loading: true });
+    try {
+      const res = await fetch('/api/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(invoiceData),
+      });
+
+      if (res.ok) {
+        const created = await res.json();
+        set((state) => ({
+          customInvoices: [created, ...state.customInvoices],
+          loading: false,
+        }));
+        return { success: true, data: created };
+      } else {
+        const errData = await res.json();
+        set({ loading: false });
+        return { success: false, error: errData.error || 'فشل إضافة الفاتورة' };
+      }
+    } catch (err) {
+      set({ loading: false });
+      return { success: false, error: err.message };
+    }
+  },
+
+  // Update custom invoice
+  updateCustomInvoice: async (id, updateData) => {
+    set({ loading: true });
+    try {
+      const res = await fetch(`/api/invoices/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData),
+      });
+
+      if (res.ok) {
+        await get().fetchCustomInvoices();
+        return { success: true };
+      } else {
+        const errData = await res.json();
+        set({ loading: false });
+        return { success: false, error: errData.error };
+      }
+    } catch (err) {
+      set({ loading: false });
+      return { success: false, error: err.message };
+    }
+  },
+
+  // Delete custom invoice
+  deleteCustomInvoice: async (id) => {
+    try {
+      const res = await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        set((state) => ({
+          customInvoices: state.customInvoices.filter((inv) => inv.id !== id),
+        }));
+        return { success: true };
+      }
+    } catch (err) {
+      return { success: false, error: err.message };
     }
   },
 

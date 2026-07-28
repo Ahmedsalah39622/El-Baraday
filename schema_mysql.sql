@@ -25,6 +25,7 @@ DROP TABLE IF EXISTS `branches`;
 DROP TABLE IF EXISTS `shifts`;
 DROP TABLE IF EXISTS `purchases`;
 DROP TABLE IF EXISTS `expenses`;
+DROP TABLE IF EXISTS `invoices`;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -253,6 +254,27 @@ CREATE TABLE IF NOT EXISTS `expenses` (
   `branch_id` VARCHAR(100) DEFAULT 'b1',
   `notes` TEXT,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ==================== INVOICES (الفواتير والتحصيل) ====================
+CREATE TABLE IF NOT EXISTS `invoices` (
+  `id` VARCHAR(100) PRIMARY KEY,
+  `invoice_number` VARCHAR(100) NOT NULL UNIQUE,
+  `title` VARCHAR(255) DEFAULT 'فاتورة تحصيل',
+  `customer_name` VARCHAR(255) NOT NULL,
+  `customer_phone` VARCHAR(100),
+  `amount` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+  `paid_amount` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+  `remaining_amount` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+  `payment_status` VARCHAR(50) DEFAULT 'paid',
+  `payment_method` VARCHAR(50) DEFAULT 'cash',
+  `invoice_date` DATE NOT NULL,
+  `notes` TEXT,
+  `items` JSON DEFAULT NULL,
+  `branch_id` VARCHAR(100) DEFAULT 'b1',
+  `created_by` VARCHAR(100) DEFAULT 'administrator',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ==================== PURCHASES (مشتريات خامات) ====================
