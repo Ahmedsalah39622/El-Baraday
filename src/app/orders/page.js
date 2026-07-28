@@ -44,15 +44,16 @@ export default function OrdersPage() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
-  const targetBranch = selectedBranchId || 'all';
+  const effectiveBranch = (user && user.role !== 'admin' && user.branch_id) ? user.branch_id : selectedBranchId;
+  const targetBranch = effectiveBranch || 'all';
 
   useEffect(() => {
     fetchInvoices(100, targetBranch);
-  }, [targetBranch]);
+  }, [targetBranch, user]);
 
   // Filter orders strictly by selected branch & search query
   const filteredOrders = (invoices || []).filter((inv) => {
-    const matchBranch = !selectedBranchId || selectedBranchId === 'all' || inv.branchId === selectedBranchId || inv.branch_id === selectedBranchId;
+    const matchBranch = !targetBranch || targetBranch === 'all' || inv.branchId === targetBranch || inv.branch_id === targetBranch;
     if (!matchBranch) return false;
 
     if (!searchQuery) return true;

@@ -29,6 +29,8 @@ import {
 } from '@mui/icons-material';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { useBranchStore } from '@/store/useBranchStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { printCustomInvoice } from '@/lib/printReceipt';
 import { generateReportPDF } from '@/lib/reportPdfExport';
 
@@ -54,6 +56,9 @@ export default function InvoicesPage() {
     fetchInvoices 
   } = useInvoiceStore();
   const { settings } = useSettingsStore();
+  const { selectedBranchId } = useBranchStore();
+  const { user } = useAuthStore();
+  const effectiveBranch = (user && user.role !== 'admin' && user.branch_id) ? user.branch_id : selectedBranchId;
 
   // Filters & State for Custom Invoices
   const [searchQuery, setSearchQuery] = useState('');
@@ -92,8 +97,8 @@ export default function InvoicesPage() {
 
   useEffect(() => {
     fetchCustomInvoices();
-    fetchInvoices();
-  }, []);
+    fetchInvoices(100, effectiveBranch || 'all');
+  }, [effectiveBranch, selectedBranchId, user]);
 
   const handleTabChange = (event, newValue) => setTabValue(newValue);
 

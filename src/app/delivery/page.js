@@ -60,6 +60,8 @@ export default function DeliveryPage() {
   const [areaDialogOpen, setAreaDialogOpen] = useState(false);
   const [newAreaName, setNewAreaName] = useState('');
 
+  const effectiveBranch = (user && user.role !== 'admin' && user.branch_id) ? user.branch_id : selectedBranchId;
+
   // Fetch Delivery Orders & Settings
   const fetchDeliveryData = async (isSilent = false) => {
     if (!isSilent) setLoadingOrders(true);
@@ -70,11 +72,18 @@ export default function DeliveryPage() {
         if (setObj.delivery_timer_minutes) setDeliveryTimerMinutes(parseInt(setObj.delivery_timer_minutes) || 30);
       }
 
-      const url = selectedBranchId && selectedBranchId !== 'all' ? `/api/orders?branch_id=${selectedBranchId}` : '/api/orders';
+      const url = effectiveBranch && effectiveBranch !== 'all' ? `/api/orders?branch_id=${effectiveBranch}` : '/api/orders';
       const res = await fetch(url);
       if (res.ok) {
         const rows = await res.json();
-        const delOrders = (rows || []).filter(o => o.order_type === 'delivery' || o.orderType === 'delivery');
+        const delOrders = (rows || []).filter(o => {
+          const isDelivery = o.order_type === 'delivery' || o.orderType === 'delivery';
+          if (!isDelivery) return false;
+          if (effectiveBranch && effectiveBranch !== 'all') {
+            return o.branch_id === effectiveBranch || o.branchId === effectiveBranch;
+          }
+          return true;
+        });
         setDeliveryOrders(delOrders);
       }
     } catch (e) {
@@ -89,14 +98,14 @@ export default function DeliveryPage() {
     fetchCustomers();
     fetchAreas();
     fetchDrivers();
-    fetchAttendanceQueue(selectedBranchId);
+    fetchAttendanceQueue(effectiveBranch);
 
     const interval = setInterval(() => {
       fetchDeliveryData(true);
-      fetchAttendanceQueue(selectedBranchId);
+      fetchAttendanceQueue(effectiveBranch);
     }, 6000);
     return () => clearInterval(interval);
-  }, [selectedBranchId]);
+  }, [effectiveBranch, selectedBranchId, user]);
 
   const handleTabChange = (event, newValue) => setTabValue(newValue);
 

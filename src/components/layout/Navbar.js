@@ -66,6 +66,14 @@ export default function Navbar() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (user && user.role !== 'admin' && user.branch_id) {
+      if (selectedBranchId !== user.branch_id) {
+        setSelectedBranchId(user.branch_id);
+      }
+    }
+  }, [user, selectedBranchId]);
+
   const handleCloseAll = () => {
     setSettingsAnchor(null);
     setBranchMenuAnchor(null);
