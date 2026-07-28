@@ -64,11 +64,47 @@ export const useEmployeeStore = create(
         } catch (e) {}
       },
 
-      markAsPaid: (employeeId) => set((state) => ({
-        employees: state.employees.map(e =>
-          e.id === employeeId ? { ...e, status: 'تم الصرف' } : e
-        )
-      })),
+      markAsPaid: async (employeeId, calcDetails = null) => {
+        const emp = get().employees.find(e => e.id === employeeId);
+        set((state) => ({
+          employees: state.employees.map(e =>
+            e.id === employeeId ? { ...e, status: 'تم الصرف' } : e
+          )
+        }));
+
+        try {
+          await fetch(`/api/employees/${employeeId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'تم الصرف' })
+          });
+        } catch (e) {}
+
+        if (emp && calcDetails) {
+          try {
+            await fetch('/api/employees/payments', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                employee_id: emp.id,
+                employee_name: emp.name,
+                base_salary: calcDetails.base,
+                hourly_rate: calcDetails.hourlyRate,
+                overtime_hours: calcDetails.overtimeHours,
+                overtime_amount: calcDetails.overtimeAmount,
+                deduction_hours: calcDetails.deductionHours,
+                deduction_amount: calcDetails.deductionAmount,
+                bonus_amount: calcDetails.directBonus,
+                direct_deductions: calcDetails.directDeductions,
+                advances_amount: calcDetails.advances,
+                net_paid: calcDetails.net,
+                month: new Date().toISOString().substring(0, 7),
+                notes: 'تم صرف راتب الشهر'
+              })
+            });
+          } catch (e) {}
+        }
+      },
 
       addEmployee: async (emp) => {
         const newId = `emp_${Date.now()}`;

@@ -134,10 +134,47 @@ CREATE TABLE IF NOT EXISTS `employees` (
 CREATE TABLE IF NOT EXISTS `employee_advances` (
   `id` VARCHAR(100) PRIMARY KEY,
   `employee_id` VARCHAR(100),
+  `employee_name` VARCHAR(255),
   `amount` DECIMAL(10, 2) NOT NULL,
   `month` VARCHAR(50),
   `notes` TEXT,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`employee_id`) REFERENCES `employees`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ==================== EMPLOYEE BONUS & DEDUCTIONS (سجل البونص والخصومات) ====================
+CREATE TABLE IF NOT EXISTS `employee_bonus_deductions` (
+  `id` VARCHAR(100) PRIMARY KEY,
+  `employee_id` VARCHAR(100),
+  `employee_name` VARCHAR(255),
+  `type` VARCHAR(50) NOT NULL, -- 'bonus' or 'deduction'
+  `category` VARCHAR(100) DEFAULT 'direct_cash', -- 'full_attendance', 'overtime_hours', 'deduction_hours', 'direct_cash'
+  `value_hours` DECIMAL(10, 2) DEFAULT 0,
+  `amount` DECIMAL(10, 2) NOT NULL,
+  `month` VARCHAR(50),
+  `notes` TEXT,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`employee_id`) REFERENCES `employees`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ==================== SALARY PAYMENTS (سجل صرف المرتبات والقبض) ====================
+CREATE TABLE IF NOT EXISTS `salary_payments` (
+  `id` VARCHAR(100) PRIMARY KEY,
+  `employee_id` VARCHAR(100),
+  `employee_name` VARCHAR(255),
+  `base_salary` DECIMAL(10, 2) DEFAULT 0,
+  `hourly_rate` DECIMAL(10, 2) DEFAULT 0,
+  `overtime_hours` DECIMAL(10, 2) DEFAULT 0,
+  `overtime_amount` DECIMAL(10, 2) DEFAULT 0,
+  `deduction_hours` DECIMAL(10, 2) DEFAULT 0,
+  `deduction_amount` DECIMAL(10, 2) DEFAULT 0,
+  `bonus_amount` DECIMAL(10, 2) DEFAULT 0,
+  `direct_deductions` DECIMAL(10, 2) DEFAULT 0,
+  `advances_amount` DECIMAL(10, 2) DEFAULT 0,
+  `net_paid` DECIMAL(10, 2) NOT NULL,
+  `month` VARCHAR(50),
+  `notes` TEXT,
+  `payment_date` DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`employee_id`) REFERENCES `employees`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
