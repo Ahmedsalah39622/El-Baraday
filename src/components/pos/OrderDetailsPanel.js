@@ -30,7 +30,7 @@ export default function OrderDetailsPanel({
   const { addInvoice, nextOrderNumber, fetchNextOrderNumber } = useInvoiceStore();
   const { customers = [], drivers = [], activeQueue = [], saveOrUpdateCustomer } = useCustomerStore();
   const { user } = useAuthStore();
-  const { branches, selectedBranchId } = useBranchStore();
+  const { branches, selectedBranchId, fetchBranches } = useBranchStore();
   const activeCashierName = user?.name || user?.username || 'أحمد محمود';
 
   const [orderBranchId, setOrderBranchId] = useState(selectedBranchId !== 'all' ? selectedBranchId : (user?.branch_id || 'b1'));
@@ -39,6 +39,7 @@ export default function OrderDetailsPanel({
     const targetBranch = selectedBranchId !== 'all' ? selectedBranchId : (user?.branch_id || 'b1');
     setOrderBranchId(targetBranch);
     fetchNextOrderNumber(targetBranch);
+    fetchBranches(); // Always refresh branches from DB on mount
   }, [selectedBranchId, user]);
 
   const currentBranch = branches.find(b => b.id === orderBranchId);

@@ -6,10 +6,7 @@ import { persist } from 'zustand/middleware';
 export const useBranchStore = create(
   persist(
     (set, get) => ({
-      branches: [
-        { id: 'b1', name: 'الفرع الأول - الرئيسي', phone: '01000000001', address: 'المركز الرئيسي' },
-        { id: 'b2', name: 'الفرع الثاني', phone: '01000000002', address: 'الفرع الثاني' }
-      ],
+      branches: [],
       selectedBranchId: 'all',
 
       setBranches: (branches) => set({ branches }),
@@ -64,7 +61,13 @@ export const useBranchStore = create(
       }
     }),
     {
-      name: 'el-baraday-branch-v2',
+      name: 'el-baraday-branch-v3', // bumped version to clear old cached data
+      onRehydrateStorage: () => (state) => {
+        // After loading from localStorage, always refresh from DB
+        if (state) {
+          state.fetchBranches();
+        }
+      },
     }
   )
 );
