@@ -335,6 +335,28 @@ CREATE TABLE IF NOT EXISTS `purchases` (
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ==================== PRIZE DRAWS & WHEEL SPINS (السحب والجوائز) ====================
+CREATE TABLE IF NOT EXISTS `prize_draws` (
+  `id` VARCHAR(100) PRIMARY KEY,
+  `prize_title` VARCHAR(255) NOT NULL,
+  `winner_name` VARCHAR(255) NOT NULL,
+  `winner_phone` VARCHAR(100),
+  `customer_id` VARCHAR(100),
+  `invoice_number` VARCHAR(100),
+  `draw_type` VARCHAR(50) DEFAULT 'raffle',
+  `status` VARCHAR(50) DEFAULT 'claimed',
+  `notes` TEXT,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `wheel_spins` (
+  `id` VARCHAR(100) PRIMARY KEY,
+  `customer_name` VARCHAR(255) NOT NULL,
+  `customer_phone` VARCHAR(100),
+  `prize_won` VARCHAR(255) NOT NULL,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ==================== APP SETTINGS ====================
 CREATE TABLE IF NOT EXISTS `app_settings` (
   `key` VARCHAR(100) PRIMARY KEY,

@@ -5,8 +5,8 @@ import { persist } from 'zustand/middleware';
 
 // Default route presets per role
 export const ROLE_PERMISSIONS = {
-  admin: ['/', '/invoices', '/products', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance', '/inventory', '/salaries', '/reports', '/admin', '/settings'],
-  cashier: ['/', '/invoices', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance'],
+  admin: ['/', '/invoices', '/products', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance', '/inventory', '/salaries', '/reports', '/admin', '/settings'],
+  cashier: ['/', '/invoices', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance'],
   driver: ['/delivery', '/attendance', '/orders'],
   kitchen: ['/orders']
 };
@@ -15,6 +15,7 @@ export const ALL_SYSTEM_SCREENS = [
   { path: '/', name: 'الرئيسية (الكاشير والـ POS)' },
   { path: '/invoices', name: 'الفواتير والتحصيل المالي' },
   { path: '/products', name: 'إدارة المنتجات والمنيو' },
+  { path: '/prizes', name: 'السحب والجوائز وعجلة الحظ' },
   { path: '/orders', name: 'سجل الطلبات والفواتير' },
   { path: '/tables', name: 'إدارة الصالة والطاولات' },
   { path: '/customers', name: 'إدارة العملاء والبحث بالهاتف' },

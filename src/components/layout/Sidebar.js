@@ -23,6 +23,7 @@ import {
   HowToReg,
   ReceiptLong,
   Receipt,
+  CardGiftcard,
 } from '@mui/icons-material';
 import { useAuthStore } from '@/store/useAuthStore';
 
@@ -30,6 +31,7 @@ const navItems = [
   { id: 'home', label: 'الرئيسية', icon: Home, path: '/' },
   { id: 'invoices', label: 'الفواتير والتحصيل', icon: Receipt, path: '/invoices' },
   { id: 'products', label: 'إدارة المنتجات', icon: FastfoodOutlined, path: '/products' },
+  { id: 'prizes', label: 'السحب والجوائز', icon: CardGiftcard, path: '/prizes' },
   { id: 'tables', label: 'الطاولات', icon: GridView, path: '/tables' },
   { id: 'customers', label: 'العملاء', icon: PersonOutlined, path: '/customers' },
   { id: 'orders', label: 'الطلبات', icon: ListAlt, path: '/orders' },
