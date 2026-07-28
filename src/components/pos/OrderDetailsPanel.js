@@ -393,6 +393,10 @@ export default function OrderDetailsPanel({
                     value={orderBranchId}
                     label="🏢 فرع التوصيل المنفذ (الأدمن فقط)"
                     onChange={(e) => setOrderBranchId(e.target.value)}
+                    renderValue={(val) => {
+                      const found = branches.find(b => b.id === val);
+                      return found ? `🏢 ${found.name}` : (val || '');
+                    }}
                     sx={{ borderRadius: '8px', bgcolor: '#FFF', fontSize: '0.813rem', fontWeight: 800 }}
                   >
                     {branches.map((b) => (
