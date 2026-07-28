@@ -397,7 +397,7 @@ export default function PrizesPage() {
               <ConfirmationNumber sx={{ fontSize: 28 }} />
             </Box>
             <Box>
-              <Typography variant="caption" sx={{ color: '#94A3B8', fontWeight: 800 }}>الكوبونات المسجلة بالداتابيز</Typography>
+              <Typography variant="caption" sx={{ color: '#94A3B8', fontWeight: 800 }}>إجمالي الكوبونات الصادرة</Typography>
               <Typography variant="h5" sx={{ fontWeight: 900, color: '#F59E0B' }}>{couponsHistory.length} كوبون</Typography>
             </Box>
           </Paper>
@@ -454,9 +454,9 @@ export default function PrizesPage() {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
           <Typography variant="h6" sx={{ fontWeight: 900, color: '#F59E0B', display: 'flex', alignItems: 'center', gap: 1 }}>
             <ConfirmationNumber sx={{ fontSize: 28 }} />
-            🎟️ إصدار وطباعة كوبون سحب فوري (ربط آلي بالداتابيز)
+            🎟️ إصدار وطباعة كوبون سحب فوري
           </Typography>
-          <Chip label={`رقم الكوبون القادم: #${previewCouponNum}`} color="warning" size="small" sx={{ fontWeight: 900, fontSize: '0.85rem' }} />
+          <Chip label={`رقم الكوبون: #${previewCouponNum}`} color="warning" size="small" sx={{ fontWeight: 900, fontSize: '0.85rem' }} />
         </Box>
 
         <Grid container spacing={3} alignItems="center">
@@ -464,7 +464,7 @@ export default function PrizesPage() {
           <Grid item xs={12} md={7}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Typography variant="caption" sx={{ color: '#CBD5E1', fontWeight: 800 }}>
-                💡 اختر العميل من السيستم (أو اكتب هاتفه/اسمه ليتم حفظه بالداتابيز وإصدار كوبون السحب له مباشرة):
+                💡 اختر العميل من السيستم (أو أدخل بيانات عميل جديد لإصدار الكوبون فوراً):
               </Typography>
 
               <Autocomplete
@@ -507,7 +507,7 @@ export default function PrizesPage() {
                 <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
-                    label="اسم العميل المأكيد *"
+                    label="اسم العميل *"
                     placeholder="اسم العميل..."
                     value={printCustomerName}
                     onChange={(e) => setPrintCustomerName(e.target.value)}
@@ -555,7 +555,7 @@ export default function PrizesPage() {
                   '&:hover': { background: 'linear-gradient(135deg, #D97706 0%, #B45309 100%)' }
                 }}
               >
-                {isPrinting ? 'جاري الطباعة والتسجيل بالداتابيز...' : 'طباعة ورقة الكوبون وتسجيل بالداتابيز 🎟️'}
+                {isPrinting ? 'جاري طباعة الكوبون...' : 'طباعة كوبون السحب 🎟️'}
               </Button>
             </Box>
           </Grid>
