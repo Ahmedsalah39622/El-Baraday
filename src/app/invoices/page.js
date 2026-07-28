@@ -24,11 +24,13 @@ import {
   Pending as PendingIcon,
   Replay as ReturnIcon,
   Refresh as RefreshIcon,
-  CalendarToday as CalendarIcon
+  CalendarToday as CalendarIcon,
+  PictureAsPdf
 } from '@mui/icons-material';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { printCustomInvoice } from '@/lib/printReceipt';
+import { generateReportPDF } from '@/lib/reportPdfExport';
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -299,6 +301,54 @@ export default function InvoicesPage() {
     }
   };
 
+  const handlePrintInvoicesReport = () => {
+    const dataToPrint = filteredCustomInvoices;
+    
+    const stats = [
+      { title: 'إجمالي الفواتير', value: `${totalAmountSum.toLocaleString()} ج.م (${totalInvoicesCount})` },
+      { title: 'تحصيل اليوم', value: `${todayCollectedSum.toLocaleString()} ج.م` },
+      { title: 'إجمالي المحصل', value: `${totalPaidSum.toLocaleString()} ج.م` },
+      { title: 'المتبقي / الآجل', value: `${totalRemainingSum.toLocaleString()} ج.م` },
+    ];
+
+    const columns = [
+      { label: '#', accessor: (_, idx) => idx + 1 },
+      { label: 'رقم الفاتورة', accessor: 'invoice_number' },
+      { label: 'العميل / الجهة (باسم كذا)', accessor: 'customer_name' },
+      { label: 'البيان', accessor: 'title' },
+      { label: 'التاريخ (يوم كذا)', accessor: (r) => r.invoice_date?.split('T')[0] || '' },
+      { label: 'التحصيل الإجمالي', accessor: (r) => `${parseFloat(r.amount || 0).toLocaleString()} ج.م` },
+      { label: 'المحصل', accessor: (r) => `${parseFloat(r.paid_amount || 0).toLocaleString()} ج.م` },
+      { label: 'المتبقي', accessor: (r) => `${parseFloat(r.remaining_amount || 0).toLocaleString()} ج.م` },
+      { label: 'طريقة الدفع', accessor: (r) => getPaymentMethodLabel(r.payment_method) },
+      { label: 'الحالة', accessor: (r) => (r.payment_status === 'paid' ? 'محصل بالكامل' : r.payment_status === 'partial' ? 'تحصيل جزئي' : 'غير محصل') },
+    ];
+
+    const totals = {
+      0: '',
+      1: 'الإجمالي الكلي',
+      2: '',
+      3: '',
+      4: '',
+      5: `${totalAmountSum.toLocaleString()} ج.م`,
+      6: `${totalPaidSum.toLocaleString()} ج.م`,
+      7: `${totalRemainingSum.toLocaleString()} ج.م`,
+      8: '',
+      9: ''
+    };
+
+    generateReportPDF({
+      title: 'تقرير الفواتير والتحصيل المالي',
+      subtitle: 'مطعم البرادعي للحواوشي',
+      branchName: 'الفرع الرئيسي',
+      dateRangeStr: filterDate ? `يوم ${filterDate}` : 'كافة الفترات',
+      stats,
+      columns,
+      data: dataToPrint,
+      totals
+    });
+  };
+
   // Listen for Ctrl+P / Cmd+P shortcut to trigger clean isolated iframe printing
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -306,8 +356,8 @@ export default function InvoicesPage() {
         e.preventDefault();
         if (viewInvoice) {
           printCustomInvoice(viewInvoice, settings);
-        } else if (filteredCustomInvoices && filteredCustomInvoices.length > 0) {
-          printCustomInvoice(filteredCustomInvoices[0], settings);
+        } else {
+          handlePrintInvoicesReport();
         }
       }
     };
@@ -329,22 +379,42 @@ export default function InvoicesPage() {
             إنشاء وإدارة فواتير التحصيل لأي جهة أو عميل، مع إمكانية عرض الفواتير وطباعتها وتصفيتها.
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          size="large"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenCreateModal()}
-          sx={{
-            borderRadius: '12px',
-            px: 3,
-            py: 1.2,
-            fontWeight: 'bold',
-            boxShadow: '0 8px 20px rgba(66, 133, 244, 0.3)',
-            background: 'linear-gradient(135deg, #4285F4 0%, #1967D2 100%)'
-          }}
-        >
-          عمل فاتورة جديدة
-        </Button>
+        <Stack direction="row" spacing={1.5}>
+          <Button
+            variant="outlined"
+            size="large"
+            startIcon={<PictureAsPdf />}
+            onClick={handlePrintInvoicesReport}
+            sx={{
+              borderRadius: '12px',
+              px: 2.5,
+              py: 1.2,
+              fontWeight: 'bold',
+              borderColor: '#0F172A',
+              color: '#0F172A',
+              '&:hover': { bgcolor: '#F1F5F9', borderColor: '#0F172A' }
+            }}
+          >
+            طباعة تقرير الفواتير (ERP A4)
+          </Button>
+
+          <Button
+            variant="contained"
+            size="large"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenCreateModal()}
+            sx={{
+              borderRadius: '12px',
+              px: 3,
+              py: 1.2,
+              fontWeight: 'bold',
+              boxShadow: '0 8px 20px rgba(66, 133, 244, 0.3)',
+              background: 'linear-gradient(135deg, #4285F4 0%, #1967D2 100%)'
+            }}
+          >
+            عمل فاتورة جديدة
+          </Button>
+        </Stack>
       </Box>
 
       {/* Stats KPI Cards */}
