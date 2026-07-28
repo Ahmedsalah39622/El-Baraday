@@ -32,12 +32,23 @@ export const useBranchStore = create(
           const res = await fetch('/api/branches', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(branchData)
+            body: JSON.stringify(branchData),
           });
-          if (res.ok) {
-            get().fetchBranches();
+          const data = await res.json();
+          if (!res.ok) {
+            console.error('addBranch API error:', data);
+            throw new Error(data?.error || 'فشل إضافة الفرع');
           }
-        } catch (e) {}
+          // Optimistically add to local state, then refresh
+          if (data && data.id) {
+            set((state) => ({ branches: [...state.branches, data] }));
+          }
+          await get().fetchBranches();
+          return data;
+        } catch (e) {
+          console.error('addBranch error:', e);
+          throw e;
+        }
       },
 
       updateBranch: async (id, branchData) => {
@@ -45,12 +56,19 @@ export const useBranchStore = create(
           const res = await fetch('/api/branches', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, ...branchData })
+            body: JSON.stringify({ id, ...branchData }),
           });
-          if (res.ok) {
-            get().fetchBranches();
+          const data = await res.json();
+          if (!res.ok) {
+            console.error('updateBranch API error:', data);
+            throw new Error(data?.error || 'فشل تحديث الفرع');
           }
-        } catch (e) {}
+          await get().fetchBranches();
+          return data;
+        } catch (e) {
+          console.error('updateBranch error:', e);
+          throw e;
+        }
       },
 
       getActiveBranchName: () => {

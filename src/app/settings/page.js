@@ -99,26 +99,29 @@ export default function SettingsPage() {
   const handleSaveBranchSubmit = async () => {
     if (!newBranchName.trim()) return;
 
-    if (editingBranch) {
-      await updateBranch(editingBranch.id, {
-        name: newBranchName.trim(),
-        phone: newBranchPhone.trim(),
-        address: newBranchAddress.trim()
-      });
-    } else {
-      await addBranch({
-        name: newBranchName.trim(),
-        phone: newBranchPhone.trim(),
-        address: newBranchAddress.trim()
-      });
+    try {
+      if (editingBranch) {
+        await updateBranch(editingBranch.id, {
+          name: newBranchName.trim(),
+          phone: newBranchPhone.trim(),
+          address: newBranchAddress.trim()
+        });
+      } else {
+        await addBranch({
+          name: newBranchName.trim(),
+          phone: newBranchPhone.trim(),
+          address: newBranchAddress.trim()
+        });
+      }
+      setBranchDialogOpen(false);
+      setEditingBranch(null);
+      setNewBranchName('');
+      setNewBranchPhone('');
+      setNewBranchAddress('');
+      fetchBranches();
+    } catch (err) {
+      alert('❌ حدث خطأ أثناء حفظ الفرع: ' + (err.message || 'خطأ غير معروف'));
     }
-
-    setBranchDialogOpen(false);
-    setEditingBranch(null);
-    setNewBranchName('');
-    setNewBranchPhone('');
-    setNewBranchAddress('');
-    fetchBranches();
   };
 
   return (
