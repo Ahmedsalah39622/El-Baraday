@@ -13,7 +13,7 @@ export async function POST(request) {
 
     // Query database for exact username/name and PIN match
     const result = await query(
-      'SELECT id, username, name, role, permissions, status, avatar FROM users WHERE (LOWER(username) = $1 OR LOWER(name) = $2) AND pin = $3 LIMIT 1',
+      'SELECT id, username, name, role, permissions, status, avatar, branch_id FROM users WHERE (LOWER(username) = $1 OR LOWER(name) = $2) AND pin = $3 LIMIT 1',
       [cleanUser, cleanUser, cleanPin]
     );
 
@@ -47,7 +47,8 @@ export async function POST(request) {
         name: user.name,
         role: user.role,
         permissions: parsedPerms,
-        avatar: user.avatar
+        avatar: user.avatar,
+        branch_id: user.branch_id || 'b1'
       }
     });
   } catch (error) {

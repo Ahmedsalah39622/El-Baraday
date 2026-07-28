@@ -10,7 +10,7 @@ export async function POST(request) {
 
     const clean = username.trim().toLowerCase();
     const result = await query(
-      'SELECT id, username, name, role, avatar FROM users WHERE LOWER(username) = $1 OR LOWER(name) = $2 LIMIT 1',
+      'SELECT id, username, name, role, avatar, branch_id FROM users WHERE LOWER(username) = $1 OR LOWER(name) = $2 LIMIT 1',
       [clean, clean]
     );
 
@@ -24,7 +24,8 @@ export async function POST(request) {
       username: user.username,
       name: user.name,
       role: user.role,
-      avatar: user.avatar
+      avatar: user.avatar,
+      branch_id: user.branch_id || 'b1'
     });
   } catch (error) {
     console.error('❌ Error verifying user:', error.message);
