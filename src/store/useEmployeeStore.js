@@ -43,7 +43,7 @@ export const useEmployeeStore = create(
         }
       },
 
-      addAdvance: async (employeeId, amount) => {
+      addAdvance: async (employeeId, amount, notes = '') => {
         const val = parseFloat(amount) || 0;
         set((state) => ({
           employees: state.employees.map(e =>
@@ -55,7 +55,11 @@ export const useEmployeeStore = create(
           await fetch(`/api/employees/${employeeId}/advances`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ amount: val, month: new Date().toISOString().substring(0, 7) })
+            body: JSON.stringify({
+              amount: val,
+              month: new Date().toISOString().substring(0, 7),
+              notes: notes || 'سلفة مالية'
+            })
           });
         } catch (e) {}
       },

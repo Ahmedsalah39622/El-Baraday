@@ -5,7 +5,7 @@ import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Button, Chip, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, IconButton, MenuItem, Select, FormControl, InputLabel,
-  Tooltip, Alert, Grid, Stack, Card, CardContent, Divider
+  Tooltip, Alert, Grid, Stack, Card, CardContent, Divider, CircularProgress
 } from '@mui/material';
 import {
   AccountBalanceWallet, Add, MoneyOutlined,
@@ -68,6 +68,13 @@ export default function SalariesPage() {
   const [advanceDialog, setAdvanceDialog] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [advanceAmount, setAdvanceAmount] = useState('');
+  const [advanceNotes, setAdvanceNotes] = useState('');
+
+  // Advances History Dialog State (سجل السلف والبيان)
+  const [advancesHistoryDialog, setAdvancesHistoryDialog] = useState(false);
+  const [advancesList, setAdvancesList] = useState([]);
+  const [loadingAdvances, setLoadingAdvances] = useState(false);
+  const [historyEmp, setHistoryEmp] = useState(null);
 
   const [addEmpDialog, setAddEmpDialog] = useState(false);
   const [newEmpData, setNewEmpData] = useState({
@@ -131,14 +138,33 @@ export default function SalariesPage() {
   const handleOpenAdvance = (emp) => {
     setSelectedEmployee(emp);
     setAdvanceAmount('');
+    setAdvanceNotes('');
     setAdvanceDialog(true);
   };
 
   const handleConfirmAdvance = async () => {
-    if (!selectedEmployee || !advanceAmount) return;
-    await addAdvance(selectedEmployee.id, advanceAmount);
+    if (!selectedEmployee || !advanceAmount || !advanceNotes.trim()) return;
+    await addAdvance(selectedEmployee.id, advanceAmount, advanceNotes.trim());
     setAdvanceDialog(false);
     setAdvanceAmount('');
+    setAdvanceNotes('');
+  };
+
+  const handleOpenAdvancesHistory = async (emp) => {
+    setHistoryEmp(emp);
+    setLoadingAdvances(true);
+    setAdvancesHistoryDialog(true);
+    try {
+      const res = await fetch(`/api/employees/${emp.id}/advances`);
+      if (res.ok) {
+        const data = await res.json();
+        setAdvancesList(data || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingAdvances(false);
+    }
   };
 
   const handleAddEmployeeSubmit = async () => {
@@ -456,7 +482,24 @@ export default function SalariesPage() {
                         -{calc.totalDeductions.toLocaleString()} ج.م
                       </Typography>
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: '#EF4444' }}>{calc.advances.toLocaleString()} ج.م</TableCell>
+                    <TableCell>
+                      <Typography
+                        variant="body2"
+                        onClick={() => handleOpenAdvancesHistory(row)}
+                        sx={{
+                          fontWeight: 800,
+                          color: '#EF4444',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 0.5,
+                          '&:hover': { textDecoration: 'underline' }
+                        }}
+                      >
+                        {calc.advances.toLocaleString()} ج.م
+                        {calc.advances > 0 && <Chip label="البيان 📑" size="small" color="error" variant="outlined" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 800 }} />}
+                      </Typography>
+                    </TableCell>
                     <TableCell sx={{ fontWeight: 900, color: '#4285F4', fontSize: '1.05rem' }}>{calc.net.toLocaleString()} ج.م</TableCell>
                     <TableCell>
                       <Chip
@@ -869,15 +912,21 @@ export default function SalariesPage() {
         </DialogActions>
       </Dialog>
 
-      {/* Advance Dialog */}
-      <Dialog open={advanceDialog} onClose={() => setAdvanceDialog(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800 }}>💸 تسجيل سلفة جديدة</DialogTitle>
+      {/* Advance Dialog with Required Notes/Statement */}
+      <Dialog open={advanceDialog} onClose={() => setAdvanceDialog(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '16px' } }}>
+        <DialogTitle sx={{ fontWeight: 900, color: '#EF4444' }}>💸 تسجيل سلفة جديدة مع البيان</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1.5 }}>
           <Typography variant="body2" color="text.secondary">
             الموظف: <strong>{selectedEmployee?.name}</strong> | المرتب الأساسي: <strong>{selectedEmployee?.baseSalary} ج.م</strong>
           </Typography>
+
+          <Alert severity="warning" sx={{ fontWeight: 700, fontSize: '0.8rem' }}>
+            ⚠️ يجب كتابة البيان والسبب مع مبلغ السلفة للتوثيق الإداري.
+          </Alert>
+
           <TextField
             fullWidth
+            required
             type="number"
             size="small"
             label="مبلغ السلفة (ج.م) *"
@@ -885,10 +934,81 @@ export default function SalariesPage() {
             onChange={(e) => setAdvanceAmount(e.target.value)}
             autoFocus
           />
+
+          <TextField
+            fullWidth
+            required
+            multiline
+            rows={2}
+            size="small"
+            label="البيان / سبب وتفاصيل السلفة *"
+            placeholder="مثال: مصاريف شخصية طارئة / خصم من مرتب الشهر..."
+            value={advanceNotes}
+            onChange={(e) => setAdvanceNotes(e.target.value)}
+          />
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setAdvanceDialog(false)} variant="outlined">إلغاء</Button>
-          <Button onClick={handleConfirmAdvance} variant="contained" sx={{ bgcolor: '#4285F4' }}>تأكيد السلفة</Button>
+          <Button
+            onClick={handleConfirmAdvance}
+            variant="contained"
+            color="error"
+            disabled={!advanceAmount || !advanceNotes.trim()}
+            sx={{ fontWeight: 'bold' }}
+          >
+            حفظ وتأكيد السلفة
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Advances History Dialog (عرض بيانات وأسباب السُلف المسجلة) */}
+      <Dialog open={advancesHistoryDialog} onClose={() => setAdvancesHistoryDialog(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: '16px' } }}>
+        <DialogTitle sx={{ fontWeight: 900, color: '#1E293B', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>📑 سجل تفاصيل وبيانات سُلف الموظف ({historyEmp?.name})</span>
+          <Chip label={`إجمالي السلف: ${historyEmp?.advances || 0} ج.م`} color="error" size="small" sx={{ fontWeight: 800 }} />
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 2 }}>
+          {loadingAdvances ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress size={30} />
+            </Box>
+          ) : advancesList.length === 0 ? (
+            <Alert severity="info" sx={{ fontWeight: 700 }}>
+              لا توجد سُلف تفصيلية مسجلة سابقاً لهذا الموظف.
+            </Alert>
+          ) : (
+            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: '12px' }}>
+              <Table size="small">
+                <TableHead sx={{ bgcolor: '#F8FAFC' }}>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 800 }}>#</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>تاريخ التسجيل</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>البيان / السبب</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: '#EF4444' }}>مبلغ السلفة</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {advancesList.map((adv, idx) => (
+                    <TableRow key={adv.id || idx} hover>
+                      <TableCell sx={{ fontWeight: 700 }}>{idx + 1}</TableCell>
+                      <TableCell sx={{ fontSize: '0.8rem', color: '#64748B' }}>
+                        {adv.created_at ? new Date(adv.created_at).toLocaleString('ar-EG') : (adv.month || '—')}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 800, color: '#1E293B' }}>
+                        {adv.notes || 'سلفة مالية'}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 900, color: '#EF4444' }}>
+                        {parseFloat(adv.amount || 0).toLocaleString()} ج.م
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setAdvancesHistoryDialog(false)} variant="contained">إلغاء وإغلاق</Button>
         </DialogActions>
       </Dialog>
 
