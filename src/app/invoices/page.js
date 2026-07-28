@@ -299,28 +299,24 @@ export default function InvoicesPage() {
     }
   };
 
+  // Listen for Ctrl+P / Cmd+P shortcut to trigger clean isolated iframe printing
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        if (viewInvoice) {
+          printCustomInvoice(viewInvoice, settings);
+        } else if (filteredCustomInvoices && filteredCustomInvoices.length > 0) {
+          printCustomInvoice(filteredCustomInvoices[0], settings);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [viewInvoice, filteredCustomInvoices, settings]);
+
   return (
     <Box sx={{ p: { xs: 1.5, md: 3 } }}>
-      {/* Hide elements on print */}
-      <style>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          #printable-invoice, #printable-invoice * {
-            visibility: visible;
-          }
-          #printable-invoice {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-          }
-          .no-print {
-            display: none !important;
-          }
-        }
-      `}</style>
 
       {/* Main Page Header */}
       <Box className="no-print" sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 2, mb: 3 }}>
@@ -978,13 +974,22 @@ export default function InvoicesPage() {
           <Typography variant="h6" fontWeight="bold">معاينة وطباعة الفاتورة</Typography>
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button
+              variant="outlined"
+              color="primary"
+              startIcon={<PrintIcon />}
+              onClick={() => printCustomInvoice(viewInvoice, settings, true)}
+              sx={{ borderRadius: '10px' }}
+            >
+              طابعة ريسيت (80mm)
+            </Button>
+            <Button
               variant="contained"
               color="primary"
               startIcon={<PrintIcon />}
-              onClick={handlePrint}
+              onClick={() => printCustomInvoice(viewInvoice, settings, false)}
               sx={{ borderRadius: '10px' }}
             >
-              طباعة الآن
+              طباعة فاتورة (A4)
             </Button>
           </Box>
         </DialogTitle>
@@ -1105,9 +1110,14 @@ export default function InvoicesPage() {
           )}
         </DialogContent>
 
-        <DialogActions className="no-print">
+        <DialogActions className="no-print" sx={{ p: 2 }}>
           <Button onClick={() => setViewDialogOpen(false)} variant="outlined">إغلاق</Button>
-          <Button onClick={handlePrint} variant="contained" startIcon={<PrintIcon />}>طباعة الفاتورة</Button>
+          <Button onClick={() => printCustomInvoice(viewInvoice, settings, true)} variant="outlined" startIcon={<PrintIcon />}>
+            طابعة حرارية (80mm)
+          </Button>
+          <Button onClick={() => printCustomInvoice(viewInvoice, settings, false)} variant="contained" startIcon={<PrintIcon />}>
+            طباعة فاتورة (A4)
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
