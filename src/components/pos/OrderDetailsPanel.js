@@ -103,13 +103,20 @@ export default function OrderDetailsPanel({
   const [showDeliveryForm, setShowDeliveryForm] = useState(true);
   const [orderNotes, setOrderNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [discountType, setDiscountType] = useState('amount'); // 'amount' or 'percent'
+  const [discountValue, setDiscountValue] = useState('');
 
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [completedOrderData, setCompletedOrderData] = useState(null);
   const [whatsAppStatus, setWhatsAppStatus] = useState(null);
 
+  const numDiscountVal = parseFloat(discountValue) || 0;
+  const calculatedDiscount = discountType === 'percent'
+    ? ((subtotal * numDiscountVal) / 100)
+    : numDiscountVal;
+
   const currentDeliveryFee = orderType === 'delivery' ? (parseFloat(deliveryFee) || 15) : 0;
-  const finalTotal = subtotal + currentDeliveryFee;
+  const finalTotal = Math.max(0, subtotal + currentDeliveryFee - calculatedDiscount);
   const numericPaid = parseFloat(paidAmount) || finalTotal;
   const remainingChange = Math.max(0, numericPaid - finalTotal);
 
@@ -164,7 +171,7 @@ export default function OrderDetailsPanel({
       orderNotes,
       items: [...items],
       subtotal,
-      discount: 0,
+      discount: calculatedDiscount,
       deliveryFee: currentDeliveryFee,
       total: finalTotal,
       paidAmount: numericPaid,
@@ -185,6 +192,7 @@ export default function OrderDetailsPanel({
       driver_name: driverName,
       cashierName: activeCashierName,
       subtotal,
+      discount: calculatedDiscount,
       deliveryFee: currentDeliveryFee,
       total: finalTotal,
       paidAmount: numericPaid,
@@ -658,6 +666,77 @@ export default function OrderDetailsPanel({
             <Typography variant="body2" sx={{ fontWeight: 700, color: '#E06B1F' }}>+{currentDeliveryFee.toFixed(0)} ج.م</Typography>
           </Box>
         )}
+
+        {/* Discount Control Bar (نسبة أو مبلغ خصم) */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, bgcolor: '#FEF2F2', p: 1, borderRadius: '10px', border: '1px solid #FECACA' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="body2" sx={{ fontWeight: 800, color: '#DC2626', fontSize: '0.813rem' }}>
+              🏷️ خصم للطلب:
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Button
+                size="small"
+                variant={discountType === 'percent' ? 'contained' : 'outlined'}
+                color="error"
+                onClick={() => setDiscountType('percent')}
+                sx={{ minWidth: 32, px: 0.8, py: 0.2, fontSize: '0.7rem', fontWeight: 900 }}
+              >
+                % نسبة
+              </Button>
+              <Button
+                size="small"
+                variant={discountType === 'amount' ? 'contained' : 'outlined'}
+                color="error"
+                onClick={() => setDiscountType('amount')}
+                sx={{ minWidth: 32, px: 0.8, py: 0.2, fontSize: '0.7rem', fontWeight: 900 }}
+              >
+                ج.م مبلغ
+              </Button>
+              <TextField
+                type="number"
+                size="small"
+                placeholder={discountType === 'percent' ? '10%' : '0 ج.م'}
+                value={discountValue}
+                onChange={(e) => setDiscountValue(e.target.value)}
+                slotProps={{ htmlInput: { suppressHydrationWarning: true } }}
+                sx={{ width: 75, '& input': { textAlign: 'center', fontWeight: 800, p: 0.5, color: '#DC2626', fontSize: '0.8rem', bgcolor: '#FFF', borderRadius: '6px' } }}
+              />
+            </Box>
+          </Box>
+
+          {/* Quick Percentage Chips */}
+          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end', mt: 0.3 }}>
+            {[5, 10, 15, 20, 25, 50].map((pct) => (
+              <Chip
+                key={pct}
+                label={`${pct}%`}
+                size="small"
+                onClick={() => {
+                  setDiscountType('percent');
+                  setDiscountValue(pct.toString());
+                }}
+                sx={{
+                  fontWeight: 800,
+                  fontSize: '0.68rem',
+                  height: 22,
+                  bgcolor: (discountType === 'percent' && discountValue === pct.toString()) ? '#DC2626' : '#FFF',
+                  color: (discountType === 'percent' && discountValue === pct.toString()) ? '#FFF' : '#DC2626',
+                  border: '1px solid #FCA5A5',
+                  cursor: 'pointer'
+                }}
+              />
+            ))}
+          </Box>
+
+          {calculatedDiscount > 0 && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 0.2 }}>
+              <Typography variant="caption" sx={{ color: '#B91C1C', fontWeight: 700 }}>قيمة الخصم المخصومة:</Typography>
+              <Typography variant="body2" sx={{ color: '#DC2626', fontWeight: 900 }}>
+                -{calculatedDiscount.toFixed(2)} ج.م
+              </Typography>
+            </Box>
+          )}
+        </Box>
 
         <Divider sx={{ my: 0.3 }} />
 
