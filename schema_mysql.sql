@@ -257,8 +257,12 @@ CREATE TABLE IF NOT EXISTS `shifts` (
   `end_time` DATETIME,
   `start_amount` DECIMAL(10, 2) DEFAULT 0,
   `end_amount` DECIMAL(10, 2) DEFAULT 0,
+  `expected_amount` DECIMAL(10, 2) DEFAULT 0,
+  `cash_difference` DECIMAL(10, 2) DEFAULT 0,
+  `difference_type` VARCHAR(50) DEFAULT 'balanced',
   `cash_sales` DECIMAL(10, 2) DEFAULT 0,
   `total_orders` INT DEFAULT 0,
+  `notes` TEXT,
   `status` VARCHAR(50) DEFAULT 'active'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

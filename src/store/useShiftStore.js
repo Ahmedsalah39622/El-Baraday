@@ -98,7 +98,7 @@ export const useShiftStore = create(
         }
       },
 
-      closeShift: async (endAmount, totalSales, totalOrders) => {
+      closeShift: async (endAmount, expectedAmount, totalSales, totalOrders, notes = '') => {
         const current = get().activeShift;
         const shiftId = current?.id;
         
@@ -113,8 +113,10 @@ export const useShiftStore = create(
               body: JSON.stringify({
                 end_time: new Date().toISOString(),
                 end_amount: endAmount,
+                expected_amount: expectedAmount,
                 cash_sales: totalSales,
                 total_orders: totalOrders,
+                notes: notes,
                 status: 'closed',
               }),
             });
