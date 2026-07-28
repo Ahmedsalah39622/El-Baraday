@@ -6,7 +6,7 @@ import {
   DialogActions, TextField, MenuItem, Select, FormControl, InputLabel,
   Card, CardContent, Grid, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Tabs, Tab, Stack, Divider, Alert, CircularProgress,
-  IconButton
+  IconButton, Autocomplete
 } from '@mui/material';
 import {
   CardGiftcard, EmojiEvents, Casino, Refresh, Print, TableChart,
@@ -105,7 +105,14 @@ export default function PrizesPage() {
       ordersCount: (invoices || []).filter(inv => inv.customerPhone === c.phone || inv.customerName === c.name).length
     }));
 
-    if (raffleFilter === 'monthly') {
+    if (raffleFilter === 'coupons' && couponsHistory.length > 0) {
+      pool = couponsHistory.map(c => ({
+        id: c.id,
+        name: `${c.customer_name} (كوبون #${c.coupon_number})`,
+        phone: c.customer_phone || '—',
+        ordersCount: 1
+      }));
+    } else if (raffleFilter === 'monthly') {
       const thisMonth = new Date().toISOString().substring(0, 7);
       const activePhones = new Set((invoices || [])
         .filter(inv => inv.createdAt && inv.createdAt.startsWith(thisMonth))
@@ -248,10 +255,28 @@ export default function PrizesPage() {
   // INSTANT THERMAL RAFFLE COUPON PRINT HANDLER
   const [printCustomerName, setPrintCustomerName] = useState('');
   const [printCustomerPhone, setPrintCustomerPhone] = useState('');
+  const [selectedCustomerObj, setSelectedCustomerObj] = useState(null);
+  const [couponsHistory, setCouponsHistory] = useState([]);
 
-  const handleDirectPrintCoupon = () => {
+  const fetchCoupons = async () => {
+    try {
+      const res = await fetch('/api/prizes/coupons');
+      if (res.ok) {
+        const data = await res.json();
+        setCouponsHistory(data || []);
+      }
+    } catch (e) { }
+  };
+
+  useEffect(() => {
+    fetchCoupons();
+  }, []);
+
+  const handleDirectPrintCoupon = async () => {
     if (!printCustomerName.trim()) return;
-    const cNum = Math.floor(100000 + Math.random() * 900000);
+    const cNum = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // 1. Print 80mm thermal receipt
     printRaffleCoupon({
       couponNumber: cNum,
       customerName: printCustomerName.trim(),
@@ -260,8 +285,27 @@ export default function PrizesPage() {
       dateStr: new Date().toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }),
       branchName: 'مطعم البرادعي للحواوشي'
     });
+
+    // 2. Save coupon to DB API (/api/prizes/coupons)
+    try {
+      await fetch('/api/prizes/coupons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          coupon_number: cNum,
+          customer_name: printCustomerName.trim(),
+          customer_phone: printCustomerPhone.trim(),
+          raffle_title: rafflePrizeTitle,
+          printed_by: 'administrator'
+        })
+      });
+      fetchCoupons();
+      fetchCustomers();
+    } catch (e) { }
+
     setPrintCustomerName('');
     setPrintCustomerPhone('');
+    setSelectedCustomerObj(null);
   };
 
   return (
@@ -308,22 +352,47 @@ export default function PrizesPage() {
       <Paper sx={{ p: 3, borderRadius: '20px', border: '2px solid #F59E0B', bgcolor: '#FFFBEB', boxShadow: '0 4px 20px rgba(245, 158, 11, 0.12)' }}>
         <Typography variant="h6" sx={{ fontWeight: 900, color: '#B45309', display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <ConfirmationNumber sx={{ fontSize: 26, color: '#D97706' }} />
-          🎟️ طباعة إيصال / كوبون سحب حراري فوري (لوضعه في صندوق السحب)
+          🎟️ طباعة إيصال / كوبون سحب حراري فوري (مربوط بقاعدة البيانات والعملاء)
         </Typography>
         <Typography variant="caption" sx={{ color: '#78350F', fontWeight: 700, display: 'block', mb: 2 }}>
-          يكتب الكاشير/الموظف اسم العميل ورقم هاتفه ويضغط "طباعة الكوبون"، ليتم طباعة كوبون حراري مقاس 80mm فوري يُوضع في صندوق القرعة العلنية السحب!
+          ابحث باسم أو هاتف العميل المسجل في السيستم أو اكتب عميلاً جديداً وسيتم حفظ الكوبون والعميل في الداتابيز وطباعته حرارياً 80mm فوراً!
         </Typography>
 
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12} sm={5}>
-            <TextField
-              fullWidth
-              required
-              label="اسم العميل *"
-              placeholder="أدخل اسم العميل..."
-              value={printCustomerName}
-              onChange={(e) => setPrintCustomerName(e.target.value)}
-              sx={{ bgcolor: '#FFF', borderRadius: '12px' }}
+            <Autocomplete
+              freeSolo
+              options={customers || []}
+              getOptionLabel={(option) => typeof option === 'string' ? option : `${option.name || ''} ${option.phone ? `(${option.phone})` : ''}`}
+              value={selectedCustomerObj}
+              onChange={(event, newValue) => {
+                if (typeof newValue === 'string') {
+                  setPrintCustomerName(newValue);
+                } else if (newValue && newValue.name) {
+                  setSelectedCustomerObj(newValue);
+                  setPrintCustomerName(newValue.name);
+                  setPrintCustomerPhone(newValue.phone || '');
+                } else {
+                  setSelectedCustomerObj(null);
+                }
+              }}
+              onInputChange={(event, newInputValue) => {
+                setPrintCustomerName(newInputValue);
+                // Also search if match exists
+                const matched = (customers || []).find(c => c.phone === newInputValue || c.name === newInputValue);
+                if (matched) {
+                  setPrintCustomerPhone(matched.phone || newInputValue);
+                }
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  required
+                  label="اختر / اكتب اسم العميل *"
+                  placeholder="ابحث باسم أو هاتف العميل..."
+                  sx={{ bgcolor: '#FFF', borderRadius: '12px' }}
+                />
+              )}
             />
           </Grid>
 
@@ -561,6 +630,7 @@ export default function PrizesPage() {
                   label="نطاق الفئة المستهدفة للسحب"
                   onChange={(e) => setRaffleFilter(e.target.value)}
                 >
+                  <MenuItem value="coupons">🎟️ الكوبونات المطبوعة في صندوق السحب ({couponsHistory.length} كوبون)</MenuItem>
                   <MenuItem value="all">👥 جميع العملاء المسجلين بالمحل</MenuItem>
                   <MenuItem value="monthly">🧾 عملاء أوردرات الشهر الحالي</MenuItem>
                   <MenuItem value="vip">👑 كبار العملاء VIP (أعلى 20 عميل شراءً)</MenuItem>

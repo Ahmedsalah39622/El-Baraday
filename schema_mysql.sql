@@ -357,6 +357,19 @@ CREATE TABLE IF NOT EXISTS `wheel_spins` (
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `raffle_coupons` (
+  `id` VARCHAR(100) PRIMARY KEY,
+  `coupon_number` VARCHAR(100) NOT NULL UNIQUE,
+  `customer_id` VARCHAR(100),
+  `customer_name` VARCHAR(255) NOT NULL,
+  `customer_phone` VARCHAR(100),
+  `invoice_number` VARCHAR(100),
+  `raffle_title` VARCHAR(255) DEFAULT 'سحب الجائزة الكبرى',
+  `printed_by` VARCHAR(100) DEFAULT 'administrator',
+  `status` VARCHAR(50) DEFAULT 'active',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ==================== APP SETTINGS ====================
 CREATE TABLE IF NOT EXISTS `app_settings` (
   `key` VARCHAR(100) PRIMARY KEY,
