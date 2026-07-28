@@ -67,9 +67,13 @@ export default function AppShell({ children }) {
       <Box
         sx={{
           flex: 1,
-          overflow: 'hidden',
+          height: '100vh',
+          overflowY: 'auto',
+          overflowX: 'hidden',
           display: 'flex',
           flexDirection: 'column',
+          '&::-webkit-scrollbar': { width: 8 },
+          '&::-webkit-scrollbar-thumb': { bgcolor: '#CBD5E1', borderRadius: 4 },
         }}
       >
         {children}

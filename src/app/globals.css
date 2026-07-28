@@ -16,7 +16,8 @@ html {
 body {
   margin: 0;
   padding: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   background-color: #FDF6EC;
   color: #1A1A2E;
   font-family: 'Cairo', 'Inter', 'Helvetica', 'Arial', sans-serif;

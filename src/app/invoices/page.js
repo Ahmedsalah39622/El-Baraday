@@ -366,7 +366,7 @@ export default function InvoicesPage() {
   }, [viewInvoice, filteredCustomInvoices, settings]);
 
   return (
-    <Box sx={{ p: { xs: 1.5, md: 3 } }}>
+    <Box sx={{ p: { xs: 1.5, md: 3 }, height: '100%', overflowY: 'auto', pb: 8 }}>
 
       {/* Main Page Header */}
       <Box className="no-print" sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 2, mb: 3 }}>
