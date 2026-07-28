@@ -23,12 +23,15 @@ export async function POST(req) {
       return NextResponse.json({ error: 'اسم الفرع مطلوب' }, { status: 400 });
     }
 
+    // Generate a unique id since the column is VARCHAR PRIMARY KEY (no auto-increment)
+    const newId = `b_${Date.now()}`;
+
     const res = await query(
-      `INSERT INTO branches (name, phone, address) VALUES ($1, $2, $3) RETURNING *`,
-      [name, phone || '', address || '']
+      `INSERT INTO branches (id, name, phone, address) VALUES ($1, $2, $3, $4) RETURNING *`,
+      [newId, name, phone || '', address || '']
     );
 
-    return NextResponse.json(res.rows[0]);
+    return NextResponse.json(res.rows[0] || { id: newId, name, phone, address });
   } catch (err) {
     console.error('Error creating branch:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

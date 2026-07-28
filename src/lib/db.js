@@ -1,4 +1,5 @@
 import mysql from 'mysql2/promise';
+import { randomUUID } from 'crypto';
 
 // Serverless-optimized MySQL connection pool for Hostinger phpMyAdmin
 let pool;
@@ -69,6 +70,23 @@ export async function query(text, params = []) {
     sql = sql.replace(/\bapp_settings\s*\(\s*key\s*,/gi, 'app_settings (`key`,');
     sql = sql.replace(/\bSET\s+key\s*=/gi, 'SET `key` =');
 
+    // 6. Auto-inject UUID for INSERT queries missing an id column
+    // Matches: INSERT INTO tableName (col1, col2, ...) — if 'id' not in column list
+    let injectedId = null;
+    const insertMatch = sql.match(/INSERT\s+INTO\s+`?(\w+)`?\s*\(([^)]+)\)/i);
+    if (insertMatch) {
+      const cols = insertMatch[2].split(',').map(c => c.trim().replace(/`/g, ''));
+      if (!cols.includes('id')) {
+        injectedId = randomUUID();
+        // Inject id into column list and values
+        sql = sql.replace(
+          /INSERT\s+INTO\s+(`?\w+`?)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i,
+          (_, tbl, colList, valList) => `INSERT INTO ${tbl} (id, ${colList}) VALUES (?, ${valList})`
+        );
+        params = [injectedId, ...params];
+      }
+    }
+
     // Check if query had RETURNING clause
     const hasReturning = /\s+RETURNING\s+(\*|\w+)/i.test(sql);
     sql = sql.replace(/\s+RETURNING\s+(\*|\w+)/gi, '');
@@ -104,7 +122,8 @@ export async function query(text, params = []) {
     } else if (result && typeof result === 'object') {
       rowCount = result.affectedRows || 0;
       if (hasReturning && tableName) {
-        const idParam = params[0] || result.insertId;
+        // Use injected UUID, or MySQL insertId, or first param as fallback
+        const idParam = injectedId || result.insertId || params[0];
         if (idParam) {
           try {
             const [fetchedRows] = await currentPool.query(`SELECT * FROM \`${tableName}\` WHERE id = ?`, [idParam]);
