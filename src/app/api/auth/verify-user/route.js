@@ -10,8 +10,8 @@ export async function POST(request) {
 
     const clean = username.trim().toLowerCase();
     const result = await query(
-      'SELECT id, username, name, role, avatar FROM users WHERE LOWER(username) = $1 OR LOWER(name) = $1 LIMIT 1',
-      [clean]
+      'SELECT id, username, name, role, avatar FROM users WHERE LOWER(username) = $1 OR LOWER(name) = $2 LIMIT 1',
+      [clean, clean]
     );
 
     if (!result.rows || result.rows.length === 0) {
