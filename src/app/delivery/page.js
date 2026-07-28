@@ -63,6 +63,7 @@ export default function DeliveryPage() {
   const effectiveBranch = (user && user.role !== 'admin' && user.branch_id) ? user.branch_id : selectedBranchId;
 
   const autoPrintedOrderIds = useRef(new Set());
+  const isInitialFetch = useRef(true);
 
   // Fetch Delivery Orders & Settings
   const fetchDeliveryData = async (isSilent = false) => {
@@ -86,15 +87,22 @@ export default function DeliveryPage() {
           }
           return true;
         });
-        
-        // Auto-print incoming orders for the branch silently
-        delOrders.forEach(o => {
-          if (o.id && !autoPrintedOrderIds.current.has(o.id)) {
-            autoPrintedOrderIds.current.add(o.id);
-            // Trigger thermal receipt print automatically
-            try { handlePrintDelivery(o); } catch (e) {}
-          }
-        });
+
+        // Mark existing orders as seen on initial load
+        if (isInitialFetch.current) {
+          delOrders.forEach(o => { if (o.id) autoPrintedOrderIds.current.add(o.id); });
+          isInitialFetch.current = false;
+        } else {
+          // Auto-print only newly arrived orders on background updates
+          delOrders.forEach(o => {
+            if (o.id && !autoPrintedOrderIds.current.has(o.id)) {
+              autoPrintedOrderIds.current.add(o.id);
+              setTimeout(() => {
+                try { handlePrintDelivery(o); } catch (e) {}
+              }, 300);
+            }
+          });
+        }
 
         setDeliveryOrders(delOrders);
       }
@@ -720,7 +728,7 @@ export default function DeliveryPage() {
 
                       {/* Action Buttons Grid */}
                       <Grid container spacing={1} sx={{ mt: 0.5 }}>
-                        <Grid xs={3}>
+                        <Grid item xs={3}>
                           <Button
                             fullWidth
                             size="small"
@@ -743,7 +751,7 @@ export default function DeliveryPage() {
                           </Button>
                         </Grid>
 
-                        <Grid xs={3}>
+                        <Grid item xs={3}>
                           <Button
                             fullWidth
                             size="small"
@@ -766,7 +774,7 @@ export default function DeliveryPage() {
                           </Button>
                         </Grid>
 
-                        <Grid xs={3}>
+                        <Grid item xs={3}>
                           <Button
                             fullWidth
                             size="small"
@@ -788,7 +796,7 @@ export default function DeliveryPage() {
                           </Button>
                         </Grid>
 
-                        <Grid xs={3}>
+                        <Grid item xs={3}>
                           <Button
                             fullWidth
                             size="small"
