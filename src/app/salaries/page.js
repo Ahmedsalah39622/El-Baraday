@@ -5,19 +5,23 @@ import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Button, Chip, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, IconButton, MenuItem, Select, FormControl, InputLabel,
-  Tooltip, Alert, Grid, Stack, Card, CardContent
+  Tooltip, Alert, Grid, Stack, Card, CardContent, Divider
 } from '@mui/material';
 import {
   AccountBalanceWallet, Add, MoneyOutlined,
   PersonOutlined, CalendarMonth, EditOutlined, DeleteOutlined,
   Store, CheckCircleOutlined, AccessTime as TimeIcon,
-  TrendingUp, TrendingDown, Calculate as CalcIcon
+  TrendingUp, TrendingDown, Calculate as CalcIcon,
+  CardGiftcard as BonusIcon, Warning as WarningIcon,
+  RemoveCircle as DeductionIcon, Star as StarIcon
 } from '@mui/icons-material';
 import { useEmployeeStore } from '@/store/useEmployeeStore';
 import { useBranchStore } from '@/store/useBranchStore';
 
 // Helper for exact hourly & net salary calculations
 export function calculateEmployeeSalary(emp) {
+  if (!emp) return { base: 0, hourlyRate: 0, overtimeHours: 0, overtimeAmount: 0, deductionHours: 0, deductionAmount: 0, directBonus: 0, directDeductions: 0, advances: 0, totalBonus: 0, totalDeductions: 0, net: 0 };
+
   const base = parseFloat(emp.baseSalary || 0);
   // Default hourly rate = base / 240 (30 days * 8 hrs/day) if not explicitly set
   const hourlyRate = (emp.hourlyRate && parseFloat(emp.hourlyRate) > 0) 
@@ -81,9 +85,27 @@ export default function SalariesPage() {
   const [editEmpDialog, setEditEmpDialog] = useState(false);
   const [editEmpData, setEditEmpData] = useState(null);
 
-  // Hourly Adjustments Dialog (خصم وزيادة بالساعات)
+  // Hourly Adjustments Dialog
   const [hoursDialog, setHoursDialog] = useState(false);
   const [hoursEmpData, setHoursEmpData] = useState(null);
+
+  // Global Bonus Dialog State (إضافة بونص)
+  const [bonusModalOpen, setBonusModalOpen] = useState(false);
+  const [bonusForm, setBonusForm] = useState({
+    employeeId: '',
+    type: 'full_attendance', // 'full_attendance', 'overtime_hours', 'direct_cash'
+    value: '500',
+    notes: 'بونص التزام وحضور كافة الساعات الأساسية'
+  });
+
+  // Global Deduction Dialog State (إضافة خصم)
+  const [deductionModalOpen, setDeductionModalOpen] = useState(false);
+  const [deductionForm, setDeductionForm] = useState({
+    employeeId: '',
+    type: 'deduction_hours', // 'deduction_hours', 'direct_cash'
+    value: '2',
+    notes: 'تأخير عن مواعيد الشيفت الرسمي'
+  });
 
   // Delete Employee Dialog
   const [deleteEmpDialog, setDeleteEmpDialog] = useState(false);
@@ -196,6 +218,74 @@ export default function SalariesPage() {
     setHoursEmpData(null);
   };
 
+  // Bonus Handler
+  const handleOpenBonusModal = (emp = null) => {
+    setBonusForm({
+      employeeId: emp ? emp.id : (employees && employees.length > 0 ? employees[0].id : ''),
+      type: 'full_attendance',
+      value: '500',
+      notes: 'بونص التزام وحضور كامل الساعات الأساسية'
+    });
+    setBonusModalOpen(true);
+  };
+
+  const handleConfirmBonus = async () => {
+    if (!bonusForm.employeeId || !bonusForm.value) return;
+    const targetEmp = employees.find(e => e.id === bonusForm.employeeId);
+    if (!targetEmp) return;
+
+    const val = parseFloat(bonusForm.value) || 0;
+    let updatedBonus = targetEmp.bonus || 0;
+    let updatedOvertime = targetEmp.overtimeHours || 0;
+
+    if (bonusForm.type === 'overtime_hours') {
+      updatedOvertime += val;
+    } else {
+      updatedBonus += val;
+    }
+
+    await updateEmployee(targetEmp.id, {
+      bonus: updatedBonus,
+      overtimeHours: updatedOvertime
+    });
+
+    setBonusModalOpen(false);
+  };
+
+  // Deduction Handler
+  const handleOpenDeductionModal = (emp = null) => {
+    setDeductionForm({
+      employeeId: emp ? emp.id : (employees && employees.length > 0 ? employees[0].id : ''),
+      type: 'deduction_hours',
+      value: '2',
+      notes: 'تأخير عن مواعيد الشيفت الرسمي'
+    });
+    setDeductionModalOpen(true);
+  };
+
+  const handleConfirmDeduction = async () => {
+    if (!deductionForm.employeeId || !deductionForm.value) return;
+    const targetEmp = employees.find(e => e.id === deductionForm.employeeId);
+    if (!targetEmp) return;
+
+    const val = parseFloat(deductionForm.value) || 0;
+    let updatedDeductions = targetEmp.deductions || 0;
+    let updatedDeductionHours = targetEmp.deductionHours || 0;
+
+    if (deductionForm.type === 'deduction_hours') {
+      updatedDeductionHours += val;
+    } else {
+      updatedDeductions += val;
+    }
+
+    await updateEmployee(targetEmp.id, {
+      deductions: updatedDeductions,
+      deductionHours: updatedDeductionHours
+    });
+
+    setDeductionModalOpen(false);
+  };
+
   const handleOpenDelete = (emp) => {
     setEmpToDelete(emp);
     setDeleteEmpDialog(true);
@@ -220,6 +310,9 @@ export default function SalariesPage() {
     setEmpToSettle(null);
   };
 
+  const selectedBonusEmp = employees?.find(e => e.id === bonusForm.employeeId);
+  const selectedDeductionEmp = employees?.find(e => e.id === deductionForm.employeeId);
+
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3, height: '100%', overflowY: 'auto', pb: 4 }}>
       {/* Header */}
@@ -230,22 +323,44 @@ export default function SalariesPage() {
           </Box>
           <Box>
             <Typography variant="h4" sx={{ fontWeight: 800, color: '#1A1A2E', fontSize: { xs: '1.3rem', md: '1.8rem' } }}>
-              المرتبات وساعات الخصم والزيادة
+              المرتبات والمكافآت والخصومات
             </Typography>
             <Typography variant="body2" sx={{ color: '#6B7280' }}>
-              حساب الرواتب الدقيق مع دعم خصم وزيادة الساعات (أوفر تايم / تأخير) وتصفية الحسابات - {selectedMonth}
+              إضافة البونص وحساب الخصم والزيادة بالساعات وحضور الساعات الأساسية - {selectedMonth}
             </Typography>
           </Box>
         </Box>
 
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => setAddEmpDialog(true)}
-          sx={{ bgcolor: '#4285F4', borderRadius: '12px', px: 2.5, py: 1, fontWeight: 700 }}
-        >
-          إضافة موظف جديد
-        </Button>
+        <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+          <Button
+            variant="contained"
+            color="success"
+            startIcon={<BonusIcon />}
+            onClick={() => handleOpenBonusModal()}
+            sx={{ borderRadius: '12px', px: 2.5, py: 1, fontWeight: 800, background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)' }}
+          >
+            🎁 إضافة بونص / مكافأة
+          </Button>
+
+          <Button
+            variant="contained"
+            color="error"
+            startIcon={<DeductionIcon />}
+            onClick={() => handleOpenDeductionModal()}
+            sx={{ borderRadius: '12px', px: 2.5, py: 1, fontWeight: 800, background: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)' }}
+          >
+            ⚠️ تسجيل خصم
+          </Button>
+
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => setAddEmpDialog(true)}
+            sx={{ bgcolor: '#4285F4', borderRadius: '12px', px: 2.5, py: 1, fontWeight: 700 }}
+          >
+            إضافة موظف جديد
+          </Button>
+        </Stack>
       </Box>
 
       {/* Stats Cards */}
@@ -277,12 +392,12 @@ export default function SalariesPage() {
               <TableCell sx={{ fontWeight: 800 }}>الفرع والوظيفة</TableCell>
               <TableCell sx={{ fontWeight: 800 }}>المرتب الأساسي</TableCell>
               <TableCell sx={{ fontWeight: 800 }}>أجر الساعة</TableCell>
-              <TableCell sx={{ fontWeight: 800 }}>ساعات الزيادة</TableCell>
-              <TableCell sx={{ fontWeight: 800 }}>ساعات الخصم</TableCell>
+              <TableCell sx={{ fontWeight: 800 }}>ساعات وبونص الزيادة</TableCell>
+              <TableCell sx={{ fontWeight: 800 }}>ساعات وخصومات</TableCell>
               <TableCell sx={{ fontWeight: 800 }}>السلف</TableCell>
               <TableCell sx={{ fontWeight: 800 }}>الصافي المستحق</TableCell>
               <TableCell sx={{ fontWeight: 800 }}>الحالة</TableCell>
-              <TableCell align="center" sx={{ fontWeight: 800 }}>إجراءات والساعات</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 800 }}>إجراءات الإدارة البونص والخصم</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -329,16 +444,16 @@ export default function SalariesPage() {
                       <Typography variant="body2" sx={{ fontWeight: 800, color: '#166534' }}>
                         +{calc.overtimeHours} ساعة
                       </Typography>
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        (+{calc.overtimeAmount.toFixed(0)} ج.م) {calc.directBonus > 0 && `+${calc.directBonus} مكافأة`}
+                      <Typography variant="caption" color="success.main" display="block" fontWeight="bold">
+                        +{calc.totalBonus.toLocaleString()} ج.م
                       </Typography>
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 800, color: '#991B1B' }}>
                         -{calc.deductionHours} ساعة
                       </Typography>
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        (-{calc.deductionAmount.toFixed(0)} ج.م) {calc.directDeductions > 0 && `-${calc.directDeductions} خصم`}
+                      <Typography variant="caption" color="error.main" display="block" fontWeight="bold">
+                        -{calc.totalDeductions.toLocaleString()} ج.م
                       </Typography>
                     </TableCell>
                     <TableCell sx={{ fontWeight: 800, color: '#EF4444' }}>{calc.advances.toLocaleString()} ج.م</TableCell>
@@ -356,16 +471,40 @@ export default function SalariesPage() {
                     </TableCell>
                     <TableCell align="center">
                       <Box sx={{ display: 'flex', gap: 0.8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <Tooltip title="إضافة بونص للموظف">
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="success"
+                            onClick={() => handleOpenBonusModal(row)}
+                            disabled={isSettled}
+                            sx={{ borderRadius: '8px', fontSize: '0.72rem', fontWeight: 800, py: 0.4 }}
+                          >
+                            🎁 بونص
+                          </Button>
+                        </Tooltip>
+
+                        <Tooltip title="إضافة خصم على الموظف">
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="error"
+                            onClick={() => handleOpenDeductionModal(row)}
+                            disabled={isSettled}
+                            sx={{ borderRadius: '8px', fontSize: '0.72rem', fontWeight: 800, py: 0.4 }}
+                          >
+                            ⚠️ خصم
+                          </Button>
+                        </Tooltip>
+
                         <Button
                           size="small"
-                          variant="contained"
-                          color="info"
-                          startIcon={<TimeIcon fontSize="small" />}
+                          variant="outlined"
                           onClick={() => handleOpenHoursModal(row)}
                           disabled={isSettled}
-                          sx={{ borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700 }}
+                          sx={{ borderRadius: '8px', fontSize: '0.72rem', fontWeight: 700 }}
                         >
-                          ضبط الساعات
+                          ⏱️ الساعات
                         </Button>
 
                         <Button
@@ -373,7 +512,7 @@ export default function SalariesPage() {
                           variant="outlined"
                           onClick={() => handleOpenAdvance(row)}
                           disabled={isSettled}
-                          sx={{ borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700 }}
+                          sx={{ borderRadius: '8px', fontSize: '0.72rem', fontWeight: 700 }}
                         >
                           + سلفة
                         </Button>
@@ -383,7 +522,7 @@ export default function SalariesPage() {
                             size="small"
                             variant="contained"
                             onClick={() => markAsPaid(row.id)}
-                            sx={{ borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700, bgcolor: '#10B981' }}
+                            sx={{ borderRadius: '8px', fontSize: '0.72rem', fontWeight: 700, bgcolor: '#10B981' }}
                           >
                             صرف
                           </Button>
@@ -408,7 +547,202 @@ export default function SalariesPage() {
         </Table>
       </TableContainer>
 
-      {/* HOURLY ADJUSTMENTS DIALOG (تعديل الساعات والخصومات والزيادات) */}
+      {/* DIALOG 1: GLOBAL BONUS MODAL (إعطاء بونص لموظف) */}
+      <Dialog open={bonusModalOpen} onClose={() => setBonusModalOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}>
+        <DialogTitle sx={{ fontWeight: 900, color: 'success.main', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <BonusIcon fontSize="large" />
+          إضافة بونص ومكافأة لموظف
+        </DialogTitle>
+        <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          <FormControl fullWidth required>
+            <InputLabel>اختيار الموظف المستحق للبونص *</InputLabel>
+            <Select
+              value={bonusForm.employeeId}
+              label="اختيار الموظف المستحق للبونص *"
+              onChange={(e) => setBonusForm({ ...bonusForm, employeeId: e.target.value })}
+            >
+              {(employees || []).map((emp) => (
+                <MenuItem key={emp.id} value={emp.id}>
+                  👤 <strong>{emp.name}</strong> - {emp.role} ({emp.branchName}) | الأساسي: {emp.baseSalary} ج.م
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>نوع المكافأة / البونص</InputLabel>
+                <Select
+                  value={bonusForm.type}
+                  label="نوع المكافأة / البونص"
+                  onChange={(e) => setBonusForm({ ...bonusForm, type: e.target.value })}
+                >
+                  <MenuItem value="full_attendance">🌟 بونص التزام وحضور كامل الساعات الأساسية</MenuItem>
+                  <MenuItem value="overtime_hours">⏱️ ساعات إضافية (أوفر تايم بالساعات)</MenuItem>
+                  <MenuItem value="direct_cash">💵 مكافأة مالية مباشرة (بالجنيه)</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                required
+                type="number"
+                label={bonusForm.type === 'overtime_hours' ? 'عدد الساعات الإضافية' : 'المبلغ بالجنيه (ج.م)'}
+                value={bonusForm.value}
+                onChange={(e) => setBonusForm({ ...bonusForm, value: e.target.value })}
+              />
+            </Grid>
+
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                multiline
+                rows={2}
+                label="السبب والملاحظات"
+                value={bonusForm.notes}
+                onChange={(e) => setBonusForm({ ...bonusForm, notes: e.target.value })}
+              />
+            </Grid>
+          </Grid>
+
+          {/* Live Net Preview */}
+          {selectedBonusEmp && (() => {
+            const currentCalc = calculateEmployeeSalary(selectedBonusEmp);
+            const val = parseFloat(bonusForm.value) || 0;
+            const addedBonusAmount = bonusForm.type === 'overtime_hours' ? (val * currentCalc.hourlyRate) : val;
+            const newNet = currentCalc.net + addedBonusAmount;
+
+            return (
+              <Paper variant="outlined" sx={{ p: 2, bgcolor: '#ECFDF5', borderColor: '#6EE7B7', borderRadius: '12px' }}>
+                <Typography variant="subtitle2" fontWeight="bold" color="success.main">
+                  💚 معاينة التأثير المالي على راتب {selectedBonusEmp.name}:
+                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                  <Typography variant="body2">الراتب الحالي:</Typography>
+                  <Typography variant="body2" fontWeight="bold">{currentCalc.net.toLocaleString()} ج.م</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', color: 'success.main' }}>
+                  <Typography variant="body2" fontWeight="bold">البونص المضاف:</Typography>
+                  <Typography variant="body2" fontWeight="bold">+{addedBonusAmount.toLocaleString()} ج.م</Typography>
+                </Box>
+                <Divider sx={{ my: 0.5 }} />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', color: 'success.dark' }}>
+                  <Typography variant="body1" fontWeight="900">الصافي الجديد المتوقع:</Typography>
+                  <Typography variant="h6" fontWeight="900">{newNet.toLocaleString()} ج.م</Typography>
+                </Box>
+              </Paper>
+            );
+          })()}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setBonusModalOpen(false)} variant="outlined">إلغاء</Button>
+          <Button onClick={handleConfirmBonus} variant="contained" color="success" size="large" sx={{ px: 3, fontWeight: 'bold' }}>
+            تأكيد البونص والمكافأة
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* DIALOG 2: GLOBAL DEDUCTION MODAL (تسجيل خصم على موظف) */}
+      <Dialog open={deductionModalOpen} onClose={() => setDeductionModalOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}>
+        <DialogTitle sx={{ fontWeight: 900, color: 'error.main', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DeductionIcon fontSize="large" />
+          تسجيل خصم / جزاء على موظف
+        </DialogTitle>
+        <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          <FormControl fullWidth required>
+            <InputLabel>اختيار الموظف *</InputLabel>
+            <Select
+              value={deductionForm.employeeId}
+              label="اختيار الموظف *"
+              onChange={(e) => setDeductionForm({ ...deductionForm, employeeId: e.target.value })}
+            >
+              {(employees || []).map((emp) => (
+                <MenuItem key={emp.id} value={emp.id}>
+                  👤 <strong>{emp.name}</strong> - {emp.role} ({emp.branchName}) | الأساسي: {emp.baseSalary} ج.م
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>نوع الخصم</InputLabel>
+                <Select
+                  value={deductionForm.type}
+                  label="نوع الخصم"
+                  onChange={(e) => setDeductionForm({ ...deductionForm, type: e.target.value })}
+                >
+                  <MenuItem value="deduction_hours">⏱️ خصم بالساعات (تأخير / غياب / خروج مبكر)</MenuItem>
+                  <MenuItem value="direct_cash">💵 خصم مالي مباشر (جزاء / تلفيات / بالجنيه)</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                required
+                type="number"
+                label={deductionForm.type === 'deduction_hours' ? 'عدد ساعات الخصم' : 'مبلغ الخصم بالجنيه (ج.م)'}
+                value={deductionForm.value}
+                onChange={(e) => setDeductionForm({ ...deductionForm, value: e.target.value })}
+              />
+            </Grid>
+
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                multiline
+                rows={2}
+                label="سبب الخصم والجزاء"
+                value={deductionForm.notes}
+                onChange={(e) => setDeductionForm({ ...deductionForm, notes: e.target.value })}
+              />
+            </Grid>
+          </Grid>
+
+          {/* Live Net Preview */}
+          {selectedDeductionEmp && (() => {
+            const currentCalc = calculateEmployeeSalary(selectedDeductionEmp);
+            const val = parseFloat(deductionForm.value) || 0;
+            const addedDeductionAmount = deductionForm.type === 'deduction_hours' ? (val * currentCalc.hourlyRate) : val;
+            const newNet = Math.max(0, currentCalc.net - addedDeductionAmount);
+
+            return (
+              <Paper variant="outlined" sx={{ p: 2, bgcolor: '#FEF2F2', borderColor: '#FCA5A5', borderRadius: '12px' }}>
+                <Typography variant="subtitle2" fontWeight="bold" color="error.main">
+                  ⚠️ معاينة الخصم من راتب {selectedDeductionEmp.name}:
+                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                  <Typography variant="body2">الراتب الحالي:</Typography>
+                  <Typography variant="body2" fontWeight="bold">{currentCalc.net.toLocaleString()} ج.م</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', color: 'error.main' }}>
+                  <Typography variant="body2" fontWeight="bold">الخصم المطبق:</Typography>
+                  <Typography variant="body2" fontWeight="bold">-{addedDeductionAmount.toLocaleString()} ج.م</Typography>
+                </Box>
+                <Divider sx={{ my: 0.5 }} />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', color: 'error.dark' }}>
+                  <Typography variant="body1" fontWeight="900">الصافي الجديد المتوقع:</Typography>
+                  <Typography variant="h6" fontWeight="900">{newNet.toLocaleString()} ج.م</Typography>
+                </Box>
+              </Paper>
+            );
+          })()}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setDeductionModalOpen(false)} variant="outlined">إلغاء</Button>
+          <Button onClick={handleConfirmDeduction} variant="contained" color="error" size="large" sx={{ px: 3, fontWeight: 'bold' }}>
+            تأكيد تطبيق الخصم
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* HOURLY ADJUSTMENTS DIALOG */}
       <Dialog open={hoursDialog} onClose={() => setHoursDialog(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: '16px' } }}>
         <DialogTitle sx={{ fontWeight: 800, color: '#0284C7', display: 'flex', alignItems: 'center', gap: 1 }}>
           <TimeIcon />
@@ -514,7 +848,7 @@ export default function SalariesPage() {
                     </Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', color: 'error.main' }}>
                       <Typography variant="body2" fontWeight="bold">إجمالي الخصومات (-ساعات -خصم -سلف):</Typography>
-                      <Typography variant="body2" fontWeight="bold">-(calc.totalDeductions + calc.advances).toLocaleString() ج.م</Typography>
+                      <Typography variant="body2" fontWeight="bold">-{(calc.totalDeductions + calc.advances).toLocaleString()} ج.م</Typography>
                     </Box>
                     <Divider sx={{ my: 0.5 }} />
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', color: 'primary.main' }}>
