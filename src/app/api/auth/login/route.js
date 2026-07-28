@@ -11,28 +11,14 @@ export async function POST(request) {
     const cleanUser = username.trim().toLowerCase();
     const cleanPin = pin.trim();
 
+    // Query database for exact username/name and PIN match
     const result = await query(
       'SELECT id, username, name, role, permissions, status, avatar FROM users WHERE (LOWER(username) = $1 OR LOWER(name) = $1) AND pin = $2 LIMIT 1',
       [cleanUser, cleanPin]
     );
 
-    if (result.rows.length === 0) {
-      if ((cleanUser === 'administrator' && (cleanPin === '1234' || cleanPin === '0000')) ||
-          (cleanUser === 'cashier1' && cleanPin === '0000')) {
-        return NextResponse.json({
-          success: true,
-          user: {
-            id: 'u_default',
-            username: cleanUser,
-            name: cleanUser === 'administrator' ? 'المدير العام' : 'أحمد علي',
-            role: cleanUser === 'administrator' ? 'admin' : 'cashier',
-            permissions: cleanUser === 'administrator'
-              ? ['/', '/products', '/orders', '/tables', '/customers', '/shift-summary', '/delivery', '/inventory', '/salaries', '/reports', '/admin', '/settings']
-              : ['/', '/orders', '/tables', '/customers', '/shift-summary', '/delivery']
-          }
-        });
-      }
-      return NextResponse.json({ success: false, error: 'رمز PIN غير صحيح!' }, { status: 401 });
+    if (!result.rows || result.rows.length === 0) {
+      return NextResponse.json({ success: false, error: 'رمز PIN غير صحيح أو المستخدم غير مسجل بالداتابيز!' }, { status: 401 });
     }
 
     const user = result.rows[0];
@@ -48,7 +34,7 @@ export async function POST(request) {
 
     let parsedPerms = [];
     try {
-      parsedPerms = user.permissions ? JSON.parse(user.permissions) : [];
+      parsedPerms = user.permissions ? (typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions) : [];
     } catch (e) {
       parsedPerms = [];
     }

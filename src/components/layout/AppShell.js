@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Box } from '@mui/material';
+import { Box, CircularProgress, Typography } from '@mui/material';
 import Sidebar from './Sidebar';
 import { useAuthStore } from '@/store/useAuthStore';
 
@@ -21,7 +21,7 @@ export default function AppShell({ children }) {
 
     const isLoginPage = pathname === '/login';
 
-    // 1. Unauthenticated users -> Redirect to /login
+    // 1. Unauthenticated users on protected routes -> Redirect to /login
     if (!isAuthenticated && !isLoginPage) {
       router.replace('/login');
       return;
@@ -33,16 +33,36 @@ export default function AppShell({ children }) {
       return;
     }
 
-    // 3. Permission Check
+    // 3. Granular Permission Check for authenticated users
     if (isAuthenticated && !isLoginPage) {
       const permitted = hasPermission(pathname);
       if (!permitted) {
         router.replace('/');
       }
     }
-  }, [mounted, isAuthenticated, pathname, user, router]);
+  }, [mounted, isAuthenticated, pathname, user, router, hasPermission]);
 
   const isLoginPage = pathname === '/login';
+
+  // While checking hydration / auth status, display a secure loading screen
+  if (!mounted) {
+    return (
+      <Box sx={{ height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', bgcolor: '#0F172A', color: '#FFF', gap: 2 }}>
+        <CircularProgress color="warning" size={48} />
+        <Typography variant="body2" sx={{ fontWeight: 800, color: '#94A3B8' }}>جاري التحقق من أمان وحساب المستخدم...</Typography>
+      </Box>
+    );
+  }
+
+  // 🔒 GATEKEEPER: Strict Deny for unauthenticated users on protected routes
+  if (!isAuthenticated && !isLoginPage) {
+    return (
+      <Box sx={{ height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', bgcolor: '#0F172A', color: '#FFF', gap: 2 }}>
+        <CircularProgress color="warning" size={48} />
+        <Typography variant="body2" sx={{ fontWeight: 800, color: '#EF4444' }}>غير مسموح بالدخول! جاري التوجيه لشاشة تسجيل الدخول...</Typography>
+      </Box>
+    );
+  }
 
   if (isLoginPage) {
     return (
@@ -79,7 +99,7 @@ export default function AppShell({ children }) {
         {children}
       </Box>
 
-      {/* Sidebar - Renders consistently after hydration */}
+      {/* Sidebar - Renders only for authenticated users */}
       {mounted && isAuthenticated && <Sidebar />}
     </Box>
   );

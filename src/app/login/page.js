@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Box, Typography, TextField, Button, CircularProgress, IconButton, Alert, Chip } from '@mui/material';
-import { Backspace, ArrowBack } from '@mui/icons-material';
+import { Box, Typography, TextField, Button, CircularProgress, Alert, Chip, InputAdornment } from '@mui/material';
+import { Backspace, ArrowBack, PersonSearch } from '@mui/icons-material';
 import { useAuthStore } from '@/store/useAuthStore';
 
 export default function LoginPage() {
@@ -16,19 +16,33 @@ export default function LoginPage() {
   const [pinDigits, setPinDigits] = useState(['', '', '', '']);
   const [activePinIndex, setActivePinIndex] = useState(0);
 
+  const [dbUsers, setDbUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Quick Cashier Options for 1-click convenience
-  const quickUsers = [
-    { username: 'administrator', name: 'المدير العام', pin: '1234' },
-    { username: 'cashier1', name: 'أحمد علي', pin: '0000' },
-    { username: 'islam', name: 'إسلام', pin: '1234' },
-  ];
+  // Fetch real system users created in Database by Admin
+  useEffect(() => {
+    const fetchSystemUsers = async () => {
+      setLoadingUsers(true);
+      try {
+        const res = await fetch('/api/users');
+        if (res.ok) {
+          const data = await res.json();
+          setDbUsers(Array.isArray(data) ? data : []);
+        }
+      } catch (e) {
+        console.error('❌ Error fetching system users for login:', e);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+    fetchSystemUsers();
+  }, []);
 
   const currentPinStr = pinDigits.join('');
 
-  // Handle Step 1 Verification
+  // Handle Step 1 Verification via Database API
   const handleVerifyUsername = async (e) => {
     if (e) e.preventDefault();
     if (!username.trim()) return;
@@ -50,22 +64,16 @@ export default function LoginPage() {
         setPinDigits(['', '', '', '']);
         setActivePinIndex(0);
       } else {
-        setUserProfile({ username: username.trim(), name: username.trim(), role: 'cashier' });
-        setStep(2);
-        setPinDigits(['', '', '', '']);
-        setActivePinIndex(0);
+        setErrorMsg(data.error || 'اسم المستخدم غير مسجل بداتابيز النظام!');
       }
     } catch (err) {
-      setUserProfile({ username: username.trim(), name: username.trim(), role: 'cashier' });
-      setStep(2);
-      setPinDigits(['', '', '', '']);
-      setActivePinIndex(0);
+      setErrorMsg('عفواً، فشل الاتصال بقاعدة البيانات!');
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle Step 2 PIN Submission
+  // Handle Step 2 PIN Submission via Database API
   const handleLoginWithPin = async (finalPin = currentPinStr) => {
     if (finalPin.length < 4) return;
 
@@ -89,14 +97,9 @@ export default function LoginPage() {
         setActivePinIndex(0);
       }
     } catch (err) {
-      if (finalPin === '1234' || finalPin === '0000') {
-        login({ id: 'u_1', username, name: userProfile?.name || username, role: 'admin' });
-        router.push('/');
-      } else {
-        setErrorMsg('رمز PIN غير صحيح!');
-        setPinDigits(['', '', '', '']);
-        setActivePinIndex(0);
-      }
+      setErrorMsg('خطأ أثناء تسجيل الدخول، تأكد من رمز الـ PIN!');
+      setPinDigits(['', '', '', '']);
+      setActivePinIndex(0);
     } finally {
       setLoading(false);
     }
@@ -145,9 +148,7 @@ export default function LoginPage() {
         fontFamily: "'Inter', 'Segoe UI', sans-serif",
       }}
     >
-      {/* ========================================================
-          LEFT SIDE: FORM AREA (Exactly matching user mockups)
-         ======================================================== */}
+      {/* LEFT SIDE: FORM AREA */}
       <Box
         sx={{
           flex: 1,
@@ -160,10 +161,9 @@ export default function LoginPage() {
           position: 'relative',
         }}
       >
-        {/* Top Logo */}
+        {/* Top Logo & Back */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            {/* Official Hex Logo */}
             <Box
               component="img"
               src="/logo.png"
@@ -183,7 +183,7 @@ export default function LoginPage() {
               onClick={() => { setStep(1); setErrorMsg(''); }}
               sx={{ color: '#6B7280', fontWeight: 600, textTransform: 'none' }}
             >
-              Back / تغيير الحساب
+              تغيير الحساب
             </Button>
           )}
         </Box>
@@ -196,9 +196,7 @@ export default function LoginPage() {
             </Alert>
           )}
 
-          {/* ========================================================
-              STEP 1: USERNAME INPUT SCREEN
-             ======================================================== */}
+          {/* STEP 1: USERNAME SELECTION */}
           {step === 1 && (
             <Box
               component="form"
@@ -216,20 +214,25 @@ export default function LoginPage() {
             >
               <Box>
                 <Typography variant="h4" sx={{ fontWeight: 800, color: '#111827', letterSpacing: '-0.5px', mb: 0.8 }}>
-                  Welcome to Novix
+                  تسجيل الدخول للنظام
                 </Typography>
-                <Typography variant="body1" sx={{ color: '#6B7280', fontWeight: 500 }}>
-                  Add your User name to start now / أدخل اسم المستخدم
+                <Typography variant="body1" sx={{ color: '#6B7280', fontWeight: 600 }}>
+                  اختر حسابك المسجل بالداتابيز أو اكتب اسم المستخدم:
                 </Typography>
               </Box>
 
               <TextField
                 fullWidth
-                placeholder="Enter your User name"
+                placeholder="أدخل اسم المستخدم..."
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 variant="outlined"
                 autoFocus
+                slotProps={{
+                  input: {
+                    startAdornment: <InputAdornment position="start"><PersonSearch sx={{ color: '#2563EB' }} /></InputAdornment>
+                  }
+                }}
                 sx={{
                   mt: 1,
                   '& .MuiOutlinedInput-root': {
@@ -245,34 +248,43 @@ export default function LoginPage() {
                 }}
               />
 
-              {/* Quick Select Buttons */}
+              {/* Dynamic Users Chips from Database */}
               <Box sx={{ mt: 0.5 }}>
-                <Typography variant="caption" sx={{ color: '#9CA3AF', fontWeight: 600, mb: 1, display: 'block' }}>
-                  أو اختر الحساب فوراً:
+                <Typography variant="caption" sx={{ color: '#9CA3AF', fontWeight: 700, mb: 1, display: 'block' }}>
+                  👥 الحسابات المسجلة في الداتابيز:
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  {quickUsers.map((u) => (
-                    <Chip
-                      key={u.username}
-                      label={`${u.name} (${u.username})`}
-                      onClick={() => {
-                        setUsername(u.username);
-                        setUserProfile(u);
-                        setStep(2);
-                        setPinDigits(['', '', '', '']);
-                        setActivePinIndex(0);
-                      }}
-                      sx={{
-                        fontWeight: 700,
-                        bgcolor: '#EFF6FF',
-                        color: '#1D4ED8',
-                        '&:hover': { bgcolor: '#DBEAFE' },
-                        borderRadius: '8px',
-                        py: 1.8,
-                      }}
-                    />
-                  ))}
-                </Box>
+
+                {loadingUsers ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
+                    <CircularProgress size={18} />
+                    <Typography variant="caption" sx={{ color: '#6B7280' }}>جاري تحضير قائمة مستخدمين النظام...</Typography>
+                  </Box>
+                ) : (
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', maxHeight: 130, overflowY: 'auto' }}>
+                    {dbUsers.map((u) => (
+                      <Chip
+                        key={u.id || u.username}
+                        label={`${u.name} (${u.username})`}
+                        onClick={() => {
+                          setUsername(u.username);
+                          setUserProfile(u);
+                          setStep(2);
+                          setPinDigits(['', '', '', '']);
+                          setActivePinIndex(0);
+                        }}
+                        sx={{
+                          fontWeight: 700,
+                          bgcolor: '#EFF6FF',
+                          color: '#1D4ED8',
+                          '&:hover': { bgcolor: '#DBEAFE' },
+                          borderRadius: '10px',
+                          py: 2,
+                          cursor: 'pointer'
+                        }}
+                      />
+                    ))}
+                  </Box>
+                )}
               </Box>
 
               <Button
@@ -292,14 +304,12 @@ export default function LoginPage() {
                   '&:hover': { bgcolor: '#1D4ED8' },
                 }}
               >
-                {loading ? <CircularProgress size={24} color="inherit" /> : 'Continue'}
+                {loading ? <CircularProgress size={24} color="inherit" /> : 'متابعة لإدخال رمز PIN'}
               </Button>
             </Box>
           )}
 
-          {/* ========================================================
-              STEP 2: EXACT MATCH PIN SCREEN (4 Boxes + Circular Numpad)
-             ======================================================== */}
+          {/* STEP 2: PIN ENTRY SCREEN */}
           {step === 2 && (
             <Box
               sx={{
@@ -314,18 +324,17 @@ export default function LoginPage() {
                 }
               }}
             >
-              {/* Header Title */}
               <Box sx={{ textAlign: 'center', mb: 0.5 }}>
                 <Typography variant="h4" sx={{ fontWeight: 800, color: '#111827', letterSpacing: '-0.5px', mb: 0.8 }}>
-                  Welcome to Novix
+                  أهلاً بك 👋
                 </Typography>
-                <Typography variant="body1" sx={{ color: '#6B7280', fontWeight: 500 }}>
-                  Enter your pin code to start now ({userProfile?.name || username})
+                <Typography variant="body1" sx={{ color: '#6B7280', fontWeight: 600 }}>
+                  أدخل رمز PIN الخاص بك ({userProfile?.name || username})
                 </Typography>
               </Box>
 
               <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#374151', mt: 0.5 }}>
-                PIN code
+                رمز PIN المكون من 4 أرقام
               </Typography>
 
               {/* 4 Square Input Boxes */}
@@ -357,7 +366,7 @@ export default function LoginPage() {
                       }}
                     >
                       {digit ? (
-                        digit
+                        '●'
                       ) : isActive ? (
                         <Box
                           sx={{
@@ -377,7 +386,7 @@ export default function LoginPage() {
                 })}
               </Box>
 
-              {/* Circular Numpad Keypad (Matching user screenshot) */}
+              {/* Circular Numpad Keypad */}
               <Box
                 sx={{
                   display: 'grid',
@@ -415,7 +424,6 @@ export default function LoginPage() {
                   </Box>
                 ))}
 
-                {/* Row 4: C, 0, Backspace */}
                 <Box
                   onClick={handleClearPin}
                   sx={{
@@ -481,7 +489,6 @@ export default function LoginPage() {
                 </Box>
               </Box>
 
-              {/* Clockin Action Button */}
               <Button
                 variant="contained"
                 fullWidth
@@ -499,21 +506,18 @@ export default function LoginPage() {
                   '&:hover': { bgcolor: '#1D4ED8' },
                 }}
               >
-                {loading ? <CircularProgress size={24} color="inherit" /> : 'Clockin'}
+                {loading ? <CircularProgress size={24} color="inherit" /> : 'تسجيل الدخول للنظام 🔐'}
               </Button>
             </Box>
           )}
         </Box>
 
-        {/* Footer Text */}
         <Typography variant="caption" sx={{ color: '#9CA3AF', textAlign: 'center', fontWeight: 500, letterSpacing: '0.5px' }}>
-          V1.1 . All Rights Reserved
+          مطعم البرادعي للحواوشي • POS System V2.0
         </Typography>
       </Box>
 
-      {/* ========================================================
-          RIGHT SIDE: ROYAL BLUE ARTWORK (Exactly matching user mockups)
-         ======================================================== */}
+      {/* RIGHT SIDE: ROYAL BLUE ARTWORK */}
       <Box
         sx={{
           flex: 1.15,
@@ -526,17 +530,12 @@ export default function LoginPage() {
           overflow: 'hidden',
         }}
       >
-        {/* Vibrant Yellow Circles Background Pattern */}
-        {/* Top Circles */}
         <Box sx={{ position: 'absolute', top: -80, left: 60, width: 260, height: 260, borderRadius: '50%', bgcolor: '#EAB308' }} />
         <Box sx={{ position: 'absolute', top: -80, left: 330, width: 260, height: 260, borderRadius: '50%', bgcolor: '#EAB308' }} />
-
-        {/* Middle Circles */}
         <Box sx={{ position: 'absolute', top: '12%', left: -80, width: 270, height: 270, borderRadius: '50%', bgcolor: '#EAB308' }} />
         <Box sx={{ position: 'absolute', top: '35%', right: 10, width: 260, height: 260, borderRadius: '50%', bgcolor: '#EAB308' }} />
         <Box sx={{ position: 'absolute', bottom: -60, right: -60, width: 270, height: 270, borderRadius: '50%', bgcolor: '#EAB308' }} />
 
-        {/* Novix Hex Logo directly without white circle */}
         <Box
           component="img"
           src="/logo.png"
@@ -553,7 +552,6 @@ export default function LoginPage() {
           }}
         />
 
-        {/* 6-Petal White Flower Motif Emblem */}
         <Box
           sx={{
             position: 'absolute',
@@ -576,11 +574,9 @@ export default function LoginPage() {
           </svg>
         </Box>
 
-        {/* Content */}
         <Box />
         <Box />
 
-        {/* Bottom Banner Title */}
         <Box sx={{ color: '#FFFFFF', zIndex: 3, max: 480, mb: 4, ml: 2 }}>
           <Typography
             variant="h3"
@@ -592,9 +588,9 @@ export default function LoginPage() {
               fontFamily: "'Inter', sans-serif",
             }}
           >
-            Novix for better
+            نظام البرادعي POS
             <br />
-            customer satisfaction
+            أمان كامل وإدارة احترافية
           </Typography>
         </Box>
       </Box>

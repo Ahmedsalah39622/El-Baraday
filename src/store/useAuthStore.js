@@ -46,16 +46,19 @@ export const useAuthStore = create(
 
       hasPermission: (pathname) => {
         const user = get().user;
-        if (!user) return true; // Allow access if user state is loading/guest
+        const isAuthenticated = get().isAuthenticated;
+        
+        // STRICT SECURITY: Unauthenticated users have 0 permissions!
+        if (!isAuthenticated || !user) return false;
 
-        const role = user.role || 'admin';
+        const role = user.role || 'cashier';
         if (role === 'admin') return true; // Admin has full access to all system screens
 
-        // Custom granular screen permissions set on user
+        // Custom granular screen permissions set on user by Admin
         if (Array.isArray(user.permissions) && user.permissions.length > 0) {
-          if (pathname === '/') return user.permissions.includes('/');
-          if (pathname === '/attendance') return true; // Always allow attendance screen
-          return user.permissions.some(r => r !== '/' && pathname.startsWith(r));
+          if (pathname === '/') return user.permissions.includes('/') || user.permissions.includes('pos');
+          if (pathname === '/attendance') return true; // Always allow attendance screen for employees
+          return user.permissions.some(r => r !== '/' && (pathname.startsWith(r) || pathname.startsWith('/' + r)));
         }
 
         const allowedRoutes = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.cashier;
@@ -64,7 +67,7 @@ export const useAuthStore = create(
       }
     }),
     {
-      name: 'el-baraday-auth-v3',
+      name: 'el-baraday-auth-v4',
     }
   )
 );
