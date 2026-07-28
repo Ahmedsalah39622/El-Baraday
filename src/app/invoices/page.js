@@ -293,10 +293,12 @@ export default function InvoicesPage() {
 
   const getPaymentMethodLabel = (method) => {
     switch (method) {
-      case 'cash': return 'نقداً (كاش)';
-      case 'visa': return 'فيزا / بطاقة';
-      case 'transfer': return 'تحويل بنكي';
-      case 'vodafone_cash': return 'فودافون كاش';
+      case 'cash': return '💵 كاش';
+      case 'instapay': return '⚡ إنستا باي';
+      case 'vodafone_cash': return '📱 فودافون كاش';
+      case 'card':
+      case 'visa': return '💳 شبكة / فيزا';
+      case 'transfer': return '🏦 تحويل بنكي';
       default: return method || 'كاش';
     }
   };
@@ -910,10 +912,11 @@ export default function InvoicesPage() {
                   label="طريقة الدفع"
                   onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
                 >
-                  <MenuItem value="cash">نقداً (كاش)</MenuItem>
-                  <MenuItem value="visa">فيزا / كارت بنكي</MenuItem>
-                  <MenuItem value="transfer">تحويل بنكي</MenuItem>
-                  <MenuItem value="vodafone_cash">فودافون كاش</MenuItem>
+                  <MenuItem value="cash">💵 نقداً (كاش)</MenuItem>
+                  <MenuItem value="instapay">⚡ إنستا باي (InstaPay)</MenuItem>
+                  <MenuItem value="vodafone_cash">📱 فودافون كاش (Vodafone Cash)</MenuItem>
+                  <MenuItem value="card">💳 شبكة / فيزا (Card)</MenuItem>
+                  <MenuItem value="transfer">🏦 تحويل بنكي</MenuItem>
                 </Select>
               </FormControl>
             </Grid>

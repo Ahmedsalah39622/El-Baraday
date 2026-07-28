@@ -102,6 +102,7 @@ export default function OrderDetailsPanel({
   const [paidAmount, setPaidAmount] = useState('');
   const [showDeliveryForm, setShowDeliveryForm] = useState(true);
   const [orderNotes, setOrderNotes] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('cash');
 
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [completedOrderData, setCompletedOrderData] = useState(null);
@@ -168,6 +169,8 @@ export default function OrderDetailsPanel({
       total: finalTotal,
       paidAmount: numericPaid,
       remainingAmount: remainingChange,
+      paymentMethod: paymentMethod,
+      payment_method: paymentMethod,
       orderType,
       branch_id: orderBranchId,
     };
@@ -186,6 +189,8 @@ export default function OrderDetailsPanel({
       total: finalTotal,
       paidAmount: numericPaid,
       remainingAmount: remainingChange,
+      paymentMethod: paymentMethod,
+      payment_method: paymentMethod,
       branch_id: orderBranchId,
       notes: orderNotes,
     });
@@ -681,6 +686,42 @@ export default function OrderDetailsPanel({
           <Typography variant="subtitle1" sx={{ fontWeight: 900, color: '#2563EB', fontSize: '0.95rem' }}>
             {remainingChange.toFixed(2)} ج.م
           </Typography>
+        </Box>
+
+        {/* Payment Method Selector (طريقة الدفع: كاش، إنستا باي، فودافون كاش، شبكة/فيزا) */}
+        <Box sx={{ mt: 0.5 }}>
+          <Typography variant="caption" sx={{ fontWeight: 800, color: '#334155', display: 'block', mb: 0.8 }}>
+            💳 طريقة دفع وتحصيل الطلب:
+          </Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0.6 }}>
+            {[
+              { id: 'cash', label: '💵 كاش', color: '#10B981', bgcolor: '#ECFDF5' },
+              { id: 'instapay', label: '⚡ إنستا باي', color: '#7E22CE', bgcolor: '#F3E8FF' },
+              { id: 'vodafone_cash', label: '📱 فودافون كاش', color: '#DC2626', bgcolor: '#FEF2F2' },
+              { id: 'card', label: '💳 شبكة/فيزا', color: '#2563EB', bgcolor: '#EFF6FF' },
+            ].map((method) => (
+              <Button
+                key={method.id}
+                size="small"
+                variant={paymentMethod === method.id ? 'contained' : 'outlined'}
+                onClick={() => setPaymentMethod(method.id)}
+                sx={{
+                  borderRadius: '8px',
+                  fontWeight: 800,
+                  fontSize: '0.7rem',
+                  py: 0.5,
+                  px: 0.2,
+                  minWidth: 'auto',
+                  bgcolor: paymentMethod === method.id ? method.color : method.bgcolor,
+                  color: paymentMethod === method.id ? '#FFF' : method.color,
+                  borderColor: method.color,
+                  '&:hover': { bgcolor: method.color, color: '#FFF' }
+                }}
+              >
+                {method.label}
+              </Button>
+            ))}
+          </Box>
         </Box>
       </Box>
 

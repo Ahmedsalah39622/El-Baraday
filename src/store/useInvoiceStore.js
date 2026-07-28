@@ -190,6 +190,7 @@ export const useInvoiceStore = create((set, get) => ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           order_type: invoice.orderType || 'dine_in',
+          payment_method: invoice.paymentMethod || invoice.payment_method || 'cash',
           customer_name: invoice.customerName,
           customer_phone: invoice.customerPhone,
           customer_area: invoice.customerArea,

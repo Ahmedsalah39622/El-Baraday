@@ -114,6 +114,7 @@ export default function OrdersPage() {
               <TableCell sx={{ fontWeight: 800 }}>أصناف الطلب</TableCell>
               <TableCell sx={{ fontWeight: 800 }}>التاريخ والوقت</TableCell>
               <TableCell sx={{ fontWeight: 800 }}>نوع الطلب</TableCell>
+              <TableCell sx={{ fontWeight: 800 }}>طريقة الدفع</TableCell>
               <TableCell sx={{ fontWeight: 800 }}>حالة الطلب</TableCell>
               <TableCell sx={{ fontWeight: 800 }}>السعر الإجمالي</TableCell>
               <TableCell align="center" sx={{ fontWeight: 800 }}>الإجراءات والتفاصيل</TableCell>
@@ -123,6 +124,7 @@ export default function OrdersPage() {
             {filteredOrders.map((row) => {
               const hasItems = Array.isArray(row.items) && row.items.length > 0;
               const isDelivery = row.orderType === 'delivery';
+              const pm = row.paymentMethod || row.payment_method || 'cash';
 
               const branchObj = branches.find((b) => b.id === (row.branchId || row.branch_id));
               const displayBranchName = row.branchName || (branchObj ? branchObj.name : ((row.branchId || row.branch_id) === 'b2' ? 'الفرع الثاني' : 'الفرع الأول - الرئيسي'));
@@ -194,6 +196,18 @@ export default function OrdersPage() {
                         fontWeight: 800,
                       }}
                     />
+                  </TableCell>
+
+                  <TableCell>
+                    {pm === 'instapay' ? (
+                      <Chip label="⚡ إنستا باي" size="small" sx={{ bgcolor: '#F3E8FF', color: '#7E22CE', fontWeight: 800 }} />
+                    ) : pm === 'vodafone_cash' ? (
+                      <Chip label="📱 فودافون كاش" size="small" sx={{ bgcolor: '#FEF2F2', color: '#DC2626', fontWeight: 800 }} />
+                    ) : pm === 'card' ? (
+                      <Chip label="💳 شبكة/فيزا" size="small" sx={{ bgcolor: '#EFF6FF', color: '#2563EB', fontWeight: 800 }} />
+                    ) : (
+                      <Chip label="💵 كاش" size="small" sx={{ bgcolor: '#ECFDF5', color: '#047857', fontWeight: 800 }} />
+                    )}
                   </TableCell>
 
                   <TableCell>
@@ -340,6 +354,18 @@ export default function OrdersPage() {
                   </Typography>
                   <Typography variant="body2" sx={{ color: '#475569', mt: 0.5 }}>
                     حالة الفاتورة: <Chip label={selectedOrder.status || 'مكتمل'} size="small" color="success" sx={{ fontWeight: 800 }} />
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#475569', mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                    طريقة الدفع:
+                    {(selectedOrder.paymentMethod === 'instapay' || selectedOrder.payment_method === 'instapay') ? (
+                      <Chip label="⚡ إنستا باي (InstaPay)" size="small" sx={{ bgcolor: '#F3E8FF', color: '#7E22CE', fontWeight: 800 }} />
+                    ) : (selectedOrder.paymentMethod === 'vodafone_cash' || selectedOrder.payment_method === 'vodafone_cash') ? (
+                      <Chip label="📱 فودافون كاش (Vodafone)" size="small" sx={{ bgcolor: '#FEF2F2', color: '#DC2626', fontWeight: 800 }} />
+                    ) : (selectedOrder.paymentMethod === 'card' || selectedOrder.payment_method === 'card') ? (
+                      <Chip label="💳 شبكة / فيزا (Card)" size="small" sx={{ bgcolor: '#EFF6FF', color: '#2563EB', fontWeight: 800 }} />
+                    ) : (
+                      <Chip label="💵 نقداً (كاش)" size="small" sx={{ bgcolor: '#ECFDF5', color: '#047857', fontWeight: 800 }} />
+                    )}
                   </Typography>
                   {selectedOrder.driverName && (
                     <Typography variant="body2" sx={{ color: '#475569', mt: 0.5 }}>

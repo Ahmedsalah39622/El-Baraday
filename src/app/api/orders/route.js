@@ -90,7 +90,7 @@ export async function POST(request) {
     await ensureOrderColumns();
     const body = await request.json();
     const {
-      order_type, customer_name, customer_phone, customer_area,
+      order_type, payment_method, customer_name, customer_phone, customer_area,
       customer_address, driver_name, driver_id, subtotal, delivery_fee,
       discount, total, paid_amount, remaining_amount, cashier_name, items,
       branch_id, status, is_cash_collected
@@ -117,14 +117,14 @@ export async function POST(request) {
 
     const orderId = `ord_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
-    // Insert order into DB with branch_id
+    // Insert order into DB with branch_id and payment_method
     const orderResult = await query(
-      `INSERT INTO orders (id, order_number, order_type, customer_name, customer_phone, customer_area,
+      `INSERT INTO orders (id, order_number, order_type, payment_method, customer_name, customer_phone, customer_area,
         customer_address, driver_name, driver_id, subtotal, delivery_fee, discount, total,
         paid_amount, remaining_amount, cashier_name, status, branch_id, dispatched_at, is_cash_collected, cash_collected_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
        RETURNING *`,
-      [orderId, nextNum, order_type || 'dine_in', customer_name || null, customer_phone || null, customer_area || null,
+      [orderId, nextNum, order_type || 'dine_in', payment_method || 'cash', customer_name || null, customer_phone || null, customer_area || null,
         customer_address || null, driver_name || null, driver_id || null, parseFloat(subtotal) || 0, parseFloat(delivery_fee) || 0,
         parseFloat(discount) || 0, parseFloat(total) || 0, parseFloat(paid_amount) || 0, parseFloat(remaining_amount) || 0,
         cashier_name || 'administrator', initialStatus, targetBranch, isDispatched ? new Date().toISOString() : null,

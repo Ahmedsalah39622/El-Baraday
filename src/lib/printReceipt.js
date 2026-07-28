@@ -202,6 +202,14 @@ export function printThermalReceipt(orderData) {
         <!-- Meta Details Table (Strict 2 Columns to eliminate right/left clipping) -->
         <table class="meta-table">
           <tr>
+            <td style="text-align: right; font-weight: 700; font-size: 11px; width: 35%;">طريقة الدفع:</td>
+            <td style="text-align: left; font-weight: 900; font-size: 11px; width: 65%;">
+              ${(orderData.paymentMethod === 'instapay' || orderData.payment_method === 'instapay') ? '⚡ إنستا باي (InstaPay)' : 
+                (orderData.paymentMethod === 'vodafone_cash' || orderData.payment_method === 'vodafone_cash') ? '📱 فودافون كاش (Vodafone Cash)' :
+                (orderData.paymentMethod === 'card' || orderData.payment_method === 'card') ? '💳 شبكة / فيزا (Card)' : '💵 نقداً (كاش)'}
+            </td>
+          </tr>
+          <tr>
             <td style="text-align: right; font-weight: 700; font-size: 11px; width: 35%;">الكاشير:</td>
             <td style="text-align: left; font-weight: 900; font-size: 11px; width: 65%;">${cashierName}</td>
           </tr>
