@@ -52,34 +52,23 @@ export async function POST(request) {
           const resData = await apiResponse.json();
           return NextResponse.json({ sentViaApi: true, provider: 'ultramsg', result: resData });
         }
-      } else if (provider === 'greenapi' && instanceId && token) {
-        const cleanId = instanceId.trim();
-        const cleanToken = token.trim();
-        const hostPrefix = cleanId.length >= 4 && !isNaN(cleanId.slice(0, 4)) ? cleanId.slice(0, 4) : '';
-        const hostUrl = hostPrefix ? `https://${hostPrefix}.api.greenapi.com` : 'https://api.green-api.com';
-        
+      } else if (provider === 'greenapi' || (instanceId && token)) {
+        const cleanId = (instanceId || '7103131720').trim();
+        const cleanToken = (token || 'ef5cc1024bd3415db99710f63901b0fbbd0a3dcf19c44dd3aa').trim();
+
         let rawDigits = phone.replace(/\D/g, '');
         if (rawDigits.startsWith('01') && rawDigits.length === 11) rawDigits = '2' + rawDigits;
         let chatId = rawDigits.endsWith('@c.us') ? rawDigits : `${rawDigits}@c.us`;
 
-        console.log(`📡 Sending Green-API message to ${chatId} via ${url}`);
+        const targetUrl = `https://api.green-api.com/waInstance${cleanId}/sendMessage/${cleanToken}`;
 
-        let apiResponse = await fetch(url, {
+        console.log(`📡 Sending Green-API message to ${chatId} via ${targetUrl}`);
+
+        const apiResponse = await fetch(targetUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ chatId, message })
         });
-
-        // Fallback to standard host if dedicated host failed
-        if (!apiResponse.ok && hostPrefix) {
-          const fallbackUrl = `https://api.green-api.com/waInstance${cleanId}/sendMessage/${cleanToken}`;
-          console.log(`⚠️ Dedicated host failed (${apiResponse.status}), trying fallback: ${fallbackUrl}`);
-          apiResponse = await fetch(fallbackUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chatId, message })
-          });
-        }
 
         const resData = await apiResponse.json();
         console.log('✅ Green-API Result:', resData);

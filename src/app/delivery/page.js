@@ -62,6 +62,8 @@ export default function DeliveryPage() {
 
   const effectiveBranch = (user && user.role !== 'admin' && user.branch_id) ? user.branch_id : selectedBranchId;
 
+  const autoPrintedOrderIds = useRef(new Set());
+
   // Fetch Delivery Orders & Settings
   const fetchDeliveryData = async (isSilent = false) => {
     if (!isSilent) setLoadingOrders(true);
@@ -84,6 +86,16 @@ export default function DeliveryPage() {
           }
           return true;
         });
+        
+        // Auto-print incoming orders for the branch silently
+        delOrders.forEach(o => {
+          if (o.id && !autoPrintedOrderIds.current.has(o.id)) {
+            autoPrintedOrderIds.current.add(o.id);
+            // Trigger thermal receipt print automatically
+            try { handlePrintDelivery(o); } catch (e) {}
+          }
+        });
+
         setDeliveryOrders(delOrders);
       }
     } catch (e) {
@@ -302,30 +314,42 @@ export default function DeliveryPage() {
   };
 
   // Action: Send WhatsApp Notification to Customer
-  const handleSendWhatsAppToCustomer = (order) => {
+  const handleSendWhatsAppToCustomer = async (order) => {
     const driverName = order.driver_name || order.driverName;
     const foundDriver = (activeQueue || []).find(q => q.driver_name === driverName || q.name === driverName)
                      || (drivers || []).find(d => d.name === driverName);
     const driverPhone = foundDriver?.driver_phone || foundDriver?.phone || '';
 
-    sendDeliveryWhatsApp({
-      orderData: {
-        orderNumber: order.order_number || order.orderNumber,
-        customerName: order.customer_name || order.customerName,
-        customerPhone: order.customer_phone || order.customerPhone,
-        customerAddress: order.customer_address || order.customerAddress,
-        customerFloor: order.customer_floor || order.customerFloor,
-        customerApartment: order.customer_apartment || order.customerApartment,
-        driverName: driverName || 'طاقم التوصيل',
-        subtotal: parseFloat(order.subtotal || 0),
-        deliveryFee: parseFloat(order.delivery_fee || order.deliveryFee || 0),
-        total: parseFloat(order.total || 0),
-        items: order.items || []
-      },
-      driverPhone,
-      companySettings: { company_name: order.branch_name || 'مطعم البرادعي' },
-      autoOpenBrowser: true
-    }).catch(err => console.error('Error sending WhatsApp:', err));
+    try {
+      const res = await sendDeliveryWhatsApp({
+        orderData: {
+          orderNumber: order.order_number || order.orderNumber,
+          customerName: order.customer_name || order.customerName,
+          customerPhone: order.customer_phone || order.customerPhone,
+          customerAddress: order.customer_address || order.customerAddress,
+          customerFloor: order.customer_floor || order.customerFloor,
+          customerApartment: order.customer_apartment || order.customerApartment,
+          driverName: driverName || 'طاقم التوصيل',
+          subtotal: parseFloat(order.subtotal || 0),
+          deliveryFee: parseFloat(order.delivery_fee || order.deliveryFee || 0),
+          total: parseFloat(order.total || 0),
+          items: order.items || []
+        },
+        driverPhone,
+        companySettings: { company_name: order.branch_name || 'مطعم البرادعي' },
+        autoOpenBrowser: false
+      });
+
+      if (res && (res.sentVia === 'api' || res.success)) {
+        alert('✅ تم إرسال رسالة الواتساب للعميل عبر Green API تلقائياً بنجاح!');
+      } else {
+        const cleanPhone = formatWhatsAppPhone(order.customer_phone || order.customerName);
+        const msg = generateDeliveryMessage(order, driverPhone, { company_name: order.branch_name });
+        window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`, '_blank');
+      }
+    } catch (err) {
+      console.error('Error sending WhatsApp:', err);
+    }
   };
 
   // Filtered Live Delivery Orders
@@ -637,6 +661,32 @@ export default function DeliveryPage() {
                           </Typography>
                         </Box>
                       </Box>
+
+                      {/* Order Items Breakdown Details */}
+                      {Array.isArray(order.items) && order.items.length > 0 && (
+                        <Paper sx={{ p: 1.2, borderRadius: '10px', bgcolor: '#F8FAFC', border: '1px solid #E2E8F0', my: 0.5 }}>
+                          <Typography variant="caption" fontWeight={800} color="#334155" sx={{ display: 'block', mb: 0.5, fontSize: '0.75rem' }}>
+                            📦 الأصناف المطلوبة ({order.items.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0)}):
+                          </Typography>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
+                            {order.items.map((item, idx) => (
+                              <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
+                                <Typography variant="caption" fontWeight={700} color="#1E293B">
+                                  • {item.product_name || item.name || item.productName || 'صنف'} {item.size ? `(${item.size})` : ''} × {item.quantity || 1}
+                                </Typography>
+                                <Typography variant="caption" fontWeight={800} color="#059669">
+                                  {(parseFloat(item.price || 0) * parseInt(item.quantity || 1)).toLocaleString()} ج.م
+                                </Typography>
+                              </Box>
+                            ))}
+                          </Box>
+                          {(order.notes || order.orderNotes) && (
+                            <Typography variant="caption" color="#D97706" fontWeight={800} sx={{ display: 'block', mt: 0.5, pt: 0.5, borderTop: '1px dashed #CBD5E1' }}>
+                              📝 ملاحظات: {order.notes || order.orderNotes}
+                            </Typography>
+                          )}
+                        </Paper>
+                      )}
 
                       {/* Driver Status Banner */}
                       <Paper
