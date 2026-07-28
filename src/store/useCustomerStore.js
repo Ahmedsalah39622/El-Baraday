@@ -109,11 +109,15 @@ export const useCustomerStore = create(
 
       // Save customer or append new address if phone exists
       saveOrUpdateCustomer: async (customerData) => {
-        const { name, phone, address, floor, apartment } = customerData;
-        if (!phone || !phone.trim()) return;
+        const { name, address, floor, apartment } = customerData;
+        const rawPhone = (customerData.phone || '').toString().trim();
+        if (!rawPhone) return;
+
+        const cleanPhone = rawPhone.includes(' - ') ? rawPhone.split(' - ')[0].trim() : rawPhone;
+        if (!cleanPhone) return;
 
         const currentCustomers = get().customers;
-        const existingIdx = currentCustomers.findIndex(c => c.phone === phone.trim());
+        const existingIdx = currentCustomers.findIndex(c => c.phone === cleanPhone);
 
         const newAddrObj = { address: address || '', floor: floor || '', apartment: apartment || '' };
 

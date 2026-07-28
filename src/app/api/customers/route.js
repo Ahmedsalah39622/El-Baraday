@@ -28,13 +28,18 @@ export async function POST(request) {
       addressesVal = JSON.stringify([{ address: address || '', floor: floor || '', apartment: apartment || '' }]);
     }
 
+    let cleanPhone = (phone || '').toString().trim();
+    if (cleanPhone.includes(' - ')) {
+      cleanPhone = cleanPhone.split(' - ')[0].trim();
+    }
+
     const result = await query(
       `INSERT INTO customers (id, name, phone, address, floor, apartment, addresses, total_orders, total_spend)
        VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::jsonb, '[]'::jsonb), 0, 0)
        ON CONFLICT (id) DO UPDATE
        SET name = EXCLUDED.name, phone = EXCLUDED.phone, address = EXCLUDED.address, floor = EXCLUDED.floor, apartment = EXCLUDED.apartment, addresses = EXCLUDED.addresses
        RETURNING *`,
-      [customerId, name || 'عميل', phone || '', address || '', floor || '', apartment || '', addressesVal]
+      [customerId, name || 'عميل', cleanPhone, address || '', floor || '', apartment || '', addressesVal]
     );
     return NextResponse.json(result.rows[0], { status: 201 });
   } catch (error) {

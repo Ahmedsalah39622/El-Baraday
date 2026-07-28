@@ -126,12 +126,14 @@ export default function OrderDetailsPanel({
   const handleSelectCustomer = (selectedCust) => {
     if (!selectedCust) return;
     if (typeof selectedCust === 'string') {
-      setCustomerPhone(selectedCust);
+      const cleanPhone = selectedCust.includes(' - ') ? selectedCust.split(' - ')[0].trim() : selectedCust.trim();
+      setCustomerPhone(cleanPhone);
       return;
     }
 
+    const cleanPhone = (selectedCust.phone || '').includes(' - ') ? selectedCust.phone.split(' - ')[0].trim() : (selectedCust.phone || '').trim();
     setCustomerName(selectedCust.name || '');
-    setCustomerPhone(selectedCust.phone || '');
+    setCustomerPhone(cleanPhone);
 
     const addrs = selectedCust.addresses || [];
     setSavedAddresses(addrs);
@@ -428,9 +430,17 @@ export default function OrderDetailsPanel({
                   freeSolo
                   fullWidth
                   options={customers}
-                  getOptionLabel={(option) => (typeof option === 'string' ? option : `${option.phone || ''} - ${option.name || ''}`)}
+                  getOptionLabel={(option) => {
+                    if (typeof option === 'string') return option;
+                    const cleanPhone = (option.phone || '').includes(' - ') ? option.phone.split(' - ')[0].trim() : (option.phone || '');
+                    return cleanPhone ? `${cleanPhone} - ${option.name || ''}` : (option.name || '');
+                  }}
                   inputValue={customerPhone}
-                  onInputChange={(e, val) => setCustomerPhone(val)}
+                  onInputChange={(e, val) => {
+                    const rawVal = val || '';
+                    const cleanVal = rawVal.includes(' - ') ? rawVal.split(' - ')[0].trim() : rawVal;
+                    setCustomerPhone(cleanVal);
+                  }}
                   onChange={(e, val) => handleSelectCustomer(val)}
                   renderInput={(params) => (
                     <TextField
