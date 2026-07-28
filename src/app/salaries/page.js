@@ -101,7 +101,8 @@ export default function SalariesPage() {
     hourlyRate: 0,
     overtimeHours: 0,
     deductionHours: 0,
-    branchId: 'b1'
+    branchId: 'b1',
+    cashierPin: '',
   });
 
   // Edit Employee Dialog
@@ -232,6 +233,10 @@ export default function SalariesPage() {
 
   const handleAddEmployeeSubmit = async () => {
     if (!newEmpData.name.trim()) return;
+    if (newEmpData.role === 'كاشير' && (!newEmpData.cashierPin || newEmpData.cashierPin.trim().length < 4)) {
+      alert('رمز PIN مطلوب للكاشير ويجب أن يكون 4 أرقام على الأقل!');
+      return;
+    }
     await addEmployee({
       name: newEmpData.name.trim(),
       role: newEmpData.role,
@@ -242,6 +247,26 @@ export default function SalariesPage() {
       deductionHours: parseFloat(newEmpData.deductionHours) || 0,
       branchId: newEmpData.branchId || 'b1'
     });
+    if (newEmpData.role === 'كاشير' && newEmpData.cashierPin.trim()) {
+      const username = newEmpData.name.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^\w_]/g, '');
+      try {
+        await fetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username,
+            name: newEmpData.name.trim(),
+            pin: newEmpData.cashierPin.trim(),
+            role: 'cashier',
+            permissions: ['pos', 'tables', 'delivery'],
+            status: 'active',
+            branch_id: newEmpData.branchId || 'b1',
+          }),
+        });
+      } catch (e) {
+        console.error('Failed to create user for cashier:', e);
+      }
+    }
     setAddEmpDialog(false);
     setNewEmpData({
       name: '',
@@ -251,7 +276,8 @@ export default function SalariesPage() {
       hourlyRate: 0,
       overtimeHours: 0,
       deductionHours: 0,
-      branchId: 'b1'
+      branchId: 'b1',
+      cashierPin: '',
     });
   };
 
@@ -1589,6 +1615,19 @@ export default function SalariesPage() {
             value={newEmpData.hourlyRate}
             onChange={(e) => setNewEmpData({ ...newEmpData, hourlyRate: e.target.value })}
           />
+          {newEmpData.role === 'كاشير' && (
+            <TextField
+              fullWidth
+              size="small"
+              label="🔑 رمز PIN للكاشير (4 أرقام على الأقل) *"
+              placeholder="مثال: 1234"
+              inputProps={{ maxLength: 8 }}
+              value={newEmpData.cashierPin}
+              onChange={(e) => setNewEmpData({ ...newEmpData, cashierPin: e.target.value.replace(/\D/g, '') })}
+              helperText="سيتم إنشاء حساب دخول تلقائياً للكاشير بهذا الرمز"
+              sx={{ '& .MuiFormHelperText-root': { color: '#2563EB', fontWeight: 600 } }}
+            />
+          )}
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setAddEmpDialog(false)} variant="outlined">إلغاء</Button>
