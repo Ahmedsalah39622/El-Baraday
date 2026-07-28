@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Box, Typography, TextField, Button, CircularProgress, Alert, Chip, InputAdornment } from '@mui/material';
+import { Box, Typography, TextField, Button, CircularProgress, Alert, InputAdornment } from '@mui/material';
 import { Backspace, ArrowBack, PersonSearch } from '@mui/icons-material';
 import { useAuthStore } from '@/store/useAuthStore';
 
@@ -16,29 +16,8 @@ export default function LoginPage() {
   const [pinDigits, setPinDigits] = useState(['', '', '', '']);
   const [activePinIndex, setActivePinIndex] = useState(0);
 
-  const [dbUsers, setDbUsers] = useState([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-
-  // Fetch real system users created in Database by Admin
-  useEffect(() => {
-    const fetchSystemUsers = async () => {
-      setLoadingUsers(true);
-      try {
-        const res = await fetch('/api/users');
-        if (res.ok) {
-          const data = await res.json();
-          setDbUsers(Array.isArray(data) ? data : []);
-        }
-      } catch (e) {
-        console.error('❌ Error fetching system users for login:', e);
-      } finally {
-        setLoadingUsers(false);
-      }
-    };
-    fetchSystemUsers();
-  }, []);
 
   const currentPinStr = pinDigits.join('');
 
@@ -183,7 +162,7 @@ export default function LoginPage() {
               onClick={() => { setStep(1); setErrorMsg(''); }}
               sx={{ color: '#6B7280', fontWeight: 600, textTransform: 'none' }}
             >
-              تغيير الحساب
+              تغيير اسم المستخدم
             </Button>
           )}
         </Box>
@@ -196,7 +175,7 @@ export default function LoginPage() {
             </Alert>
           )}
 
-          {/* STEP 1: USERNAME SELECTION */}
+          {/* STEP 1: MANUAL USERNAME INPUT ONLY */}
           {step === 1 && (
             <Box
               component="form"
@@ -217,7 +196,7 @@ export default function LoginPage() {
                   تسجيل الدخول للنظام
                 </Typography>
                 <Typography variant="body1" sx={{ color: '#6B7280', fontWeight: 600 }}>
-                  اختر حسابك المسجل بالداتابيز أو اكتب اسم المستخدم:
+                  أدخل اسم المستخدم الخاص بك لتسجيل الدخول:
                 </Typography>
               </Box>
 
@@ -247,45 +226,6 @@ export default function LoginPage() {
                   },
                 }}
               />
-
-              {/* Dynamic Users Chips from Database */}
-              <Box sx={{ mt: 0.5 }}>
-                <Typography variant="caption" sx={{ color: '#9CA3AF', fontWeight: 700, mb: 1, display: 'block' }}>
-                  👥 الحسابات المسجلة في الداتابيز:
-                </Typography>
-
-                {loadingUsers ? (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
-                    <CircularProgress size={18} />
-                    <Typography variant="caption" sx={{ color: '#6B7280' }}>جاري تحضير قائمة مستخدمين النظام...</Typography>
-                  </Box>
-                ) : (
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', maxHeight: 130, overflowY: 'auto' }}>
-                    {dbUsers.map((u) => (
-                      <Chip
-                        key={u.id || u.username}
-                        label={`${u.name} (${u.username})`}
-                        onClick={() => {
-                          setUsername(u.username);
-                          setUserProfile(u);
-                          setStep(2);
-                          setPinDigits(['', '', '', '']);
-                          setActivePinIndex(0);
-                        }}
-                        sx={{
-                          fontWeight: 700,
-                          bgcolor: '#EFF6FF',
-                          color: '#1D4ED8',
-                          '&:hover': { bgcolor: '#DBEAFE' },
-                          borderRadius: '10px',
-                          py: 2,
-                          cursor: 'pointer'
-                        }}
-                      />
-                    ))}
-                  </Box>
-                )}
-              </Box>
 
               <Button
                 type="submit"
