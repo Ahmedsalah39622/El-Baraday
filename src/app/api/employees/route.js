@@ -1,8 +1,24 @@
 import { query } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
+let hourlyColumnsChecked = false;
+async function ensureHourlyColumns() {
+  if (hourlyColumnsChecked) return;
+  try {
+    await query(`ALTER TABLE employees ADD COLUMN hourly_rate DECIMAL(10, 2) DEFAULT 0.00`);
+  } catch(e) {}
+  try {
+    await query(`ALTER TABLE employees ADD COLUMN overtime_hours DECIMAL(10, 2) DEFAULT 0.00`);
+  } catch(e) {}
+  try {
+    await query(`ALTER TABLE employees ADD COLUMN deduction_hours DECIMAL(10, 2) DEFAULT 0.00`);
+  } catch(e) {}
+  hourlyColumnsChecked = true;
+}
+
 export async function GET(request) {
   try {
+    await ensureHourlyColumns();
     const { searchParams } = new URL(request.url);
     const branchId = searchParams.get('branch_id');
 
@@ -28,14 +44,24 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    await ensureHourlyColumns();
     const body = await request.json();
-    const { name, phone, role, base_salary, bonus, deductions, branch_id } = body;
+    const { 
+      name, phone, role, base_salary, hourly_rate, 
+      overtime_hours, deduction_hours, bonus, deductions, branch_id 
+    } = body;
     const empBranch = branch_id || 'b1';
 
     const result = await query(
-      `INSERT INTO employees (id, name, phone, role, base_salary, bonus, deductions, branch_id)
-       VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [name, phone, role || 'كاشير', base_salary || 0, bonus || 0, deductions || 0, empBranch]
+      `INSERT INTO employees (
+        id, name, phone, role, base_salary, hourly_rate, 
+        overtime_hours, deduction_hours, bonus, deductions, branch_id
+      )
+      VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [
+        name, phone, role || 'كاشير', base_salary || 0, hourly_rate || 0,
+        overtime_hours || 0, deduction_hours || 0, bonus || 0, deductions || 0, empBranch
+      ]
     );
 
     const newEmp = result.rows[0];

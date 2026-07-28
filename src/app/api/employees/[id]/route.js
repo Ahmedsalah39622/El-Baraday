@@ -5,15 +5,29 @@ export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, phone, role, base_salary, bonus, deductions, status, branch_id } = body;
+    const { 
+      name, phone, role, base_salary, hourly_rate, 
+      overtime_hours, deduction_hours, bonus, deductions, status, branch_id 
+    } = body;
 
     const result = await query(
-      `UPDATE employees SET name=COALESCE($1,name), phone=COALESCE($2,phone),
-       role=COALESCE($3,role), base_salary=COALESCE($4,base_salary),
-       bonus=COALESCE($5,bonus), deductions=COALESCE($6,deductions),
-       status=COALESCE($7,status), branch_id=COALESCE($8,branch_id)
-       WHERE id=$9 RETURNING *`,
-      [name, phone, role, base_salary, bonus, deductions, status, branch_id, id]
+      `UPDATE employees SET 
+        name=COALESCE($1,name), 
+        phone=COALESCE($2,phone),
+        role=COALESCE($3,role), 
+        base_salary=COALESCE($4,base_salary),
+        hourly_rate=COALESCE($5,hourly_rate),
+        overtime_hours=COALESCE($6,overtime_hours),
+        deduction_hours=COALESCE($7,deduction_hours),
+        bonus=COALESCE($8,bonus), 
+        deductions=COALESCE($9,deductions),
+        status=COALESCE($10,status), 
+        branch_id=COALESCE($11,branch_id)
+       WHERE id=$12 RETURNING *`,
+      [
+        name, phone, role, base_salary, hourly_rate, 
+        overtime_hours, deduction_hours, bonus, deductions, status, branch_id, id
+      ]
     );
 
     if (result.rows.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });

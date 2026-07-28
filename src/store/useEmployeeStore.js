@@ -22,6 +22,9 @@ export const useEmployeeStore = create(
                 role: r.role || 'موظف',
                 phone: r.phone || '',
                 baseSalary: parseFloat(r.base_salary || 4000),
+                hourlyRate: parseFloat(r.hourly_rate || 0),
+                overtimeHours: parseFloat(r.overtime_hours || 0),
+                deductionHours: parseFloat(r.deduction_hours || 0),
                 bonus: parseFloat(r.bonus || 0),
                 deductions: parseFloat(r.deductions || 0),
                 advances: parseFloat(r.total_advances || 0),
@@ -65,7 +68,17 @@ export const useEmployeeStore = create(
 
       addEmployee: async (emp) => {
         const newId = `emp_${Date.now()}`;
-        const newEmp = { id: newId, bonus: 0, deductions: 0, advances: 0, status: 'مستحق', ...emp };
+        const newEmp = { 
+          id: newId, 
+          hourlyRate: 0,
+          overtimeHours: 0,
+          deductionHours: 0,
+          bonus: 0, 
+          deductions: 0, 
+          advances: 0, 
+          status: 'مستحق', 
+          ...emp 
+        };
         set((state) => ({ employees: [...state.employees, newEmp] }));
         try {
           const res = await fetch('/api/employees', {
@@ -76,6 +89,11 @@ export const useEmployeeStore = create(
               phone: newEmp.phone,
               role: newEmp.role,
               base_salary: newEmp.baseSalary,
+              hourly_rate: newEmp.hourlyRate || 0,
+              overtime_hours: newEmp.overtimeHours || 0,
+              deduction_hours: newEmp.deductionHours || 0,
+              bonus: newEmp.bonus || 0,
+              deductions: newEmp.deductions || 0,
               branch_id: newEmp.branchId || newEmp.branch_id || 'b1'
             })
           });
@@ -102,6 +120,9 @@ export const useEmployeeStore = create(
               phone: updates.phone,
               role: updates.role,
               base_salary: updates.baseSalary,
+              hourly_rate: updates.hourlyRate,
+              overtime_hours: updates.overtimeHours,
+              deduction_hours: updates.deductionHours,
               bonus: updates.bonus,
               deductions: updates.deductions,
               status: updates.status,
@@ -140,7 +161,7 @@ export const useEmployeeStore = create(
       }
     }),
     {
-      name: 'el-baraday-employees-v5',
+      name: 'el-baraday-employees-v6',
     }
   )
 );
