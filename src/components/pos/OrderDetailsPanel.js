@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react';
 import {
   Box, Typography, Button, IconButton, Divider, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Select, FormControl, InputLabel, Autocomplete, Chip
 } from '@mui/material';
-import { EditOutlined, DeleteOutlined, CheckCircleOutlined, Print, DeliveryDining, LocationOn, Phone, ExpandMore, ExpandLess, WhatsApp } from '@mui/icons-material';
+import { EditOutlined, DeleteOutlined, CheckCircleOutlined, Print, DeliveryDining, LocationOn, Phone, ExpandMore, ExpandLess, WhatsApp, ConfirmationNumber } from '@mui/icons-material';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { useCustomerStore } from '@/store/useCustomerStore';
 import DeliveryReceipts from './DeliveryReceipts';
-import { printThermalReceipt } from '@/lib/printReceipt';
+import { printThermalReceipt, printRaffleCoupon } from '@/lib/printReceipt';
 import { sendDeliveryWhatsApp } from '@/lib/whatsapp';
 
 import { useAuthStore } from '@/store/useAuthStore';
@@ -804,6 +804,27 @@ export default function OrderDetailsPanel({
               إرسال / فتح الواتساب للعميل
             </Button>
           )}
+
+          <Button
+            variant="contained"
+            color="warning"
+            startIcon={<ConfirmationNumber />}
+            onClick={() => {
+              if (completedOrderData) {
+                printRaffleCoupon({
+                  couponNumber: completedOrderData.orderNumber || Math.floor(100000 + Math.random() * 900000),
+                  customerName: completedOrderData.customerName || 'عميل المحل',
+                  customerPhone: completedOrderData.customerPhone || '',
+                  raffleTitle: 'سحب الجائزة الكبرى - مطعم البرادعي',
+                  dateStr: new Date().toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }),
+                  branchName: 'مطعم البرادعي للحواوشي'
+                });
+              }
+            }}
+            sx={{ borderRadius: '12px', px: 2.5, py: 1.2, fontWeight: 800, bgcolor: '#D97706', '&:hover': { bgcolor: '#B45309' } }}
+          >
+            🎟️ طباعة كوبون سحب
+          </Button>
 
           <Button
             variant="contained"

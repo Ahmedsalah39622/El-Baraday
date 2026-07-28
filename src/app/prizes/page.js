@@ -17,6 +17,7 @@ import { useCustomerStore } from '@/store/useCustomerStore';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { generateReportPDF } from '@/lib/reportPdfExport';
 import { exportToExcel } from '@/lib/exportToExcel';
+import { printRaffleCoupon } from '@/lib/printReceipt';
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -244,6 +245,25 @@ export default function PrizesPage() {
     exportToExcel('سجل_الفائزين_بالجوائز', columns, drawsHistory);
   };
 
+  // INSTANT THERMAL RAFFLE COUPON PRINT HANDLER
+  const [printCustomerName, setPrintCustomerName] = useState('');
+  const [printCustomerPhone, setPrintCustomerPhone] = useState('');
+
+  const handleDirectPrintCoupon = () => {
+    if (!printCustomerName.trim()) return;
+    const cNum = Math.floor(100000 + Math.random() * 900000);
+    printRaffleCoupon({
+      couponNumber: cNum,
+      customerName: printCustomerName.trim(),
+      customerPhone: printCustomerPhone.trim(),
+      raffleTitle: rafflePrizeTitle,
+      dateStr: new Date().toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }),
+      branchName: 'مطعم البرادعي للحواوشي'
+    });
+    setPrintCustomerName('');
+    setPrintCustomerPhone('');
+  };
+
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3, height: '100%', overflowY: 'auto', pb: 4 }}>
       {/* Page Header */}
@@ -283,6 +303,65 @@ export default function PrizesPage() {
           </Button>
         </Stack>
       </Box>
+
+      {/* QUICK INSTANT RAFFLE TICKET THERMAL PRINTER CARD */}
+      <Paper sx={{ p: 3, borderRadius: '20px', border: '2px solid #F59E0B', bgcolor: '#FFFBEB', boxShadow: '0 4px 20px rgba(245, 158, 11, 0.12)' }}>
+        <Typography variant="h6" sx={{ fontWeight: 900, color: '#B45309', display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <ConfirmationNumber sx={{ fontSize: 26, color: '#D97706' }} />
+          🎟️ طباعة إيصال / كوبون سحب حراري فوري (لوضعه في صندوق السحب)
+        </Typography>
+        <Typography variant="caption" sx={{ color: '#78350F', fontWeight: 700, display: 'block', mb: 2 }}>
+          يكتب الكاشير/الموظف اسم العميل ورقم هاتفه ويضغط "طباعة الكوبون"، ليتم طباعة كوبون حراري مقاس 80mm فوري يُوضع في صندوق القرعة العلنية السحب!
+        </Typography>
+
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} sm={5}>
+            <TextField
+              fullWidth
+              required
+              label="اسم العميل *"
+              placeholder="أدخل اسم العميل..."
+              value={printCustomerName}
+              onChange={(e) => setPrintCustomerName(e.target.value)}
+              sx={{ bgcolor: '#FFF', borderRadius: '12px' }}
+            />
+          </Grid>
+
+          <Grid item xs={12} sm={4}>
+            <TextField
+              fullWidth
+              label="رقم الهاتف (اختياري)"
+              placeholder="01012345678"
+              value={printCustomerPhone}
+              onChange={(e) => setPrintCustomerPhone(e.target.value)}
+              sx={{ bgcolor: '#FFF', borderRadius: '12px' }}
+            />
+          </Grid>
+
+          <Grid item xs={12} sm={3}>
+            <Button
+              fullWidth
+              variant="contained"
+              size="large"
+              disabled={!printCustomerName.trim()}
+              onClick={handleDirectPrintCoupon}
+              startIcon={<Print fontSize="large" />}
+              sx={{
+                py: 1.6,
+                borderRadius: '12px',
+                fontWeight: 900,
+                fontSize: '1.05rem',
+                bgcolor: '#D97706',
+                color: '#FFF',
+                '&:hover': { bgcolor: '#B45309' },
+                boxShadow: '0 6px 16px rgba(217, 119, 6, 0.3)'
+              }}
+            >
+              طباعة الكوبون الآن 🎟️
+            </Button>
+          </Grid>
+        </Grid>
+      </Paper>
 
       {/* Main Tabs Navigation Bar */}
       <Paper elevation={2} sx={{ borderRadius: '16px', border: '1.5px solid #CBD5E1', bgcolor: '#FFF', sticky: 'top', top: 0, zIndex: 20 }}>

@@ -859,3 +859,118 @@ export function printCustomInvoice(invoiceData, settings = {}, isThermal = false
   }, 250);
 }
 
+// Bulletproof 80mm Thermal Printer Raffle Coupon Ticket
+export function printRaffleCoupon(couponData) {
+  if (!couponData) return;
+
+  const {
+    couponNumber = Math.floor(100000 + Math.random() * 900000),
+    customerName = 'عميل المحل',
+    customerPhone = '',
+    raffleTitle = 'سحب الجائزة الكبرى - مطعم البرادعي',
+    dateStr = new Date().toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }),
+    branchName = 'مطعم البرادعي للحواوشي'
+  } = couponData;
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="ar" dir="rtl">
+    <head>
+      <meta charset="UTF-8">
+      <title>كوبون سحب #${couponNumber}</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@700;800;900&display=swap');
+        @page { size: 80mm auto; margin: 0mm !important; }
+        @media print {
+          html, body { width: 100% !important; margin: 0 !important; padding: 2mm !important; background: #FFF !important; color: #000 !important; }
+        }
+        body {
+          font-family: 'Cairo', sans-serif;
+          width: 72mm;
+          margin: 0 auto;
+          padding: 4px;
+          color: #000000;
+          text-align: center;
+          direction: rtl;
+        }
+        .coupon-border {
+          border: 2px dashed #000000;
+          border-radius: 8px;
+          padding: 8px 6px;
+        }
+        .header-title { font-size: 16px; font-weight: 900; margin-bottom: 2px; }
+        .sub-header { font-size: 12px; font-weight: 800; margin-bottom: 6px; }
+        .number-box {
+          border: 2px solid #000000;
+          border-radius: 6px;
+          background: #000000;
+          color: #FFFFFF;
+          padding: 6px;
+          font-size: 18px;
+          font-weight: 900;
+          margin: 8px 0;
+        }
+        .meta-row { display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; border-bottom: 1px solid #000; padding: 4px 0; }
+        .footer-note { font-size: 10px; font-weight: 800; margin-top: 8px; font-style: italic; }
+      </style>
+    </head>
+    <body>
+      <div class="coupon-border">
+        <div class="header-title">🎟️ كوبون دخول سحب الجوائز 🎟️</div>
+        <div class="sub-header">${branchName}</div>
+        <div style="font-size: 11px; font-weight: 800;">${raffleTitle}</div>
+        
+        <div class="number-box">
+          رقم الكوبون: #${couponNumber}
+        </div>
+
+        <div class="meta-row">
+          <span>اسم العميل:</span>
+          <span>${customerName}</span>
+        </div>
+        ${customerPhone ? `
+          <div class="meta-row">
+            <span>رقم الهاتف:</span>
+            <span>${customerPhone}</span>
+          </div>
+        ` : ''}
+        <div class="meta-row">
+          <span>تاريخ الإصدار:</span>
+          <span>${dateStr}</span>
+        </div>
+
+        <div class="footer-note">
+          ✂️ يُوضع هذا الكوبون في صندوق السحب للدخول في القرعة العلنية والجوائز! 🎁
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.style.visibility = 'hidden';
+
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  setTimeout(() => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => {
+      try {
+        document.body.removeChild(iframe);
+      } catch (e) { }
+    }, 2000);
+  }, 250);
+}
+
