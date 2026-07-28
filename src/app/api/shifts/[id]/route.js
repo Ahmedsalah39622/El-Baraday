@@ -2,14 +2,12 @@ import { query } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 let shiftColsChecked = false;
-async function ensureShiftCols() {
+export async function ensureShiftCols() {
   if (shiftColsChecked) return;
-  try {
-    await query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS expected_amount DECIMAL(10, 2) DEFAULT 0`);
-    await query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS cash_difference DECIMAL(10, 2) DEFAULT 0`);
-    await query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS difference_type VARCHAR(50) DEFAULT 'balanced'`);
-    await query(`ALTER TABLE shifts ADD COLUMN IF NOT EXISTS notes TEXT`);
-  } catch (e) {}
+  try { await query('ALTER TABLE shifts ADD COLUMN expected_amount DECIMAL(10, 2) DEFAULT 0'); } catch (e) {}
+  try { await query('ALTER TABLE shifts ADD COLUMN cash_difference DECIMAL(10, 2) DEFAULT 0'); } catch (e) {}
+  try { await query('ALTER TABLE shifts ADD COLUMN difference_type VARCHAR(50) DEFAULT \'balanced\''); } catch (e) {}
+  try { await query('ALTER TABLE shifts ADD COLUMN notes TEXT'); } catch (e) {}
   shiftColsChecked = true;
 }
 

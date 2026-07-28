@@ -1,8 +1,19 @@
 import { query } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
+let shiftColsChecked = false;
+async function ensureShiftCols() {
+  if (shiftColsChecked) return;
+  try { await query('ALTER TABLE shifts ADD COLUMN expected_amount DECIMAL(10, 2) DEFAULT 0'); } catch (e) {}
+  try { await query('ALTER TABLE shifts ADD COLUMN cash_difference DECIMAL(10, 2) DEFAULT 0'); } catch (e) {}
+  try { await query('ALTER TABLE shifts ADD COLUMN difference_type VARCHAR(50) DEFAULT \'balanced\''); } catch (e) {}
+  try { await query('ALTER TABLE shifts ADD COLUMN notes TEXT'); } catch (e) {}
+  shiftColsChecked = true;
+}
+
 export async function GET() {
   try {
+    await ensureShiftCols();
     const result = await query('SELECT * FROM shifts ORDER BY start_time DESC LIMIT 50');
     return NextResponse.json(result.rows || []);
   } catch (error) {
@@ -12,6 +23,7 @@ export async function GET() {
 
 export async function POST(request) {
   try {
+    await ensureShiftCols();
     const body = await request.json();
     const { cashier_name, start_amount, start_time } = body;
     

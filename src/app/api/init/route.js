@@ -52,10 +52,21 @@ async function ensureInvoicesTable() {
   invoicesChecked = true;
 }
 
+let shiftColsChecked = false;
+async function ensureShiftColsTable() {
+  if (shiftColsChecked) return;
+  try { await query('ALTER TABLE shifts ADD COLUMN expected_amount DECIMAL(10, 2) DEFAULT 0'); } catch(e) {}
+  try { await query('ALTER TABLE shifts ADD COLUMN cash_difference DECIMAL(10, 2) DEFAULT 0'); } catch(e) {}
+  try { await query('ALTER TABLE shifts ADD COLUMN difference_type VARCHAR(50) DEFAULT \'balanced\''); } catch(e) {}
+  try { await query('ALTER TABLE shifts ADD COLUMN notes TEXT'); } catch(e) {}
+  shiftColsChecked = true;
+}
+
 export async function GET(req) {
   try {
     await ensureDriverAttendanceTable();
     await ensureInvoicesTable();
+    await ensureShiftColsTable();
 
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get('branch_id');
