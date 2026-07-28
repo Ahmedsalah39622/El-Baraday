@@ -324,7 +324,7 @@ export default function PrizesPage() {
   };
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3, minHeight: '100%', bgcolor: '#0B0F19', color: '#F8FAFC', pb: 6 }}>
+    <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3, minHeight: '100vh', width: '100%', bgcolor: '#0B0F19', color: '#F8FAFC', pb: 14, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       
       {/* LUXURY NEON PAGE HEADER */}
       <Paper
@@ -840,7 +840,6 @@ export default function PrizesPage() {
             <Paper
               sx={{
                 p: 4,
-                height: '100%',
                 minHeight: 320,
                 borderRadius: '24px',
                 background: 'linear-gradient(135deg, #0F172A 0%, #1E1B4B 100%)',
