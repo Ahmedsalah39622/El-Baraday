@@ -41,7 +41,18 @@ export async function POST(request) {
        RETURNING *`,
       [customerId, name || 'عميل', cleanPhone, address || '', floor || '', apartment || '', addressesVal]
     );
-    return NextResponse.json(result.rows[0], { status: 201 });
+
+    const createdCustomer = (result.rows && result.rows[0]) ? result.rows[0] : {
+      id: customerId,
+      name: name || 'عميل',
+      phone: cleanPhone,
+      address: address || '',
+      floor: floor || '',
+      apartment: apartment || '',
+      addresses: addressesVal
+    };
+
+    return NextResponse.json(createdCustomer, { status: 201 });
   } catch (error) {
     console.error('❌ Error inserting customer:', error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });

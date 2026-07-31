@@ -157,15 +157,16 @@ export const useCustomerStore = create(
         } else {
           // New Customer
           const newId = `cust_${Date.now()}`;
+          const initialAddrs = customerData.addresses && customerData.addresses.length > 0 ? customerData.addresses : [newAddrObj];
           const newCust = {
             id: newId,
             name: name || 'عميل جديد',
-            phone: phone.trim(),
+            phone: cleanPhone,
             address: address || '',
             floor: floor || '',
             apartment: apartment || '',
-            addresses: [newAddrObj],
-            totalTransactions: 1,
+            addresses: initialAddrs,
+            totalTransactions: 0,
             totalSpend: 0,
           };
           set((state) => ({ customers: [newCust, ...state.customers] }));
@@ -181,7 +182,7 @@ export const useCustomerStore = create(
                 address: address || '',
                 floor: floor || '',
                 apartment: apartment || '',
-                addresses: [newAddrObj]
+                addresses: initialAddrs
               }),
             });
           } catch (e) { }
