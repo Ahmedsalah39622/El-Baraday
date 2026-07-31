@@ -62,6 +62,17 @@ async function ensureShiftColsTable() {
   shiftColsChecked = true;
 }
 
+const safeQuery = async (sql, params = []) => {
+  try {
+    const res = await query(sql, params);
+    if (res && Array.isArray(res.rows)) return res;
+    return { rows: [] };
+  } catch (e) {
+    console.warn('⚠️ Safe query warning:', e.message);
+    return { rows: [] };
+  }
+};
+
 export async function GET(req) {
   try {
     await ensureDriverAttendanceTable();
@@ -102,30 +113,28 @@ export async function GET(req) {
       shiftsRes,
       attendanceRes
     ] = await Promise.all([
-      query('SELECT * FROM branches ORDER BY name ASC'),
-      query('SELECT * FROM products ORDER BY sort_order ASC, created_at ASC'),
-      query('SELECT * FROM customers ORDER BY created_at DESC LIMIT 100'),
-      query('SELECT * FROM delivery_areas ORDER BY name'),
-      query(`SELECT * FROM drivers ${driversWhere} ORDER BY name`, params),
-      query(`SELECT * FROM restaurant_tables ${tablesWhere} ORDER BY number`, params),
-      query(nextOrderSql, params),
-      query(`
+      safeQuery('SELECT * FROM branches ORDER BY name ASC'),
+      safeQuery('SELECT * FROM products ORDER BY sort_order ASC'),
+      safeQuery('SELECT * FROM customers LIMIT 100'),
+      safeQuery('SELECT * FROM delivery_areas ORDER BY name'),
+      safeQuery(`SELECT * FROM drivers ${driversWhere} ORDER BY name`, params),
+      safeQuery(`SELECT * FROM restaurant_tables ${tablesWhere} ORDER BY number`, params),
+      safeQuery(nextOrderSql, params),
+      safeQuery(`
         SELECT o.*, b.name as branch_name
         FROM orders o
         LEFT JOIN branches b ON o.branch_id = b.id
         ${ordersWhere}
-        ORDER BY o.created_at DESC
         LIMIT 50
       `, params),
-      query('SELECT * FROM app_settings'),
-      query(`SELECT * FROM shifts ${shiftsWhere} ORDER BY start_time DESC LIMIT 20`, params),
-      query(`
+      safeQuery('SELECT * FROM app_settings'),
+      safeQuery(`SELECT * FROM shifts ${shiftsWhere} LIMIT 20`, params),
+      safeQuery(`
         SELECT da.*, d.name as driver_name, d.phone as driver_phone, b.name as branch_name
         FROM driver_attendance da
         LEFT JOIN drivers d ON da.driver_id = d.id
         LEFT JOIN branches b ON da.branch_id = b.id
         WHERE da.check_out_time IS NULL
-        ORDER BY da.check_in_time ASC
       `)
     ]);
 

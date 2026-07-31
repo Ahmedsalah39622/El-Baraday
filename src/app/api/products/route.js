@@ -15,7 +15,12 @@ async function ensureSizeColumns() {
 export async function GET() {
   try {
     await ensureSizeColumns();
-    const result = await query('SELECT * FROM products ORDER BY sort_order ASC, created_at ASC');
+    let result;
+    try {
+      result = await query('SELECT * FROM products ORDER BY sort_order ASC');
+    } catch(e) {
+      result = await query('SELECT * FROM products');
+    }
 
     return NextResponse.json(result.rows || [], {
       headers: {
