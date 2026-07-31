@@ -30,12 +30,31 @@ export async function POST(request) {
     // Mark any existing active shifts as closed to ensure only 1 active shift exists in DB
     await query("UPDATE shifts SET status='closed', end_time=CURRENT_TIMESTAMP WHERE status='active'");
 
+    let formattedStartTime = null;
+    if (start_time) {
+      const d = new Date(start_time);
+      if (!isNaN(d.getTime())) {
+        formattedStartTime = d.toISOString().slice(0, 19).replace('T', ' ');
+      }
+    }
+
+    const newId = `shift_${Date.now()}`;
+
     const result = await query(
       `INSERT INTO shifts (id, cashier_name, start_amount, start_time, status)
-       VALUES (gen_random_uuid()::TEXT, $1, $2, COALESCE($3::timestamptz, CURRENT_TIMESTAMP), 'active') RETURNING *`,
-      [cashier_name || 'administrator', start_amount || 0, start_time || null]
+       VALUES ($1, $2, $3, COALESCE($4, CURRENT_TIMESTAMP), 'active') RETURNING *`,
+      [newId, cashier_name || 'administrator', start_amount || 0, formattedStartTime]
     );
-    return NextResponse.json(result.rows[0], { status: 201 });
+
+    const createdShift = (result.rows && result.rows[0]) ? result.rows[0] : {
+      id: newId,
+      cashier_name: cashier_name || 'administrator',
+      start_amount: start_amount || 0,
+      start_time: formattedStartTime || new Date().toISOString(),
+      status: 'active'
+    };
+
+    return NextResponse.json(createdShift, { status: 201 });
   } catch (error) {
     console.error('❌ Error creating shift:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

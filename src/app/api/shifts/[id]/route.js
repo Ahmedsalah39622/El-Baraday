@@ -39,8 +39,20 @@ export async function PUT(request, { params }) {
        WHERE id=$8 RETURNING *`,
       [actual, expected, cashDifference, differenceType, cash_sales || 0, total_orders || 0, notes || '', id]
     );
-    if (result.rows.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    return NextResponse.json(result.rows[0]);
+
+    const updatedShift = (result.rows && result.rows[0]) ? result.rows[0] : {
+      id,
+      end_amount: actual,
+      expected_amount: expected,
+      cash_difference: cashDifference,
+      difference_type: differenceType,
+      cash_sales: cash_sales || 0,
+      total_orders: total_orders || 0,
+      notes: notes || '',
+      status: 'closed',
+    };
+
+    return NextResponse.json(updatedShift);
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

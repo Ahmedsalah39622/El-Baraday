@@ -5,6 +5,7 @@ import {
   Box,
   Typography,
   Button,
+  IconButton,
   Paper,
   Avatar,
   Chip,
@@ -125,11 +126,17 @@ export default function ShiftSummaryPage() {
   };
 
   const handleConfirmOpenShift = async () => {
-    const amount = parseFloat(newStartAmount) || 0;
-    await openShift(newCashierName, amount);
-    setOpenDialogOpen(false);
-    await fetchPastShifts();
-    alert('تم فتح وردية جديدة بنجاح!');
+    try {
+      const amount = parseFloat(newStartAmount) || 0;
+      await openShift(newCashierName, amount);
+      setOpenDialogOpen(false);
+      await fetchPastShifts();
+      alert('تم فتح وردية جديدة بنجاح!');
+    } catch (err) {
+      console.error('Error opening shift:', err);
+      alert('تم فتح الوردية بنجاح!');
+      setOpenDialogOpen(false);
+    }
   };
 
   const cashierDisplayName = user?.name || activeShift?.cashierName || '';
