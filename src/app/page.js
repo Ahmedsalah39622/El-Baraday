@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Box, Typography, Button, Drawer, Badge, Dialog, DialogTitle, DialogContent, DialogActions, Chip } from '@mui/material';
+import { Box, Typography, Button, Drawer, Badge, Dialog, DialogTitle, DialogContent, DialogActions, Chip, Paper, IconButton } from '@mui/material';
 import { ShoppingBagOutlined, AccountBalanceWallet, Store } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
 import CategoryTabs from '@/components/pos/CategoryTabs';
@@ -31,6 +31,8 @@ export default function POSPage() {
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [sizeModalOpen, setSizeModalOpen] = useState(false);
   const [selectedProductForSize, setSelectedProductForSize] = useState(null);
+  const [qtySmall, setQtySmall] = useState(1);
+  const [qtyLarge, setQtyLarge] = useState(1);
 
   useEffect(() => {
     // Ultra-Fast Combined Single Init Request (Populates all stores in ~30ms)
@@ -214,6 +216,8 @@ export default function POSPage() {
   const handleSelectProduct = (product) => {
     if (product.hasMultipleSizes) {
       setSelectedProductForSize(product);
+      setQtySmall(1);
+      setQtyLarge(1);
       setSizeModalOpen(true);
     } else {
       addItem({
@@ -500,97 +504,175 @@ export default function POSPage() {
         }}
       >
         <DialogTitle sx={{ fontWeight: 900, textAlign: 'center', color: '#1A1A2E', pb: 0.5, fontSize: '1.3rem' }}>
-          📏 اختر الحجم المطلـوب
+          📏 اختر الحجم والكمية المطلـوبة
         </DialogTitle>
         <DialogContent sx={{ textAlign: 'center', pt: 1 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#4285F4', mb: 2.5, fontSize: '1.1rem' }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#4285F4', mb: 2, fontSize: '1.1rem' }}>
             {selectedProductForSize?.name}
           </Typography>
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {/* Small Size Option Button */}
-            <Button
-              variant="contained"
-              onClick={() => {
-                const p = selectedProductForSize;
-                const pSmall = p.priceSmall || p.sizes?.[0]?.price || 45;
-                addItem({
-                  id: `${p.id}_صغير`,
-                  name: `${p.name} (صغير)`,
-                  price: pSmall,
-                  image: p.image,
-                  size: 'صغير',
-                  quantity: 1,
-                });
-                setSizeModalOpen(false);
-              }}
-              sx={{
-                bgcolor: '#FFFBEB',
-                color: '#D97706',
-                border: '2px solid #F59E0B',
-                borderRadius: '16px',
-                py: 2,
-                px: 2.5,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                boxShadow: 'none',
-                '&:hover': {
-                  bgcolor: '#FEF3C7',
-                  boxShadow: '0 6px 16px rgba(245, 158, 11, 0.25)',
-                },
-              }}
-            >
-              <Typography variant="body1" sx={{ fontWeight: 900, fontSize: '1.1rem' }}>
-                🟡 حجم صغير
-              </Typography>
-              <Chip
-                label={`${selectedProductForSize?.priceSmall || selectedProductForSize?.sizes?.[0]?.price || 45} ج.م`}
-                sx={{ bgcolor: '#F59E0B', color: '#FFF', fontWeight: 900, fontSize: '1rem', px: 1 }}
-              />
-            </Button>
+            {/* Small Size Option Card */}
+            {(() => {
+              const p = selectedProductForSize;
+              const pSmall = p?.priceSmall || p?.sizes?.[0]?.price || 45;
 
-            {/* Large Size Option Button */}
-            <Button
-              variant="contained"
-              onClick={() => {
-                const p = selectedProductForSize;
-                const pLarge = p.priceLarge || p.sizes?.[1]?.price || p.price || 75;
-                addItem({
-                  id: `${p.id}_كبير`,
-                  name: `${p.name} (كبير)`,
-                  price: pLarge,
-                  image: p.image,
-                  size: 'كبير',
-                  quantity: 1,
-                });
-                setSizeModalOpen(false);
-              }}
-              sx={{
-                bgcolor: '#F0F7FF',
-                color: '#1D4ED8',
-                border: '2px solid #3B82F6',
-                borderRadius: '16px',
-                py: 2,
-                px: 2.5,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                boxShadow: 'none',
-                '&:hover': {
-                  bgcolor: '#DBEAFE',
-                  boxShadow: '0 6px 16px rgba(59, 130, 246, 0.25)',
-                },
-              }}
-            >
-              <Typography variant="body1" sx={{ fontWeight: 900, fontSize: '1.1rem' }}>
-                🔵 حجم كبير
-              </Typography>
-              <Chip
-                label={`${selectedProductForSize?.priceLarge || selectedProductForSize?.sizes?.[1]?.price || selectedProductForSize?.price || 75} ج.م`}
-                sx={{ bgcolor: '#3B82F6', color: '#FFF', fontWeight: 900, fontSize: '1rem', px: 1 }}
-              />
-            </Button>
+              return (
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    borderRadius: '16px',
+                    borderColor: '#F59E0B',
+                    bgcolor: '#FFFBEB',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1.5,
+                  }}
+                >
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body1" sx={{ fontWeight: 900, color: '#D97706', fontSize: '1.1rem' }}>
+                      🟡 حجم صغير
+                    </Typography>
+                    <Chip
+                      label={`${pSmall} ج.م`}
+                      sx={{ bgcolor: '#F59E0B', color: '#FFF', fontWeight: 900, fontSize: '0.95rem' }}
+                    />
+                  </Box>
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pt: 0.5, flexWrap: 'wrap', gap: 1 }}>
+                    {/* Quantity Stepper */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, bgcolor: '#FFFFFF', p: 0.5, borderRadius: '12px', border: '1.5px solid #FCD34D' }}>
+                      <IconButton
+                        size="small"
+                        onClick={() => setQtySmall(Math.max(1, qtySmall - 1))}
+                        sx={{ bgcolor: '#FEF3C7', color: '#D97706', width: 30, height: 30, fontWeight: 900 }}
+                      >
+                        -
+                      </IconButton>
+                      <Typography sx={{ fontWeight: 900, px: 1, minWidth: 22, textAlign: 'center', fontSize: '1rem', color: '#B45309' }}>
+                        {qtySmall}
+                      </Typography>
+                      <IconButton
+                        size="small"
+                        onClick={() => setQtySmall(qtySmall + 1)}
+                        sx={{ bgcolor: '#FEF3C7', color: '#D97706', width: 30, height: 30, fontWeight: 900 }}
+                      >
+                        +
+                      </IconButton>
+                    </Box>
+
+                    {/* Add to Cart Button */}
+                    <Button
+                      variant="contained"
+                      onClick={() => {
+                        addItem({
+                          id: `${p.id}_صغير`,
+                          name: `${p.name} (صغير)`,
+                          price: pSmall,
+                          image: p.image,
+                          size: 'صغير',
+                          quantity: qtySmall,
+                        });
+                        setSizeModalOpen(false);
+                      }}
+                      sx={{
+                        bgcolor: '#F59E0B',
+                        '&:hover': { bgcolor: '#D97706' },
+                        borderRadius: '12px',
+                        fontWeight: 800,
+                        px: 2,
+                        py: 0.8,
+                        fontSize: '0.85rem',
+                      }}
+                    >
+                      + إضافة {qtySmall > 1 ? `(${qtySmall})` : ''} للفاتورة
+                    </Button>
+                  </Box>
+                </Paper>
+              );
+            })()}
+
+            {/* Large Size Option Card */}
+            {(() => {
+              const p = selectedProductForSize;
+              const pLarge = p?.priceLarge || p?.sizes?.[1]?.price || p?.price || 75;
+
+              return (
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    borderRadius: '16px',
+                    borderColor: '#3B82F6',
+                    bgcolor: '#F0F7FF',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1.5,
+                  }}
+                >
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body1" sx={{ fontWeight: 900, color: '#1D4ED8', fontSize: '1.1rem' }}>
+                      🔵 حجم كبير
+                    </Typography>
+                    <Chip
+                      label={`${pLarge} ج.م`}
+                      sx={{ bgcolor: '#3B82F6', color: '#FFF', fontWeight: 900, fontSize: '0.95rem' }}
+                    />
+                  </Box>
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pt: 0.5, flexWrap: 'wrap', gap: 1 }}>
+                    {/* Quantity Stepper */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, bgcolor: '#FFFFFF', p: 0.5, borderRadius: '12px', border: '1.5px solid #BFDBFE' }}>
+                      <IconButton
+                        size="small"
+                        onClick={() => setQtyLarge(Math.max(1, qtyLarge - 1))}
+                        sx={{ bgcolor: '#DBEAFE', color: '#1D4ED8', width: 30, height: 30, fontWeight: 900 }}
+                      >
+                        -
+                      </IconButton>
+                      <Typography sx={{ fontWeight: 900, px: 1, minWidth: 22, textAlign: 'center', fontSize: '1rem', color: '#1E40AF' }}>
+                        {qtyLarge}
+                      </Typography>
+                      <IconButton
+                        size="small"
+                        onClick={() => setQtyLarge(qtyLarge + 1)}
+                        sx={{ bgcolor: '#DBEAFE', color: '#1D4ED8', width: 30, height: 30, fontWeight: 900 }}
+                      >
+                        +
+                      </IconButton>
+                    </Box>
+
+                    {/* Add to Cart Button */}
+                    <Button
+                      variant="contained"
+                      onClick={() => {
+                        addItem({
+                          id: `${p.id}_كبير`,
+                          name: `${p.name} (كبير)`,
+                          price: pLarge,
+                          image: p.image,
+                          size: 'كبير',
+                          quantity: qtyLarge,
+                        });
+                        setSizeModalOpen(false);
+                      }}
+                      sx={{
+                        bgcolor: '#3B82F6',
+                        '&:hover': { bgcolor: '#1D4ED8' },
+                        borderRadius: '12px',
+                        fontWeight: 800,
+                        px: 2,
+                        py: 0.8,
+                        fontSize: '0.85rem',
+                      }}
+                    >
+                      + إضافة {qtyLarge > 1 ? `(${qtyLarge})` : ''} للفاتورة
+                    </Button>
+                  </Box>
+                </Paper>
+              );
+            })()}
           </Box>
         </DialogContent>
         <DialogActions sx={{ justifyContent: 'center', pt: 1 }}>
