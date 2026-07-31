@@ -147,13 +147,53 @@ export const useInvoiceStore = create((set, get) => ({
     }
   },
 
-  // Delete custom invoice
-  deleteCustomInvoice: async (id) => {
+  // Cancel POS order (sets status='cancelled', total=0, subtotal=0, delivery_fee=0)
+  cancelOrder: async (orderId) => {
     try {
-      const res = await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'cancelled',
+          total: 0,
+          subtotal: 0,
+          delivery_fee: 0,
+          discount: 0
+        })
+      });
+
       if (res.ok) {
         set((state) => ({
-          customInvoices: state.customInvoices.filter((inv) => inv.id !== id),
+          invoices: state.invoices.map((inv) =>
+            inv.id === orderId
+              ? {
+                  ...inv,
+                  status: 'cancelled',
+                  subtotal: 0,
+                  total: 0,
+                  deliveryFee: 0,
+                  discount: 0,
+                }
+              : inv
+          ),
+        }));
+        return { success: true };
+      } else {
+        const errData = await res.json();
+        return { success: false, error: errData.error || 'فشل إلغاء الطلب' };
+      }
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  // Delete POS order completely from DB
+  deleteOrder: async (orderId) => {
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, { method: 'DELETE' });
+      if (res.ok) {
+        set((state) => ({
+          invoices: state.invoices.filter((inv) => inv.id !== orderId),
         }));
         return { success: true };
       }

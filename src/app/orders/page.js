@@ -24,7 +24,7 @@ import {
   Select,
   MenuItem
 } from '@mui/material';
-import { Print, VisibilityOutlined, Close, Person, Phone, LocationOn, ReceiptLong, Store } from '@mui/icons-material';
+import { Print, VisibilityOutlined, Close, Person, Phone, LocationOn, ReceiptLong, Store, CancelOutlined } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { useBranchStore } from '@/store/useBranchStore';
@@ -33,7 +33,7 @@ import { printThermalReceipt } from '@/lib/printReceipt';
 import DeliveryTimerBadge from '@/components/delivery/DeliveryTimerBadge';
 
 export default function OrdersPage() {
-  const { invoices, fetchInvoices } = useInvoiceStore();
+  const { invoices, fetchInvoices, cancelOrder } = useInvoiceStore();
   const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin';
@@ -69,6 +69,25 @@ export default function OrdersPage() {
   const handleOpenDetails = (order) => {
     setSelectedOrder(order);
     setDetailsOpen(true);
+  };
+
+  const handleCancelOrder = async (order) => {
+    const orderNum = order.orderNumber || order.id?.slice(0, 8);
+    const orderTotal = (parseFloat(order.total) || 0).toLocaleString();
+
+    const confirmMsg = `هل أنت تأكد من إلغاء الطلب رقم #${orderNum}؟\n\n` +
+      `⚠️ عند الإلغاء سيتم تغيير حالة الطلب إلى (ملغي)، وتخصيم قيمته (${orderTotal} ج.م) وتصفير مبلغه تلقائياً من المبيعات والشيفت والحسابات.`;
+
+    if (!confirm(confirmMsg)) return;
+
+    const res = await cancelOrder(order.id);
+    if (res.success) {
+      alert(`✅ تم إلغاء الطلب رقم #${orderNum} وتخصيم المجموع من المبيعات والشيفت بنجاح.`);
+      setDetailsOpen(false);
+      fetchInvoices(100, targetBranch);
+    } else {
+      alert(`❌ حدث خطأ أثناء إلغاء الطلب: ${res.error || 'خطأ غير معروف'}`);
+    }
   };
 
   return (
@@ -214,17 +233,21 @@ export default function OrdersPage() {
                   <TableCell>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
                       <Chip
-                        label={row.status || 'مكتمل'}
+                        label={row.status === 'cancelled' ? '🔴 ملغي' : (row.status || 'مكتمل')}
                         size="small"
-                        sx={{ bgcolor: '#D1FAE5', color: '#065F46', fontWeight: 800 }}
+                        sx={{
+                          bgcolor: row.status === 'cancelled' ? '#FEF2F2' : '#D1FAE5',
+                          color: row.status === 'cancelled' ? '#DC2626' : '#065F46',
+                          fontWeight: 800
+                        }}
                       />
-                      {isDelivery && (row.dispatched_at || row.createdAt) && (
+                      {isDelivery && row.status !== 'cancelled' && (row.dispatched_at || row.createdAt) && (
                         <DeliveryTimerBadge dispatchedAt={row.dispatched_at || row.createdAt} status={row.status} />
                       )}
                     </Box>
                   </TableCell>
 
-                  <TableCell sx={{ fontWeight: 900, color: '#4285F4', fontSize: '0.95rem' }}>
+                  <TableCell sx={{ fontWeight: 900, color: row.status === 'cancelled' ? '#9CA3AF' : '#4285F4', fontSize: '0.95rem', textDecoration: row.status === 'cancelled' ? 'line-through' : 'none' }}>
                     {(parseFloat(row.total) || 0).toFixed(2)} ج.م
                   </TableCell>
 
@@ -242,26 +265,43 @@ export default function OrdersPage() {
                       </Tooltip>
 
                       {/* Reprint Invoice Button */}
-                      <Tooltip title="إعادة طباعة الفاتورة" arrow>
-                        <IconButton
-                          size="small"
-                          onClick={() => printThermalReceipt({
-                            orderNumber: row.orderNumber || '1',
-                            dateStr: new Date(row.createdAt || Date.now()).toLocaleString('ar-EG'),
-                            cashierName: row.cashierName || '',
-                            customerName: row.customerName,
-                            customerPhone: row.customerPhone,
-                            items: row.items || [],
-                            subtotal: row.subtotal || row.total,
-                            deliveryFee: row.deliveryFee || 0,
-                            total: row.total,
-                            orderType: row.orderType || 'takeaway'
-                          })}
-                          sx={{ color: '#4285F4', bgcolor: '#F0F7FF', '&:hover': { bgcolor: '#DBEAFE' } }}
-                        >
-                          <Print fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
+                      {row.status !== 'cancelled' && (
+                        <Tooltip title="إعادة طباعة الفاتورة" arrow>
+                          <IconButton
+                            size="small"
+                            onClick={() => printThermalReceipt({
+                              orderNumber: row.orderNumber || '1',
+                              dateStr: new Date(row.createdAt || Date.now()).toLocaleString('ar-EG'),
+                              cashierName: row.cashierName || '',
+                              customerName: row.customerName,
+                              customerPhone: row.customerPhone,
+                              items: row.items || [],
+                              subtotal: row.subtotal || row.total,
+                              deliveryFee: row.deliveryFee || 0,
+                              total: row.total,
+                              orderType: row.orderType || 'takeaway'
+                            })}
+                            sx={{ color: '#4285F4', bgcolor: '#F0F7FF', '&:hover': { bgcolor: '#DBEAFE' } }}
+                          >
+                            <Print fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+
+                      {/* Cancel Order Button */}
+                      {row.status !== 'cancelled' ? (
+                        <Tooltip title="إلغاء هذا الطلب وتخصيم المجموع من المبيعات" arrow>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleCancelOrder(row)}
+                            sx={{ color: '#EF4444', bgcolor: '#FEF2F2', '&:hover': { bgcolor: '#FEE2E2' } }}
+                          >
+                            <CancelOutlined fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      ) : (
+                        <Chip label="تم الإلغاء" size="small" sx={{ bgcolor: '#F3F4F6', color: '#9CA3AF', fontWeight: 800, fontSize: '0.7rem' }} />
+                      )}
                     </Box>
                   </TableCell>
                 </TableRow>
@@ -455,31 +495,44 @@ export default function OrdersPage() {
               </Paper>
             </DialogContent>
 
-            <DialogActions sx={{ p: 2, bgcolor: '#FAFBFC', borderTop: '1px solid #E5E7EB', gap: 1 }}>
+            <DialogActions sx={{ p: 2, bgcolor: '#FAFBFC', borderTop: '1px solid #E5E7EB', justifyContent: 'space-between' }}>
               <Button onClick={() => setDetailsOpen(false)} sx={{ color: '#64748B', fontWeight: 700 }}>
                 إغلاق
               </Button>
-              <Button
-                variant="contained"
-                startIcon={<Print />}
-                onClick={() => {
-                  printThermalReceipt({
-                    orderNumber: selectedOrder.orderNumber || '1',
-                    dateStr: new Date(selectedOrder.createdAt || Date.now()).toLocaleString('ar-EG'),
-                    cashierName: selectedOrder.cashierName || 'أحمد محمود',
-                    customerName: selectedOrder.customerName,
-                    customerPhone: selectedOrder.customerPhone,
-                    items: selectedOrder.items || [],
-                    subtotal: selectedOrder.subtotal || selectedOrder.total,
-                    deliveryFee: selectedOrder.deliveryFee || 0,
-                    total: selectedOrder.total,
-                    orderType: selectedOrder.orderType || 'takeaway'
-                  });
-                }}
-                sx={{ bgcolor: '#4285F4', borderRadius: '10px', px: 3, fontWeight: 800 }}
-              >
-                طباعة الفاتورة 🖨️
-              </Button>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                {selectedOrder.status !== 'cancelled' && (
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    startIcon={<CancelOutlined />}
+                    onClick={() => handleCancelOrder(selectedOrder)}
+                    sx={{ borderRadius: '10px', fontWeight: 800 }}
+                  >
+                    إلغاء الطلب وتخصيم المجموع 🚫
+                  </Button>
+                )}
+                <Button
+                  variant="contained"
+                  startIcon={<Print />}
+                  onClick={() => {
+                    printThermalReceipt({
+                      orderNumber: selectedOrder.orderNumber || '1',
+                      dateStr: new Date(selectedOrder.createdAt || Date.now()).toLocaleString('ar-EG'),
+                      cashierName: selectedOrder.cashierName || 'أحمد محمود',
+                      customerName: selectedOrder.customerName,
+                      customerPhone: selectedOrder.customerPhone,
+                      items: selectedOrder.items || [],
+                      subtotal: selectedOrder.subtotal || selectedOrder.total,
+                      deliveryFee: selectedOrder.deliveryFee || 0,
+                      total: selectedOrder.total,
+                      orderType: selectedOrder.orderType || 'takeaway'
+                    });
+                  }}
+                  sx={{ bgcolor: '#4285F4', borderRadius: '10px', px: 3, fontWeight: 800 }}
+                >
+                  طباعة الفاتورة 🖨️
+                </Button>
+              </Box>
             </DialogActions>
           </>
         )}
