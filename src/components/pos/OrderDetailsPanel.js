@@ -440,6 +440,21 @@ export default function OrderDetailsPanel({
                     const rawVal = val || '';
                     const cleanVal = rawVal.includes(' - ') ? rawVal.split(' - ')[0].trim() : rawVal;
                     setCustomerPhone(cleanVal);
+
+                    if (cleanVal.length >= 3) {
+                      const match = customers.find(c => c.phone === cleanVal);
+                      if (match) {
+                        setCustomerName(match.name || '');
+                        setSavedAddresses(match.addresses || []);
+                        if (match.addresses && match.addresses.length > 0) {
+                          setCustomerAddress(match.addresses[0].address || '');
+                          setCustomerFloor(match.addresses[0].floor || '');
+                          setCustomerApartment(match.addresses[0].apartment || '');
+                        }
+                      } else {
+                        setSavedAddresses([]);
+                      }
+                    }
                   }}
                   onChange={(e, val) => handleSelectCustomer(val)}
                   renderInput={(params) => (
@@ -454,11 +469,23 @@ export default function OrderDetailsPanel({
                 />
               </Box>
 
+              {/* New Customer Indicator Banner */}
+              {customerPhone && !customers.some(c => c.phone === customerPhone) && (
+                <Chip
+                  label="✨ عميل جديد (سيتم إضافته وحفظه في النظام تلقائياً)"
+                  size="small"
+                  color="success"
+                  variant="outlined"
+                  sx={{ fontWeight: 800, fontSize: '0.73rem', borderRadius: '8px', py: 0.2 }}
+                />
+              )}
+
               {/* Customer Name */}
               <TextField
                 fullWidth
                 size="small"
-                label="اسم العميل"
+                label="اسم العميل *"
+                placeholder="أدخل اسم العميل..."
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 slotProps={{ htmlInput: { suppressHydrationWarning: true } }}
