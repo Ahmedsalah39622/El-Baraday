@@ -304,7 +304,7 @@ export default function POSPage() {
           overflow: 'hidden',
         }}
       >
-        {/* Header Bar: Home Title + Mobile Till Cash Pill + SearchBar */}
+        {/* Header Bar: Home Title + Mobile Till Cash Badges (Both Branches) + SearchBar */}
         <Box
           sx={{
             display: 'flex',
@@ -312,32 +312,71 @@ export default function POSPage() {
             alignItems: 'center',
             width: '100%',
             gap: 1.5,
+            flexWrap: { xs: 'wrap', sm: 'nowrap' },
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             <Typography variant="h4" sx={{ fontWeight: 800, color: '#1A1A2E', fontSize: { xs: '1.2rem', md: '2rem' } }}>
               الرئيسية
             </Typography>
 
-            {/* Compact Mobile Till Cash Drawer Pill Badge */}
+            {/* Mobile Till Cash Badges: Displaying Both Branches 1 & 2 */}
             <Box
               sx={{
                 display: { xs: 'flex', md: 'none' },
                 alignItems: 'center',
-                gap: 0.6,
-                bgcolor: isShiftActive ? '#ECFDF5' : '#FEF2F2',
-                border: '1.5px solid',
-                borderColor: isShiftActive ? '#10B981' : '#EF4444',
-                px: 1.2,
-                py: 0.4,
-                borderRadius: '20px',
-                boxShadow: isShiftActive ? '0 2px 6px rgba(16, 185, 129, 0.15)' : 'none',
+                gap: 0.8,
               }}
             >
-              <AccountBalanceWallet sx={{ fontSize: 16, color: isShiftActive ? '#10B981' : '#EF4444' }} />
-              <Typography variant="caption" sx={{ color: isShiftActive ? '#065F46' : '#991B1B', fontWeight: 900, fontSize: '0.78rem' }}>
-                {isShiftActive ? `الخزنة: ${currentTillCash.toFixed(0)} ج.م` : 'الخزنة: مغلقة'}
-              </Typography>
+              {/* Branch 1 Mobile Cash Pill */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  bgcolor: '#ECFDF5',
+                  border: '1.5px solid #10B981',
+                  px: 1,
+                  py: 0.3,
+                  borderRadius: '10px',
+                  boxShadow: '0 2px 4px rgba(16, 185, 129, 0.1)',
+                }}
+              >
+                <Store sx={{ fontSize: 14, color: '#10B981' }} />
+                <Box sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <Typography variant="caption" sx={{ color: '#047857', fontWeight: 800, fontSize: '0.6rem', display: 'block', lineHeight: 1 }}>
+                    ف 1 الرئيسي
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.78rem', lineHeight: 1.1 }}>
+                    {b1CashSales.toFixed(0)} ج.م
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* Branch 2 Mobile Cash Pill */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  bgcolor: '#EFF6FF',
+                  border: '1.5px solid #3B82F6',
+                  px: 1,
+                  py: 0.3,
+                  borderRadius: '10px',
+                  boxShadow: '0 2px 4px rgba(59, 130, 246, 0.1)',
+                }}
+              >
+                <Store sx={{ fontSize: 14, color: '#3B82F6' }} />
+                <Box sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <Typography variant="caption" sx={{ color: '#1E40AF', fontWeight: 800, fontSize: '0.6rem', display: 'block', lineHeight: 1 }}>
+                    ف 2 الثاني
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#1D4ED8', fontWeight: 900, fontSize: '0.78rem', lineHeight: 1.1 }}>
+                    {b2CashSales.toFixed(0)} ج.م
+                  </Typography>
+                </Box>
+              </Box>
             </Box>
           </Box>
 
