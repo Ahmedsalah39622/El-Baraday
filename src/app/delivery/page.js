@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Box, Typography, Tabs, Tab, TextField, Button, Grid, Card, CardContent,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableFooter, Paper,
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Select, MenuItem,
   InputAdornment, FormControl, InputLabel, List, ListItem, ListItemText, ListItemSecondaryAction,
   Chip, Tooltip, Alert, CircularProgress, Divider, Avatar
@@ -12,7 +12,7 @@ import {
   DeliveryDining, AccessTime, LocationOn, Person, Phone, Home, Print, CheckCircle,
   Warning, Add as AddIcon, Search as SearchIcon, Edit as EditIcon, Delete as DeleteIcon,
   Refresh, HowToReg, Store, CheckCircleOutlined, PlayArrow, WhatsApp,
-  AccountBalanceWallet, AttachMoney, MonetizationOn, FilterList
+  AccountBalanceWallet, AttachMoney, MonetizationOn, FilterList, PictureAsPdf
 } from '@mui/icons-material';
 import { useCustomerStore } from '@/store/useCustomerStore';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
@@ -21,6 +21,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import DeliveryTimerBadge from '@/components/delivery/DeliveryTimerBadge';
 import { printThermalReceipt } from '@/lib/printReceipt';
 import { sendDeliveryWhatsApp } from '@/lib/whatsapp';
+import { generateReportPDF } from '@/lib/reportPdfExport';
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -47,7 +48,8 @@ export default function DeliveryPage() {
 
   // Driver Settlement Tab State
   const [selectedDriverForSettlement, setSelectedDriverForSettlement] = useState('all');
-  const [settlementCashFilter, setSettlementCashFilter] = useState('all'); // 'all', 'pending', 'collected'
+  const [settlementCashFilter, setSettlementCashFilter] = useState('pending'); // 'pending' hides collected orders automatically
+  const [collectedOrdersDialogOpen, setCollectedOrdersDialogOpen] = useState(false);
 
   // Dispatch Dialog State
   const [dispatchDialog, setDispatchDialog] = useState(false);
@@ -264,7 +266,7 @@ export default function DeliveryPage() {
     }
   };
 
-  // Action 4: Bulk Settle Driver Cash (تسليم عهدة الطيار بالكامل)
+  // Action 4: Bulk Settle Driver Cash (تسليم عهدة الطيار بالكامل مع تفصيل الخدمات والأوردرات)
   const handleSettleDriverAllCash = async (driverName) => {
     const targetOrders = (deliveryOrders || []).filter(o =>
       (o.driver_name === driverName || o.driverName === driverName) &&
@@ -276,9 +278,25 @@ export default function DeliveryPage() {
       return;
     }
 
-    const totalToCollect = targetOrders.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
+    const ordersSubtotal = targetOrders.reduce((sum, o) => {
+      const tot = parseFloat(o.total || 0);
+      const fee = parseFloat(o.delivery_fee || o.deliveryFee || 0);
+      return sum + (parseFloat(o.subtotal || 0) || Math.max(0, tot - fee));
+    }, 0);
 
-    if (!confirm(`هل ترغب في تسليم كامل عهدة الطيار (${driverName})\nعدد الطلبات: ${targetOrders.length}\nإجمالي المبلغ: ${totalToCollect.toLocaleString()} ج.م؟`)) return;
+    const deliveryFeesSum = targetOrders.reduce((sum, o) => sum + (parseFloat(o.delivery_fee || o.deliveryFee) || 0), 0);
+    const grandTotal = targetOrders.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
+
+    const confirmMsg = `تأكيد استلام وتسليم عهدة الطيار (${driverName}):\n` +
+      `-------------------------------------------\n` +
+      `• عدد الطلبات: ${targetOrders.length} طلبات\n` +
+      `• إجمالي سعر الأوردرات الصافي: ${ordersSubtotal.toLocaleString()} ج.م\n` +
+      `• إجمالي خدمة التوصيل (الدليفري): ${deliveryFeesSum.toLocaleString()} ج.م\n` +
+      `-------------------------------------------\n` +
+      `• الإجمالي الكلي للعهدة: ${grandTotal.toLocaleString()} ج.م\n\n` +
+      `هل ترغب في تسليم هذه العهدة وتوريدها للخزينة بالكامل؟`;
+
+    if (!confirm(confirmMsg)) return;
 
     try {
       for (const order of targetOrders) {
@@ -293,7 +311,13 @@ export default function DeliveryPage() {
       }
       fetchDeliveryData();
       fetchAttendanceQueue(selectedBranchId);
-      alert(`تم استلام وتسليم عهدة الطيار (${driverName}) بمبلغ ${totalToCollect.toLocaleString()} ج.م وتوريدها للخزينة بنجاح!`);
+
+      const successMsg = `✅ تم تسليم عهدة الطيار (${driverName}) بنجاح!\n\n` +
+        `• إجمالي الأوردرات: ${ordersSubtotal.toLocaleString()} ج.م\n` +
+        `• إجمالي الخدمات: ${deliveryFeesSum.toLocaleString()} ج.م\n` +
+        `• المبلغ المورّد للخزينة: ${grandTotal.toLocaleString()} ج.م`;
+
+      alert(successMsg);
     } catch (e) {
       console.error('❌ Failed to bulk settle driver cash:', e);
     }
@@ -391,8 +415,27 @@ export default function DeliveryPage() {
     const collectedOrders = driverOrders.filter(o => o.is_cash_collected || o.isCashCollected || o.status === 'cash_collected');
 
     const pendingCashTotal = pendingOrders.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
+    const pendingDeliveryFees = pendingOrders.reduce((sum, o) => sum + (parseFloat(o.delivery_fee || o.deliveryFee) || 0), 0);
+    const pendingOrdersSubtotal = pendingOrders.reduce((sum, o) => {
+      const tot = parseFloat(o.total || 0);
+      const fee = parseFloat(o.delivery_fee || o.deliveryFee || 0);
+      return sum + (parseFloat(o.subtotal || 0) || Math.max(0, tot - fee));
+    }, 0);
+
     const collectedCashTotal = collectedOrders.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
+    const collectedDeliveryFees = collectedOrders.reduce((sum, o) => sum + (parseFloat(o.delivery_fee || o.deliveryFee) || 0), 0);
+    const collectedOrdersSubtotal = collectedOrders.reduce((sum, o) => {
+      const tot = parseFloat(o.total || 0);
+      const fee = parseFloat(o.delivery_fee || o.deliveryFee || 0);
+      return sum + (parseFloat(o.subtotal || 0) || Math.max(0, tot - fee));
+    }, 0);
+
     const totalDeliveryFees = driverOrders.reduce((sum, o) => sum + (parseFloat(o.delivery_fee || o.deliveryFee) || 0), 0);
+    const totalOrdersSubtotal = driverOrders.reduce((sum, o) => {
+      const tot = parseFloat(o.total || 0);
+      const fee = parseFloat(o.delivery_fee || o.deliveryFee || 0);
+      return sum + (parseFloat(o.subtotal || 0) || Math.max(0, tot - fee));
+    }, 0);
 
     return {
       id: d.id,
@@ -402,8 +445,13 @@ export default function DeliveryPage() {
       pendingOrdersCount: pendingOrders.length,
       collectedOrdersCount: collectedOrders.length,
       pendingCashTotal,
+      pendingDeliveryFees,
+      pendingOrdersSubtotal,
       collectedCashTotal,
+      collectedDeliveryFees,
+      collectedOrdersSubtotal,
       totalDeliveryFees,
+      totalOrdersSubtotal,
     };
   });
 
@@ -421,6 +469,84 @@ export default function DeliveryPage() {
 
     return true;
   });
+
+  // Collected Orders List (For History Popup Modal)
+  const collectedOrdersList = (deliveryOrders || []).filter(o => {
+    const isCollected = o.is_cash_collected || o.isCashCollected || o.status === 'cash_collected';
+    if (!isCollected) return false;
+    const driverName = o.driver_name || o.driverName;
+    if (selectedDriverForSettlement !== 'all' && driverName !== selectedDriverForSettlement) return false;
+    return true;
+  });
+
+  // Action: Print Driver Custody Report (A4 PDF)
+  const handlePrintCustodyPDF = () => {
+    if (settlementFilteredOrders.length === 0) {
+      alert('لا توجد طلبات لعرضها في الكشف!');
+      return;
+    }
+
+    const totalOrdersSubtotal = settlementFilteredOrders.reduce((sum, ord) => {
+      const ordTotal = parseFloat(ord.total || 0);
+      const ordDeliveryFee = parseFloat(ord.delivery_fee || ord.deliveryFee || 0);
+      const ordSubtotal = parseFloat(ord.subtotal || 0) || Math.max(0, ordTotal - ordDeliveryFee);
+      return sum + ordSubtotal;
+    }, 0);
+
+    const totalDeliveryFeesSum = settlementFilteredOrders.reduce((sum, ord) => {
+      return sum + (parseFloat(ord.delivery_fee || ord.deliveryFee || 0));
+    }, 0);
+
+    const grandTotalSum = settlementFilteredOrders.reduce((sum, ord) => {
+      return sum + (parseFloat(ord.total || 0));
+    }, 0);
+
+    const targetDriverName = selectedDriverForSettlement !== 'all' ? selectedDriverForSettlement : 'كافة الطيارين';
+
+    const stats = [
+      { title: 'الطيار / الفلتر', value: targetDriverName },
+      { title: 'إجمالي قيمة الأوردرات (صافي)', value: `${totalOrdersSubtotal.toLocaleString()} ج.م` },
+      { title: 'إجمالي خدمة الدليفري', value: `${totalDeliveryFeesSum.toLocaleString()} ج.م` },
+      { title: 'الإجمالي الكلي للعهدة', value: `${grandTotalSum.toLocaleString()} ج.م` }
+    ];
+
+    const columns = [
+      { label: '#', accessor: (_, idx) => idx + 1 },
+      { label: 'رقم الطلب', accessor: (o) => `#${o.order_number || o.orderNumber}` },
+      { label: 'الطيار', accessor: (o) => o.driver_name || o.driverName || '—' },
+      { label: 'العميل والفرع', accessor: (o) => `${o.customer_name || o.customerName || 'عميل'} (${o.branch_name || 'الرئيسي'})` },
+      { label: 'قيمة الأوردر (صافي)', accessor: (o) => {
+          const tot = parseFloat(o.total || 0);
+          const fee = parseFloat(o.delivery_fee || o.deliveryFee || 0);
+          const sub = parseFloat(o.subtotal || 0) || Math.max(0, tot - fee);
+          return `${sub.toLocaleString()} ج.م`;
+        }
+      },
+      { label: 'خدمة الدليفري', accessor: (o) => `+${(parseFloat(o.delivery_fee || o.deliveryFee || 0)).toLocaleString()} ج.م` },
+      { label: 'الإجمالي الكلي', accessor: (o) => `${(parseFloat(o.total || 0)).toLocaleString()} ج.م` },
+      { label: 'حالة العهدة والنقدية', accessor: (o) => (o.is_cash_collected || o.isCashCollected || o.status === 'cash_collected') ? '🟢 تم التوريد للخزينة' : '🔴 عهدة معلقة مع الطيار' }
+    ];
+
+    generateReportPDF({
+      title: `كشف أوردرات العهدة والتسليمات - ${targetDriverName}`,
+      subtitle: 'تفصيل قيمة الأوردرات + رسوم خدمة الدليفري لكل طيار',
+      branchName: 'الفرع الرئيسي',
+      dateRangeStr: new Date().toLocaleDateString('ar-EG'),
+      stats,
+      columns,
+      data: settlementFilteredOrders,
+      totals: {
+        0: '',
+        1: 'إجمالي الكشف',
+        2: '',
+        3: '',
+        4: `${totalOrdersSubtotal.toLocaleString()} ج.م`,
+        5: `${totalDeliveryFeesSum.toLocaleString()} ج.م`,
+        6: `${grandTotalSum.toLocaleString()} ج.م`,
+        7: ''
+      }
+    });
+  };
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3, height: '100%', overflowY: 'auto', pb: { xs: 10, md: 4 } }}>
@@ -1017,20 +1143,36 @@ export default function DeliveryPage() {
                         />
                       </Box>
 
-                      <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                      <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.6 }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="caption" color="text.secondary" fontWeight={700}>العهدة المطلوبة:</Typography>
-                          <Typography variant="caption" fontWeight={900} color={p.pendingCashTotal > 0 ? '#D97706' : '#10B981'}>
-                            {p.pendingCashTotal.toLocaleString()} ج.م
+                          <Typography variant="caption" color="text.secondary" fontWeight={700}>الأوردرات (صافي):</Typography>
+                          <Typography variant="caption" fontWeight={800} color="#1E293B">
+                            {p.pendingOrdersSubtotal.toLocaleString()} ج.م
                           </Typography>
                         </Box>
 
                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="caption" color="text.secondary" fontWeight={700}>تم تسليمه للخزينة:</Typography>
-                          <Typography variant="caption" fontWeight={900} color="#059669">
-                            {p.collectedCashTotal.toLocaleString()} ج.م
+                          <Typography variant="caption" color="text.secondary" fontWeight={700}>خدمات الدليفري:</Typography>
+                          <Typography variant="caption" fontWeight={800} color="#D97706">
+                            +{p.pendingDeliveryFees.toLocaleString()} ج.م
                           </Typography>
                         </Box>
+
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 0.4, borderTop: '1px dashed #E2E8F0' }}>
+                          <Typography variant="caption" color="#92400E" fontWeight={900}>إجمالي العهدة:</Typography>
+                          <Typography variant="caption" fontWeight={900} color={p.pendingCashTotal > 0 ? '#B45309' : '#10B981'} sx={{ fontSize: '0.85rem' }}>
+                            {p.pendingCashTotal.toLocaleString()} ج.م
+                          </Typography>
+                        </Box>
+
+                        {p.collectedCashTotal > 0 && (
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 0.2 }}>
+                            <Typography variant="caption" color="#047857" fontWeight={700}>المسلم للخزينة:</Typography>
+                            <Typography variant="caption" fontWeight={900} color="#059669">
+                              {p.collectedCashTotal.toLocaleString()} ج.م
+                            </Typography>
+                          </Box>
+                        )}
                       </Box>
 
                       {p.pendingCashTotal > 0 && (
@@ -1070,14 +1212,23 @@ export default function DeliveryPage() {
                 <Typography variant="h6" fontWeight={900} color="#1A1A2E">
                   📋 كشف أوردرات العهدة والتسليمات {selectedDriverForSettlement !== 'all' ? `للتيار: ${selectedDriverForSettlement}` : ''}
                 </Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<PictureAsPdf />}
+                  onClick={handlePrintCustodyPDF}
+                  sx={{ borderRadius: '10px', fontWeight: 800, borderColor: '#CBD5E1', color: '#1E293B', bgcolor: '#FFF' }}
+                >
+                  طباعة كشف العهدة (PDF)
+                </Button>
               </Box>
 
               {/* Filters */}
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
                 {[
-                  { id: 'all', label: 'كافة الأوردرات' },
                   { id: 'pending', label: '🔴 عُهَد لم تُسلّم' },
-                  { id: 'collected', label: '🟢 نقدية مُستلمة' },
+                  { id: 'collected', label: '🟢 كافة المُستلمات' },
+                  { id: 'all', label: 'الكل' },
                 ].map(f => (
                   <Chip
                     key={f.id}
@@ -1088,6 +1239,15 @@ export default function DeliveryPage() {
                     sx={{ fontWeight: 800, borderRadius: '10px' }}
                   />
                 ))}
+
+                <Button
+                  variant="contained"
+                  startIcon={<CheckCircleOutlined />}
+                  onClick={() => setCollectedOrdersDialogOpen(true)}
+                  sx={{ borderRadius: '10px', fontWeight: 900, bgcolor: '#059669', '&:hover': { bgcolor: '#047857' } }}
+                >
+                  📜 سجل المحصلات ({collectedOrdersList.length})
+                </Button>
 
                 {selectedDriverForSettlement !== 'all' && (
                   <Button
@@ -1109,7 +1269,9 @@ export default function DeliveryPage() {
                     <TableCell sx={{ fontWeight: 900 }}>رقم الطلب</TableCell>
                     <TableCell sx={{ fontWeight: 900 }}>الطيار</TableCell>
                     <TableCell sx={{ fontWeight: 900 }}>العميل والفرع</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>المبلغ + الدليفري</TableCell>
+                    <TableCell sx={{ fontWeight: 900, color: '#1E293B' }}>مبلغ الأوردر (صافي)</TableCell>
+                    <TableCell sx={{ fontWeight: 900, color: '#D97706' }}>خدمة الدليفري</TableCell>
+                    <TableCell sx={{ fontWeight: 900, color: '#059669' }}>الإجمالي الكلي</TableCell>
                     <TableCell sx={{ fontWeight: 900 }}>حالة التوصيل</TableCell>
                     <TableCell sx={{ fontWeight: 900 }}>حالة العهدة والنقدية</TableCell>
                     <TableCell align="center" sx={{ fontWeight: 900 }}>التحكم والتوريد</TableCell>
@@ -1118,7 +1280,7 @@ export default function DeliveryPage() {
                 <TableBody>
                   {settlementFilteredOrders.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} align="center" sx={{ py: 4, color: '#9CA3AF', fontWeight: 700 }}>
+                      <TableCell colSpan={9} align="center" sx={{ py: 4, color: '#9CA3AF', fontWeight: 700 }}>
                         لا توجد طلبات عُهد مطابقة حالياً لهذا الفلتر.
                       </TableCell>
                     </TableRow>
@@ -1126,6 +1288,10 @@ export default function DeliveryPage() {
                     settlementFilteredOrders.map((ord) => {
                       const isCollected = ord.is_cash_collected || ord.isCashCollected || ord.status === 'cash_collected';
                       const driverName = ord.driver_name || ord.driverName || 'لم يحدد طيار';
+
+                      const ordTotal = parseFloat(ord.total || 0);
+                      const ordDeliveryFee = parseFloat(ord.delivery_fee || ord.deliveryFee || 0);
+                      const ordSubtotal = parseFloat(ord.subtotal || 0) || Math.max(0, ordTotal - ordDeliveryFee);
 
                       return (
                         <TableRow key={ord.id} hover>
@@ -1139,8 +1305,14 @@ export default function DeliveryPage() {
                             <Typography variant="body2" fontWeight={800}>{ord.customer_name || ord.customerName || 'عميل'}</Typography>
                             <Typography variant="caption" color="text.secondary">{ord.branch_name || 'الفرع الرئيسي'}</Typography>
                           </TableCell>
-                          <TableCell sx={{ fontWeight: 900, color: '#059669' }}>
-                            {parseFloat(ord.total || 0).toLocaleString()} ج.م
+                          <TableCell sx={{ fontWeight: 800, color: '#1E293B' }}>
+                            {ordSubtotal.toLocaleString()} ج.م
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 800, color: '#D97706' }}>
+                            +{ordDeliveryFee.toLocaleString()} ج.م
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 900, color: '#059669', fontSize: '0.95rem' }}>
+                            {ordTotal.toLocaleString()} ج.م
                           </TableCell>
                           <TableCell>
                             <Chip
@@ -1188,6 +1360,30 @@ export default function DeliveryPage() {
                     })
                   )}
                 </TableBody>
+
+                {settlementFilteredOrders.length > 0 && (
+                  <TableFooter sx={{ bgcolor: '#F8FAFC' }}>
+                    <TableRow sx={{ '& td': { borderTop: '2px solid #CBD5E1', fontWeight: 900, fontSize: '0.88rem' } }}>
+                      <TableCell colSpan={3} sx={{ color: '#0F172A', fontWeight: 900 }}>
+                        📊 إجمالي الكشف ({settlementFilteredOrders.length} طلبات):
+                      </TableCell>
+                      <TableCell sx={{ color: '#0F172A', fontWeight: 900 }}>
+                        {settlementFilteredOrders.reduce((sum, ord) => {
+                          const tot = parseFloat(ord.total || 0);
+                          const fee = parseFloat(ord.delivery_fee || ord.deliveryFee || 0);
+                          return sum + (parseFloat(ord.subtotal || 0) || Math.max(0, tot - fee));
+                        }, 0).toLocaleString()} ج.م
+                      </TableCell>
+                      <TableCell sx={{ color: '#D97706', fontWeight: 900 }}>
+                        +{settlementFilteredOrders.reduce((sum, ord) => sum + parseFloat(ord.delivery_fee || ord.deliveryFee || 0), 0).toLocaleString()} ج.م
+                      </TableCell>
+                      <TableCell sx={{ color: '#059669', fontWeight: 900, fontSize: '1rem' }}>
+                        {settlementFilteredOrders.reduce((sum, ord) => sum + parseFloat(ord.total || 0), 0).toLocaleString()} ج.م
+                      </TableCell>
+                      <TableCell colSpan={3} />
+                    </TableRow>
+                  </TableFooter>
+                )}
               </Table>
             </TableContainer>
           </Paper>
@@ -1286,6 +1482,165 @@ export default function DeliveryPage() {
           <Button onClick={() => setDispatchDialog(false)} color="inherit">إلغاء</Button>
           <Button onClick={handleConfirmDispatch} variant="contained" color="primary" sx={{ fontWeight: 800 }}>
             تأكيد التعيين وبدء المشوار 🚀
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Collected Orders History Popup Dialog */}
+      <Dialog
+        open={collectedOrdersDialogOpen}
+        onClose={() => setCollectedOrdersDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <CheckCircleOutlined sx={{ color: '#059669' }} />
+            <Typography variant="h6" fontWeight={900}>
+              📜 سجل الأوردرات المُحصّلة والمُورّدة للخزينة {selectedDriverForSettlement !== 'all' ? `للتيار: ${selectedDriverForSettlement}` : ''}
+            </Typography>
+          </Box>
+          <Chip label={`${collectedOrdersList.length} طلبات`} color="success" sx={{ fontWeight: 800 }} />
+        </DialogTitle>
+        <DialogContent dividers sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {collectedOrdersList.length === 0 ? (
+            <Alert severity="info" sx={{ fontWeight: 700, borderRadius: '12px' }}>
+              لا توجد أوردرات مُحصّلة ومُورّدة حالياً لهذا الفلتر.
+            </Alert>
+          ) : (
+            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: '12px' }}>
+              <Table size="small">
+                <TableHead sx={{ bgcolor: '#F0FDF4' }}>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 900 }}>رقم الطلب</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>الطيار</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>العميل والفرع</TableCell>
+                    <TableCell sx={{ fontWeight: 900, color: '#1E293B' }}>مبلغ الأوردر (صافي)</TableCell>
+                    <TableCell sx={{ fontWeight: 900, color: '#D97706' }}>خدمة الدليفري</TableCell>
+                    <TableCell sx={{ fontWeight: 900, color: '#059669' }}>الإجمالي الكلي</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 900 }}>حالة التوريد</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {collectedOrdersList.map((ord) => {
+                    const driverName = ord.driver_name || ord.driverName || 'لم يحدد طيار';
+                    const ordTotal = parseFloat(ord.total || 0);
+                    const ordDeliveryFee = parseFloat(ord.delivery_fee || ord.deliveryFee || 0);
+                    const ordSubtotal = parseFloat(ord.subtotal || 0) || Math.max(0, ordTotal - ordDeliveryFee);
+
+                    return (
+                      <TableRow key={ord.id} hover>
+                        <TableCell sx={{ fontWeight: 900 }}>
+                          #{ord.order_number || ord.orderNumber}
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 800, color: '#1E40AF' }}>
+                          🚴 {driverName}
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={800}>{ord.customer_name || ord.customerName || 'عميل'}</Typography>
+                          <Typography variant="caption" color="text.secondary">{ord.branch_name || 'الفرع الرئيسي'}</Typography>
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 800, color: '#1E293B' }}>
+                          {ordSubtotal.toLocaleString()} ج.م
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 800, color: '#D97706' }}>
+                          +{ordDeliveryFee.toLocaleString()} ج.م
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 900, color: '#059669' }}>
+                          {ordTotal.toLocaleString()} ج.م
+                        </TableCell>
+                        <TableCell align="center">
+                          <Chip label="🟢 تم التوريد بالخزينة" size="small" sx={{ fontWeight: 900, bgcolor: '#DCFCE7', color: '#15803D' }} />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+                <TableFooter sx={{ bgcolor: '#F8FAFC' }}>
+                  <TableRow sx={{ '& td': { borderTop: '2px solid #CBD5E1', fontWeight: 900, fontSize: '0.88rem' } }}>
+                    <TableCell colSpan={3} sx={{ color: '#0F172A', fontWeight: 900 }}>
+                      📊 إجمالي المحصّلات ({collectedOrdersList.length} طلبات):
+                    </TableCell>
+                    <TableCell sx={{ color: '#0F172A', fontWeight: 900 }}>
+                      {collectedOrdersList.reduce((sum, ord) => {
+                        const tot = parseFloat(ord.total || 0);
+                        const fee = parseFloat(ord.delivery_fee || ord.deliveryFee || 0);
+                        return sum + (parseFloat(ord.subtotal || 0) || Math.max(0, tot - fee));
+                      }, 0).toLocaleString()} ج.م
+                    </TableCell>
+                    <TableCell sx={{ color: '#D97706', fontWeight: 900 }}>
+                      +{collectedOrdersList.reduce((sum, ord) => sum + parseFloat(ord.delivery_fee || ord.deliveryFee || 0), 0).toLocaleString()} ج.م
+                    </TableCell>
+                    <TableCell sx={{ color: '#059669', fontWeight: 900, fontSize: '1rem' }}>
+                      {collectedOrdersList.reduce((sum, ord) => sum + parseFloat(ord.total || 0), 0).toLocaleString()} ج.م
+                    </TableCell>
+                    <TableCell />
+                  </TableRow>
+                </TableFooter>
+              </Table>
+            </TableContainer>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2, justifyContent: 'space-between' }}>
+          <Button
+            variant="outlined"
+            startIcon={<PictureAsPdf />}
+            onClick={() => {
+              if (collectedOrdersList.length === 0) return;
+              const totalSub = collectedOrdersList.reduce((sum, o) => {
+                const tot = parseFloat(o.total || 0);
+                const fee = parseFloat(o.delivery_fee || o.deliveryFee || 0);
+                return sum + (parseFloat(o.subtotal || 0) || Math.max(0, tot - fee));
+              }, 0);
+              const totalFee = collectedOrdersList.reduce((sum, o) => sum + parseFloat(o.delivery_fee || o.deliveryFee || 0), 0);
+              const grandTot = collectedOrdersList.reduce((sum, o) => sum + parseFloat(o.total || 0), 0);
+
+              generateReportPDF({
+                title: `سجل الأوردرات المحصلة والموردة بالخزينة - ${selectedDriverForSettlement !== 'all' ? selectedDriverForSettlement : 'كافة الطيارين'}`,
+                subtitle: 'تقرير كشف المبالغ والنقدية المسلمة بالكامل',
+                branchName: 'الفرع الرئيسي',
+                dateRangeStr: new Date().toLocaleDateString('ar-EG'),
+                stats: [
+                  { title: 'الطيار', value: selectedDriverForSettlement !== 'all' ? selectedDriverForSettlement : 'كافة الطيارين' },
+                  { title: 'إجمالي صافي الأوردرات', value: `${totalSub.toLocaleString()} ج.م` },
+                  { title: 'إجمالي خدمات الدليفري', value: `${totalFee.toLocaleString()} ج.م` },
+                  { title: 'الإجمالي المسلم بالخزينة', value: `${grandTot.toLocaleString()} ج.م` }
+                ],
+                columns: [
+                  { label: '#', accessor: (_, idx) => idx + 1 },
+                  { label: 'رقم الطلب', accessor: (o) => `#${o.order_number || o.orderNumber}` },
+                  { label: 'الطيار', accessor: (o) => o.driver_name || o.driverName || '—' },
+                  { label: 'العميل', accessor: (o) => o.customer_name || o.customerName || 'عميل' },
+                  { label: 'صافي الأوردر', accessor: (o) => {
+                      const tot = parseFloat(o.total || 0);
+                      const fee = parseFloat(o.delivery_fee || o.deliveryFee || 0);
+                      return `${(parseFloat(o.subtotal || 0) || Math.max(0, tot - fee)).toLocaleString()} ج.م`;
+                    }
+                  },
+                  { label: 'خدمة الدليفري', accessor: (o) => `+${(parseFloat(o.delivery_fee || o.deliveryFee || 0)).toLocaleString()} ج.م` },
+                  { label: 'الإجمالي المحصل', accessor: (o) => `${(parseFloat(o.total || 0)).toLocaleString()} ج.م` },
+                  { label: 'حالة التوريد', accessor: () => '🟢 تم التوريد بالخزينة' }
+                ],
+                data: collectedOrdersList,
+                totals: {
+                  0: '',
+                  1: 'إجمالي المحصلات',
+                  2: '',
+                  3: '',
+                  4: `${totalSub.toLocaleString()} ج.م`,
+                  5: `${totalFee.toLocaleString()} ج.م`,
+                  6: `${grandTot.toLocaleString()} ج.م`,
+                  7: ''
+                }
+              });
+            }}
+            sx={{ borderRadius: '10px', fontWeight: 800 }}
+          >
+            طباعة تقرير المحصلات (PDF)
+          </Button>
+          <Button onClick={() => setCollectedOrdersDialogOpen(false)} variant="contained" sx={{ borderRadius: '10px', fontWeight: 800 }}>
+            إغلاق
           </Button>
         </DialogActions>
       </Dialog>

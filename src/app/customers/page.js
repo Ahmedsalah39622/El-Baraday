@@ -38,13 +38,13 @@ export default function CustomersPage() {
   // Manage Addresses Dialog state
   const [addressManageDialog, setAddressManageDialog] = useState(false);
   const [selectedCustomerForAddresses, setSelectedCustomerForAddresses] = useState(null);
-  const [newAddressInput, setNewAddressInput] = useState({ address: '', floor: '', apartment: '' });
+  const [newAddressInput, setNewAddressInput] = useState({ address: '', floor: '', apartment: '', deliveryFee: 15 });
 
   // Form states for Add/Edit Customer
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
-    addresses: [{ address: '', floor: '', apartment: '' }]
+    addresses: [{ address: '', floor: '', apartment: '', deliveryFee: 15 }]
   });
 
   useEffect(() => {
@@ -56,16 +56,17 @@ export default function CustomersPage() {
     setFormData({
       name: '',
       phone: '',
-      addresses: [{ address: '', floor: '', apartment: '' }]
+      addresses: [{ address: '', floor: '', apartment: '', deliveryFee: 15 }]
     });
     setOpenDialog(true);
   };
 
   const handleOpenEdit = (customer) => {
     setEditingCustomer(customer);
+    const mainFee = customer.deliveryFee !== undefined ? customer.deliveryFee : (customer.delivery_fee !== undefined ? customer.delivery_fee : 15);
     const addrs = customer.addresses && customer.addresses.length > 0
-      ? customer.addresses
-      : [{ address: customer.address || '', floor: customer.floor || '', apartment: customer.apartment || '' }];
+      ? customer.addresses.map(a => ({ ...a, deliveryFee: a.deliveryFee !== undefined ? a.deliveryFee : (a.delivery_fee !== undefined ? a.delivery_fee : mainFee) }))
+      : [{ address: customer.address || '', floor: customer.floor || '', apartment: customer.apartment || '', deliveryFee: mainFee }];
 
     setFormData({
       name: customer.name || '',
@@ -83,7 +84,7 @@ export default function CustomersPage() {
   const handleAddAddressFieldInForm = () => {
     setFormData({
       ...formData,
-      addresses: [...formData.addresses, { address: '', floor: '', apartment: '' }]
+      addresses: [...formData.addresses, { address: '', floor: '', apartment: '', deliveryFee: 15 }]
     });
   };
 
@@ -103,7 +104,7 @@ export default function CustomersPage() {
     if (!formData.name.trim() || !formData.phone.trim()) return;
 
     const validAddresses = formData.addresses.filter(a => a.address && a.address.trim());
-    const finalAddresses = validAddresses.length > 0 ? validAddresses : [{ address: '', floor: '', apartment: '' }];
+    const finalAddresses = validAddresses.length > 0 ? validAddresses : [{ address: '', floor: '', apartment: '', deliveryFee: 15 }];
     const primary = finalAddresses[0];
 
     await saveOrUpdateCustomer({
@@ -112,6 +113,7 @@ export default function CustomersPage() {
       address: primary.address,
       floor: primary.floor,
       apartment: primary.apartment,
+      deliveryFee: parseFloat(primary.deliveryFee) || 15,
       addresses: finalAddresses
     });
 
@@ -128,7 +130,8 @@ export default function CustomersPage() {
   // Address Manager Functions
   const handleOpenAddressManager = (customer) => {
     setSelectedCustomerForAddresses(customer);
-    setNewAddressInput({ address: '', floor: '', apartment: '' });
+    const fee = customer.deliveryFee !== undefined ? customer.deliveryFee : (customer.delivery_fee !== undefined ? customer.delivery_fee : 15);
+    setNewAddressInput({ address: '', floor: '', apartment: '', deliveryFee: fee });
     setAddressManageDialog(true);
   };
 
@@ -138,12 +141,13 @@ export default function CustomersPage() {
     const updatedList = [...currentList, {
       address: newAddressInput.address.trim(),
       floor: newAddressInput.floor.trim(),
-      apartment: newAddressInput.apartment.trim()
+      apartment: newAddressInput.apartment.trim(),
+      deliveryFee: parseFloat(newAddressInput.deliveryFee) || 15
     }];
 
     await updateCustomerAddresses(selectedCustomerForAddresses.id, updatedList);
     setSelectedCustomerForAddresses({ ...selectedCustomerForAddresses, addresses: updatedList });
-    setNewAddressInput({ address: '', floor: '', apartment: '' });
+    setNewAddressInput({ address: '', floor: '', apartment: '', deliveryFee: 15 });
     fetchCustomers();
   };
 
@@ -395,6 +399,15 @@ export default function CustomersPage() {
                   onChange={(e) => handleAddressChangeInForm(index, 'apartment', e.target.value)}
                   sx={{ flex: 1, minWidth: 90, bgcolor: '#FFF' }}
                 />
+                <TextField
+                  type="number"
+                  size="small"
+                  label="سعر التوصيل (ج.م)"
+                  placeholder="15"
+                  value={addrObj.deliveryFee}
+                  onChange={(e) => handleAddressChangeInForm(index, 'deliveryFee', e.target.value)}
+                  sx={{ flex: 1, minWidth: 110, bgcolor: '#FFF' }}
+                />
               </Box>
             </Paper>
           ))}
@@ -430,7 +443,7 @@ export default function CustomersPage() {
                         {idx === 0 && <Chip label="الرئيسي" size="small" color="success" sx={{ fontWeight: 800 }} />}
                       </Box>
                       <Typography variant="caption" color="text.secondary">
-                        {[addr.floor ? `الدور ${addr.floor}` : '', addr.apartment ? `شقة ${addr.apartment}` : ''].filter(Boolean).join(' - ') || 'بدون دور/شقة'}
+                        {[addr.floor ? `الدور ${addr.floor}` : '', addr.apartment ? `شقة ${addr.apartment}` : '', addr.deliveryFee ? `توصيل ${addr.deliveryFee} ج.م` : ''].filter(Boolean).join(' - ') || 'بدون تفاصيل'}
                       </Typography>
                     </Box>
 
@@ -468,20 +481,28 @@ export default function CustomersPage() {
                     placeholder="شارع الجيش - أمام المستشفى"
                     value={newAddressInput.address}
                     onChange={(e) => setNewAddressInput({ ...newAddressInput, address: e.target.value })}
-                    sx={{ flex: 2, minWidth: 200, bgcolor: '#FFF' }}
+                    sx={{ flex: 2, minWidth: 180, bgcolor: '#FFF' }}
                   />
                   <TextField
                     size="small"
                     label="الدور"
                     value={newAddressInput.floor}
                     onChange={(e) => setNewAddressInput({ ...newAddressInput, floor: e.target.value })}
-                    sx={{ flex: 1, minWidth: 80, bgcolor: '#FFF' }}
+                    sx={{ flex: 1, minWidth: 70, bgcolor: '#FFF' }}
                   />
                   <TextField
                     size="small"
                     label="الشقة"
                     value={newAddressInput.apartment}
                     onChange={(e) => setNewAddressInput({ ...newAddressInput, apartment: e.target.value })}
+                    sx={{ flex: 1, minWidth: 70, bgcolor: '#FFF' }}
+                  />
+                  <TextField
+                    type="number"
+                    size="small"
+                    label="التوصيل"
+                    value={newAddressInput.deliveryFee}
+                    onChange={(e) => setNewAddressInput({ ...newAddressInput, deliveryFee: e.target.value })}
                     sx={{ flex: 1, minWidth: 80, bgcolor: '#FFF' }}
                   />
                 </Box>

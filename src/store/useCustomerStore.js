@@ -24,6 +24,7 @@ export const useCustomerStore = create(
                 const mainAddress = r.address || '';
                 const mainFloor = r.floor || '';
                 const mainApartment = r.apartment || '';
+                const mainDeliveryFee = r.delivery_fee !== undefined && r.delivery_fee !== null ? parseFloat(r.delivery_fee) : (r.deliveryFee !== undefined ? parseFloat(r.deliveryFee) : 15);
 
                 let parsedAddresses = [];
                 if (Array.isArray(r.addresses)) {
@@ -33,7 +34,12 @@ export const useCustomerStore = create(
                 }
 
                 if (!Array.isArray(parsedAddresses) || parsedAddresses.length === 0) {
-                  parsedAddresses = [{ address: mainAddress, floor: mainFloor, apartment: mainApartment }];
+                  parsedAddresses = [{ address: mainAddress, floor: mainFloor, apartment: mainApartment, deliveryFee: mainDeliveryFee }];
+                } else {
+                  parsedAddresses = parsedAddresses.map(a => ({
+                    ...a,
+                    deliveryFee: a.deliveryFee !== undefined ? parseFloat(a.deliveryFee) : (a.delivery_fee !== undefined ? parseFloat(a.delivery_fee) : mainDeliveryFee)
+                  }));
                 }
 
                 return {
@@ -43,6 +49,7 @@ export const useCustomerStore = create(
                   address: mainAddress,
                   floor: mainFloor,
                   apartment: mainApartment,
+                  deliveryFee: mainDeliveryFee,
                   addresses: parsedAddresses,
                   totalTransactions: r.total_orders || 0,
                   totalSpend: parseFloat(r.total_spend || 0)
@@ -109,7 +116,7 @@ export const useCustomerStore = create(
 
       // Save customer or append new address if phone exists
       saveOrUpdateCustomer: async (customerData) => {
-        const { name, address, floor, apartment } = customerData;
+        const { name, address, floor, apartment, deliveryFee } = customerData;
         const rawPhone = (customerData.phone || '').toString().trim();
         if (!rawPhone) return;
 
@@ -119,13 +126,27 @@ export const useCustomerStore = create(
         const currentCustomers = get().customers;
         const existingIdx = currentCustomers.findIndex(c => c.phone === cleanPhone);
 
-        const newAddrObj = { address: address || '', floor: floor || '', apartment: apartment || '' };
+        const feeNum = parseFloat(deliveryFee) || 15;
+        const newAddrObj = { address: address || '', floor: floor || '', apartment: apartment || '', deliveryFee: feeNum };
 
         if (existingIdx !== -1) {
-          // Existing customer → update name and append address if new
+          // Existing customer → update name and append/update address
           const existing = currentCustomers[existingIdx];
-          const hasAddr = (existing.addresses || []).some(a => a.address === newAddrObj.address);
-          const updatedAddresses = hasAddr ? (existing.addresses || []) : [...(existing.addresses || []), newAddrObj];
+          const existingAddrs = existing.addresses || [];
+          const addrIdx = existingAddrs.findIndex(a => a.address === newAddrObj.address);
+
+          let updatedAddresses = [];
+          if (addrIdx !== -1) {
+            updatedAddresses = [...existingAddrs];
+            updatedAddresses[addrIdx] = {
+              ...updatedAddresses[addrIdx],
+              floor: floor || updatedAddresses[addrIdx].floor || '',
+              apartment: apartment || updatedAddresses[addrIdx].apartment || '',
+              deliveryFee: feeNum
+            };
+          } else {
+            updatedAddresses = [...existingAddrs, newAddrObj];
+          }
           
           const updatedCustomer = {
             ...existing,
@@ -133,6 +154,7 @@ export const useCustomerStore = create(
             address: address || existing.address,
             floor: floor || existing.floor,
             apartment: apartment || existing.apartment,
+            deliveryFee: feeNum,
             addresses: updatedAddresses,
           };
 
@@ -150,6 +172,7 @@ export const useCustomerStore = create(
                 address: address || existing.address || '',
                 floor: floor || existing.floor || '',
                 apartment: apartment || existing.apartment || '',
+                deliveryFee: feeNum,
                 addresses: updatedAddresses
               }),
             });
@@ -157,7 +180,10 @@ export const useCustomerStore = create(
         } else {
           // New Customer
           const newId = `cust_${Date.now()}`;
-          const initialAddrs = customerData.addresses && customerData.addresses.length > 0 ? customerData.addresses : [newAddrObj];
+          const initialAddrs = customerData.addresses && customerData.addresses.length > 0 
+            ? customerData.addresses.map(a => ({ ...a, deliveryFee: parseFloat(a.deliveryFee) || feeNum }))
+            : [newAddrObj];
+
           const newCust = {
             id: newId,
             name: name || 'عميل جديد',
@@ -165,6 +191,7 @@ export const useCustomerStore = create(
             address: address || '',
             floor: floor || '',
             apartment: apartment || '',
+            deliveryFee: feeNum,
             addresses: initialAddrs,
             totalTransactions: 0,
             totalSpend: 0,
@@ -182,6 +209,7 @@ export const useCustomerStore = create(
                 address: address || '',
                 floor: floor || '',
                 apartment: apartment || '',
+                deliveryFee: feeNum,
                 addresses: initialAddrs
               }),
             });

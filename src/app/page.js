@@ -70,7 +70,44 @@ export default function POSPage() {
             });
           }
 
-          if (data.customers && data.customers.length > 0) useCustomerStore.setState({ customers: data.customers });
+          if (data.customers && data.customers.length > 0) {
+            const mappedCustomers = data.customers.map(r => {
+              const mainAddress = r.address || '';
+              const mainFloor = r.floor || '';
+              const mainApartment = r.apartment || '';
+              const mainDeliveryFee = r.delivery_fee !== undefined && r.delivery_fee !== null ? parseFloat(r.delivery_fee) : (r.deliveryFee !== undefined ? parseFloat(r.deliveryFee) : 15);
+
+              let parsedAddresses = [];
+              if (Array.isArray(r.addresses)) {
+                parsedAddresses = r.addresses;
+              } else if (typeof r.addresses === 'string') {
+                try { parsedAddresses = JSON.parse(r.addresses); } catch (e) {}
+              }
+
+              if (!Array.isArray(parsedAddresses) || parsedAddresses.length === 0) {
+                parsedAddresses = [{ address: mainAddress, floor: mainFloor, apartment: mainApartment, deliveryFee: mainDeliveryFee }];
+              } else {
+                parsedAddresses = parsedAddresses.map(a => ({
+                  ...a,
+                  deliveryFee: a.deliveryFee !== undefined ? parseFloat(a.deliveryFee) : (a.delivery_fee !== undefined ? parseFloat(a.delivery_fee) : mainDeliveryFee)
+                }));
+              }
+
+              return {
+                id: r.id,
+                name: r.name,
+                phone: r.phone,
+                address: mainAddress,
+                floor: mainFloor,
+                apartment: mainApartment,
+                deliveryFee: mainDeliveryFee,
+                addresses: parsedAddresses,
+                totalTransactions: r.total_orders || 0,
+                totalSpend: parseFloat(r.total_spend || 0)
+              };
+            });
+            useCustomerStore.setState({ customers: mappedCustomers });
+          }
           if (data.areas && data.areas.length > 0) useCustomerStore.setState({ deliveryAreas: data.areas });
           if (data.drivers && data.drivers.length > 0) useCustomerStore.setState({ drivers: data.drivers });
           if (data.activeAttendanceQueue) useCustomerStore.setState({ activeQueue: data.activeAttendanceQueue });

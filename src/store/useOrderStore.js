@@ -24,11 +24,16 @@ export const useOrderStore = create(
       discountAmount: 0,
       taxRate: 0, // No Tax
 
-      addItem: (product, quantity = 1, extras = '', notes = '') => set((state) => {
+      addItem: (product, quantity, extras = '', notes = '') => set((state) => {
+        const itemQty = (typeof product === 'object' && product?.quantity !== undefined)
+          ? product.quantity
+          : (quantity !== undefined ? quantity : 1);
+        const finalQuantity = Math.max(1, parseInt(itemQty, 10) || 1);
+
         const existingIndex = state.items.findIndex((item) => item.id === product.id);
         if (existingIndex > -1) {
           const updatedItems = [...state.items];
-          updatedItems[existingIndex].quantity += quantity;
+          updatedItems[existingIndex].quantity += finalQuantity;
           return { items: updatedItems };
         } else {
           return {
@@ -39,9 +44,9 @@ export const useOrderStore = create(
                 name: product.name,
                 price: product.price,
                 image: product.image,
-                quantity,
-                extras,
-                notes,
+                quantity: finalQuantity,
+                extras: product.extras || extras,
+                notes: product.notes || notes,
               },
             ],
           };

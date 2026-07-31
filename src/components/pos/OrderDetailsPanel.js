@@ -139,9 +139,15 @@ export default function OrderDetailsPanel({
     setSavedAddresses(addrs);
 
     if (addrs.length > 0) {
-      setCustomerAddress(addrs[0].address || '');
-      setCustomerFloor(addrs[0].floor || '');
-      setCustomerApartment(addrs[0].apartment || '');
+      const firstAddr = addrs[0];
+      setCustomerAddress(firstAddr.address || '');
+      setCustomerFloor(firstAddr.floor || '');
+      setCustomerApartment(firstAddr.apartment || '');
+      const savedFee = firstAddr.deliveryFee !== undefined ? parseFloat(firstAddr.deliveryFee) : (firstAddr.delivery_fee !== undefined ? parseFloat(firstAddr.delivery_fee) : (selectedCust.deliveryFee !== undefined ? parseFloat(selectedCust.deliveryFee) : (selectedCust.delivery_fee !== undefined ? parseFloat(selectedCust.delivery_fee) : 15)));
+      setDeliveryFee(savedFee);
+    } else if (selectedCust.deliveryFee !== undefined || selectedCust.delivery_fee !== undefined) {
+      const savedFee = parseFloat(selectedCust.deliveryFee ?? selectedCust.delivery_fee) || 15;
+      setDeliveryFee(savedFee);
     }
   };
 
@@ -150,7 +156,7 @@ export default function OrderDetailsPanel({
 
     const currentOrderNum = nextOrderNumber ? nextOrderNumber.toString() : '35';
 
-    // Save/Update Customer with phone, name, address, floor, and apartment
+    // Save/Update Customer with phone, name, address, floor, apartment, and deliveryFee
     if (orderType === 'delivery' && customerPhone) {
       saveOrUpdateCustomer({
         name: customerName,
@@ -158,6 +164,7 @@ export default function OrderDetailsPanel({
         address: customerAddress,
         floor: customerFloor,
         apartment: customerApartment,
+        deliveryFee: parseFloat(deliveryFee) || 15,
       });
     }
 
@@ -447,9 +454,15 @@ export default function OrderDetailsPanel({
                         setCustomerName(match.name || '');
                         setSavedAddresses(match.addresses || []);
                         if (match.addresses && match.addresses.length > 0) {
-                          setCustomerAddress(match.addresses[0].address || '');
-                          setCustomerFloor(match.addresses[0].floor || '');
-                          setCustomerApartment(match.addresses[0].apartment || '');
+                          const firstAddr = match.addresses[0];
+                          setCustomerAddress(firstAddr.address || '');
+                          setCustomerFloor(firstAddr.floor || '');
+                          setCustomerApartment(firstAddr.apartment || '');
+                          const savedFee = firstAddr.deliveryFee !== undefined ? parseFloat(firstAddr.deliveryFee) : (firstAddr.delivery_fee !== undefined ? parseFloat(firstAddr.delivery_fee) : (match.deliveryFee !== undefined ? parseFloat(match.deliveryFee) : (match.delivery_fee !== undefined ? parseFloat(match.delivery_fee) : 15)));
+                          setDeliveryFee(savedFee);
+                        } else if (match.deliveryFee !== undefined || match.delivery_fee !== undefined) {
+                          const savedFee = parseFloat(match.deliveryFee ?? match.delivery_fee) || 15;
+                          setDeliveryFee(savedFee);
                         }
                       } else {
                         setSavedAddresses([]);
@@ -507,17 +520,24 @@ export default function OrderDetailsPanel({
                         setCustomerAddress(selectedAddr.address);
                         setCustomerFloor(selectedAddr.floor || '');
                         setCustomerApartment(selectedAddr.apartment || '');
+                        const addrFee = selectedAddr.deliveryFee !== undefined ? parseFloat(selectedAddr.deliveryFee) : (selectedAddr.delivery_fee !== undefined ? parseFloat(selectedAddr.delivery_fee) : null);
+                        if (addrFee !== null && !isNaN(addrFee)) {
+                          setDeliveryFee(addrFee);
+                        }
                       } else {
                         setCustomerAddress(e.target.value);
                       }
                     }}
                     sx={{ borderRadius: '8px', bgcolor: '#EFF6FF', fontSize: '0.813rem', fontWeight: 800 }}
                   >
-                    {savedAddresses.map((addrObj, idx) => (
-                      <MenuItem key={idx} value={addrObj.address}>
-                        🏠 {addrObj.address} {addrObj.floor ? `- (د ${addrObj.floor}` : ''}{addrObj.apartment ? ` ش ${addrObj.apartment})` : addrObj.floor ? ')' : ''}
-                      </MenuItem>
-                    ))}
+                    {savedAddresses.map((addrObj, idx) => {
+                      const feeDisp = addrObj.deliveryFee !== undefined ? addrObj.deliveryFee : (addrObj.delivery_fee !== undefined ? addrObj.delivery_fee : null);
+                      return (
+                        <MenuItem key={idx} value={addrObj.address}>
+                          🏠 {addrObj.address} {addrObj.floor ? `- (د ${addrObj.floor}` : ''}{addrObj.apartment ? ` ش ${addrObj.apartment})` : addrObj.floor ? ')' : ''} {feeDisp !== null && !isNaN(feeDisp) ? `- (توصيل: ${feeDisp} ج.م)` : ''}
+                        </MenuItem>
+                      );
+                    })}
                   </Select>
                 </FormControl>
               )}
