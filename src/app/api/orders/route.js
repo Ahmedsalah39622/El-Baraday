@@ -17,7 +17,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const rawLimit = searchParams.get('limit');
     const parsedLimit = parseInt(rawLimit, 10);
-    const limit = !isNaN(parsedLimit) && parsedLimit > 0 ? parsedLimit : 100;
+    const limit = !isNaN(parsedLimit) && parsedLimit > 0 ? parsedLimit : 500;
     const status = searchParams.get('status');
     const date = searchParams.get('date');
     const branchId = searchParams.get('branch_id');
@@ -108,12 +108,37 @@ export async function POST(request) {
     const cashCollectedVal = cashCollectedBool ? 1 : 0;
     const cashCollectedAtVal = cashCollectedBool ? new Date().toISOString() : null;
 
-    // Get next sequential order number ISOLATED FOR THIS SPECIFIC BRANCH
-    const nextRes = await query(
-      "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE branch_id = $1",
-      [targetBranch]
-    );
-    const nextNum = (nextRes.rows && nextRes.rows.length > 0 && nextRes.rows[0].next) ? parseInt(nextRes.rows[0].next) : 1;
+    // Get next sequential order number STIRCTLY SCOPED TO ACTIVE SHIFT & BRANCH
+    let nextNum = 1;
+    try {
+      let shiftSql = "SELECT start_time FROM shifts WHERE status = 'active'";
+      const shiftParams = [];
+      if (targetBranch && targetBranch !== 'all') {
+        shiftSql += " AND (branch_id = $1 OR branch_id IS NULL OR branch_id = '' OR branch_id = 'all')";
+        shiftParams.push(targetBranch);
+      }
+      shiftSql += " ORDER BY start_time DESC LIMIT 1";
+
+      const shiftRes = await query(shiftSql, shiftParams);
+      const activeShiftRecord = shiftRes.rows && shiftRes.rows[0];
+
+      if (activeShiftRecord && activeShiftRecord.start_time) {
+        const sql = (targetBranch && targetBranch !== 'all')
+          ? "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND created_at >= $2"
+          : "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE created_at >= $1";
+        const params = (targetBranch && targetBranch !== 'all') ? [targetBranch, activeShiftRecord.start_time] : [activeShiftRecord.start_time];
+        const nextRes = await query(sql, params);
+        if (nextRes && nextRes.rows && nextRes.rows.length > 0 && nextRes.rows[0].next) {
+          nextNum = parseInt(nextRes.rows[0].next) || 1;
+        }
+      } else {
+        // Shift is closed -> new shift starts fresh from 1
+        nextNum = 1;
+      }
+    } catch (err) {
+      console.warn('⚠️ Standard nextNum query failed:', err.message);
+      nextNum = 1;
+    }
 
     const orderId = `ord_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 

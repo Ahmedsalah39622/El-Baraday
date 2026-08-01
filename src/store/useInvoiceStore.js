@@ -18,8 +18,8 @@ export const useInvoiceStore = create((set, get) => ({
   },
 
   // Fetch POS order invoices from DB
-  fetchInvoices: async (limitOrBranch = 100, branchIdArg = 'all') => {
-    let limit = 100;
+  fetchInvoices: async (limitOrBranch = 500, branchIdArg = 'all') => {
+    let limit = 500;
     let branchId = 'all';
 
     if (typeof limitOrBranch === 'string') {
@@ -56,7 +56,7 @@ export const useInvoiceStore = create((set, get) => ({
           discount: parseFloat(o.discount || 0),
           paymentMethod: o.payment_method,
           status: o.status,
-          createdAt: o.created_at,
+          createdAt: o.created_at ? (new Date(o.created_at).toISOString ? new Date(o.created_at).toISOString() : String(o.created_at)) : new Date().toISOString(),
           branchId: o.branch_id,
           branch_id: o.branch_id,
           branchName: o.branch_name,
@@ -210,7 +210,11 @@ export const useInvoiceStore = create((set, get) => ({
       id: Date.now().toString(),
       orderNumber: currentNum.toString(),
       invoiceNumber: `INV-${currentNum}`,
+      orderType: invoice.orderType || 'dine_in',
+      order_type: invoice.orderType || 'dine_in',
+      status: invoice.status || (invoice.orderType === 'delivery' ? 'preparing' : 'completed'),
       createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
       branchId: targetBranch,
       branch_id: targetBranch,
       items: invoice.items || [],
@@ -266,6 +270,8 @@ export const useInvoiceStore = create((set, get) => ({
                   id: created.id,
                   orderNumber: String(created.order_number),
                   invoiceNumber: `INV-${created.order_number}`,
+                  status: created.status || inv.status,
+                  createdAt: created.created_at || inv.createdAt,
                   branchId: created.branch_id,
                   branch_id: created.branch_id,
                   items: created.items || inv.items
@@ -274,6 +280,7 @@ export const useInvoiceStore = create((set, get) => ({
           ),
         }));
         get().fetchNextOrderNumber(targetBranch);
+        get().fetchInvoices(500, targetBranch);
 
         // Immediate sync of driver attendance queue
         if (invoice.orderType === 'delivery' || invoice.driverName || invoice.driver_name) {

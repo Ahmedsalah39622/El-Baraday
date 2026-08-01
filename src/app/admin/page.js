@@ -146,12 +146,30 @@ export default function AdminPage() {
   };
 
   const handleDeleteUser = async () => {
-    if (!userToDelete) return;
+    if (!userToDelete?.id) {
+      alert('تعذر حذف الحساب: لم يتم تحديد المستخدم بشكل صحيح.');
+      return;
+    }
     try {
-      await fetch(`/api/users/${userToDelete.id}`, { method: 'DELETE' });
-      fetchUsers();
+      const userId = encodeURIComponent(String(userToDelete.id));
+      const res = await fetch(`/api/users/${userId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!res.ok) {
+        let errorMessage = 'فشل حذف الحساب';
+        try {
+          const data = await res.json();
+          errorMessage = data?.error || errorMessage;
+        } catch (e) {}
+        throw new Error(errorMessage);
+      }
+
+      await fetchUsers();
     } catch (err) {
       console.error('Error deleting user:', err);
+      alert(err.message || 'حدث خطأ أثناء حذف الحساب');
     } finally {
       setDeleteDialogOpen(false);
       setUserToDelete(null);

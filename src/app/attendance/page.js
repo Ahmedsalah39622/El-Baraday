@@ -17,7 +17,8 @@ import DeliveryTimerBadge from '@/components/delivery/DeliveryTimerBadge';
 
 export default function AttendancePage() {
   const { user } = useAuthStore();
-  const { branches, selectedBranchId } = useBranchStore();
+  const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
+  const isAdmin = user?.role === 'admin' || !user?.role;
 
   const [loading, setLoading] = useState(true);
   const [activeQueue, setActiveQueue] = useState([]);
@@ -145,6 +146,7 @@ export default function AttendancePage() {
           action: 'check_out',
           attendance_id: attendanceId,
           driver_id: driverId,
+          staff_id: driverId,
           driver_name: staffName
         })
       });
@@ -201,7 +203,22 @@ export default function AttendancePage() {
           </Box>
         </Box>
 
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+          {isAdmin && (
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <Select
+                value={selectedBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+                sx={{ borderRadius: '12px', bgcolor: '#FFF', fontWeight: 800 }}
+              >
+                <MenuItem value="all">🏢 كافـة الفـروع</MenuItem>
+                {branches.map((b) => (
+                  <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
           <Button
             variant="outlined"
             startIcon={<Refresh />}

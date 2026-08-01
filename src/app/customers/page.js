@@ -21,15 +21,23 @@ import {
   TextField,
   Tooltip,
   Divider,
-  Alert
+  Alert,
+  FormControl,
+  Select,
+  MenuItem
 } from '@mui/material';
 import { EditOutlined, DeleteOutlined, Add, Phone, Home, LocationOn, StarOutlined, StarBorder, FileDownload, Contacts } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
 import { useCustomerStore } from '@/store/useCustomerStore';
+import { useBranchStore } from '@/store/useBranchStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { exportCustomersToExcel, exportCustomersToVCF } from '@/lib/exportCustomers';
 
 export default function CustomersPage() {
   const { customers, fetchCustomers, saveOrUpdateCustomer, updateCustomerAddresses, deleteCustomer } = useCustomerStore();
+  const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin' || !user?.role;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
@@ -197,6 +205,21 @@ export default function CustomersPage() {
         </Box>
 
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+          {isAdmin && (
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <Select
+                value={selectedBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+                sx={{ borderRadius: '12px', bgcolor: '#FFF', fontWeight: 800, height: 40 }}
+              >
+                <MenuItem value="all">🏢 كافـة الفـروع</MenuItem>
+                {branches.map((b) => (
+                  <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
           <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="ابحث باسم العميل أو رقم الهاتف..." />
           
           <Button

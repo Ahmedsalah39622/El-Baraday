@@ -1,39 +1,44 @@
-// Thermal Receipt Printing Helper - 100% Bulletproof for 80mm Thermal POS Printers (Xprinter / POS80)
 export function printThermalReceipt(orderData) {
   if (!orderData) return;
 
-  const {
-    orderNumber = '1',
-    dateStr = new Date().toLocaleString('ar-EG', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hour12: true
-    }),
-    branchName = 'الفرع الرئيسي',
-    driverName = '',
-    cashierName = 'الكاشير',
-    customerName = '',
-    customerPhone = '',
-    customerAddress = '',
-    customerFloor = '',
-    customerApartment = '',
-    items = [],
-    subtotal = 0,
-    deliveryFee = 0,
-    discount = 0,
-    total = 0,
-    paidAmount = 0,
-    notes = '',
-    orderNotes = '',
-    remainingAmount = 0,
-    orderType = 'takeaway',
-    isCashCollected = false,
-  } = orderData;
+  const orderNum = orderData.orderNumber || orderData.order_number || '1';
+  const orderTypeVal = orderData.orderType || orderData.order_type || 'takeaway';
+  const isDelivery = orderTypeVal === 'delivery';
+
+  const cashierName = orderData.cashierName || orderData.cashier_name || 'الكاشير';
+  const driverName = orderData.driverName || orderData.driver_name || '';
+  const branchName = orderData.branchName || orderData.branch_name || 'الفرع الرئيسي';
+
+  const customerName = orderData.customerName || orderData.customer_name || '';
+  const customerPhone = orderData.customerPhone || orderData.customer_phone || '';
+
+  const addressPart = orderData.customerAddress || orderData.customer_address || orderData.address || '';
+  const areaPart = orderData.customerArea || orderData.customer_area || orderData.area || '';
+  const combinedAddr = [addressPart, areaPart].filter((a) => a && a !== 'null' && a !== 'undefined').join(' - ');
+
+  const customerFloor = orderData.customerFloor || orderData.customer_floor || orderData.floor || '';
+  const customerApartment = orderData.customerApartment || orderData.customer_apartment || orderData.apartment || '';
+
+  const items = orderData.items || [];
+  const subtotal = orderData.subtotal || 0;
+  const deliveryFee = orderData.deliveryFee || orderData.delivery_fee || 0;
+  const discount = orderData.discount || 0;
+  const total = orderData.total || 0;
+  const paidAmount = orderData.paidAmount || orderData.paid_amount || 0;
+  const remainingAmount = orderData.remainingAmount || orderData.remaining_amount || 0;
+  const notes = orderData.notes || orderData.orderNotes || '';
+  const orderNotes = orderData.orderNotes || orderData.notes || '';
+  const isCashCollected = orderData.is_cash_collected || orderData.isCashCollected || false;
+
+  const dateStr = orderData.dateStr || new Date(orderData.createdAt || orderData.created_at || Date.now()).toLocaleString('ar-EG', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: true
+  });
 
   const orderNoteText = notes || orderNotes || '';
-  const isDelivery = orderType === 'delivery';
   const cleanPhone = (customerPhone && customerPhone !== 'null' && customerPhone !== 'undefined') ? String(customerPhone).trim() : '';
   const cleanName = (customerName && customerName !== 'null' && customerName !== 'undefined') ? String(customerName).trim() : '';
-  const cleanAddress = (customerAddress && customerAddress !== 'null' && customerAddress !== 'undefined') ? String(customerAddress).trim() : '';
+  const cleanAddress = (combinedAddr && combinedAddr !== 'null' && combinedAddr !== 'undefined') ? String(combinedAddr).trim() : '';
   const cleanDriver = (driverName && driverName !== 'null' && driverName !== 'undefined') ? String(driverName).trim() : '';
   
   const floorApartmentText = [
@@ -59,26 +64,26 @@ export function printThermalReceipt(orderData) {
     const itemTotal = (parseFloat(item.price || 0) * (parseInt(item.quantity) || 1)).toFixed(0);
 
     return `
-      <tr style="border-bottom: ${idx < items.length - 1 ? '1px dashed #666' : '1.5px solid #000'};">
-        <td style="padding: 4px 2px; font-weight: 800; text-align: right; font-size: 11px; color: #000; word-break: break-word;">
+      <tr style="border-bottom: ${idx < items.length - 1 ? '1px dashed #999' : '1.5px solid #000'};">
+        <td style="padding: 2px 1px; font-weight: 800; text-align: right; font-size: 10px; color: #000; word-break: break-word;">
           ${itemName}
-          ${itemSize ? `<br><span style="font-size: 10px; font-weight: 700; color: #333;">${itemSize}</span>` : ''}
-          ${itemNotes ? `<br><span style="font-size: 10px; font-weight: 700; color: #333;">${itemNotes}</span>` : ''}
+          ${itemSize ? `<span style="font-size: 9px; font-weight: 700; color: #333;"> ${itemSize}</span>` : ''}
+          ${itemNotes ? `<span style="font-size: 9px; font-weight: 700; color: #333;"> (${itemNotes})</span>` : ''}
         </td>
-        <td style="padding: 4px 2px; font-weight: 900; text-align: center; font-size: 13px; color: #000;">${item.quantity}</td>
-        <td style="padding: 4px 2px; font-weight: 700; text-align: center; font-size: 11px; color: #000;">${itemPrice}</td>
-        <td style="padding: 4px 2px; font-weight: 900; text-align: center; font-size: 12px; color: #000;">${itemTotal}</td>
+        <td style="padding: 2px 1px; font-weight: 900; text-align: center; font-size: 11px; color: #000;">${item.quantity}</td>
+        <td style="padding: 2px 1px; font-weight: 700; text-align: center; font-size: 10px; color: #000;">${itemPrice}</td>
+        <td style="padding: 2px 1px; font-weight: 900; text-align: center; font-size: 11px; color: #000;">${itemTotal}</td>
       </tr>
     `;
   }).join('');
 
-  // 100% Bulletproof HTML Template using 2-Column Tables for Metadata & Totals
+  // 100% Compact & Paper-Saving HTML Template using 2-Column Tables
   let html = `
     <!DOCTYPE html>
     <html lang="ar" dir="rtl">
     <head>
       <meta charset="UTF-8">
-      <title>فاتورة #${orderNumber}</title>
+      <title>فاتورة #${orderNum}</title>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&display=swap');
         @page {
@@ -93,7 +98,7 @@ export function printThermalReceipt(orderData) {
           html, body {
             width: 100% !important;
             margin: 0 !important;
-            padding: 0 4mm !important;
+            padding: 0 1.5mm !important;
             background: #FFF !important;
             color: #000 !important;
             -webkit-print-color-adjust: exact !important;
@@ -110,7 +115,7 @@ export function printThermalReceipt(orderData) {
         html, body {
           font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif;
           margin: 0 auto;
-          padding: 0 4mm;
+          padding: 0 1.5mm;
           width: 100%;
           color: #000000;
           background: #FFFFFF;
@@ -119,69 +124,72 @@ export function printThermalReceipt(orderData) {
         .print-wrapper {
           width: 100% !important;
           margin: 0 auto !important;
-          padding: 2mm 0 !important;
+          padding: 1mm 0 !important;
           box-sizing: border-box !important;
         }
         .center { text-align: center; }
         .bold { font-weight: 900; }
-        .dashed-sep { border-bottom: 1.5px dashed #000000; margin: 5px 0; }
-        .solid-sep { border-bottom: 2px solid #000000; margin: 6px 0; }
-        .double-sep { border-bottom: 3px double #000000; margin: 6px 0; }
+        .dashed-sep { border-bottom: 1px dashed #000000; margin: 2px 0; }
+        .solid-sep { border-bottom: 1.5px solid #000000; margin: 3px 0; }
+        .double-sep { border-bottom: 2px double #000000; margin: 3px 0; }
         
         .badge {
-          border: 1.5px solid #000000;
+          border: 1px solid #000000;
           background: #F3F4F6;
           color: #000000;
-          padding: 2px 8px;
+          padding: 1px 5px;
           border-radius: 4px;
           display: inline-block;
           font-weight: 900;
-          font-size: 11px;
-          margin-top: 3px;
+          font-size: 9.5px;
+          margin-top: 1px;
         }
         
-        /* Table Layout for Metadata & Totals to prevent side clipping */
+        /* Compact Table Layout */
         table.meta-table, table.totals-table, table.items-table {
           width: 100% !important;
           border-collapse: collapse !important;
-          margin: 3px 0 !important;
+          margin: 1px 0 !important;
           table-layout: fixed !important;
         }
+        table.meta-table td {
+          padding: 1px 0 !important;
+        }
         table.items-table {
-          border: 1.5px solid #000000 !important;
+          border: 1px solid #000000 !important;
         }
         table.items-table th {
           background: #E5E7EB;
           color: #000000;
-          padding: 4px 2px;
-          font-size: 11px;
+          padding: 2px 1px;
+          font-size: 10px;
           font-weight: 900;
-          border-bottom: 1.5px solid #000000;
+          border-bottom: 1px solid #000000;
           text-align: center;
         }
         
         .total-box {
-          border: 2px solid #000000;
-          padding: 4px 6px;
-          border-radius: 6px;
-          margin-top: 5px;
+          border: 1.5px solid #000000;
+          padding: 2px 4px;
+          border-radius: 4px;
+          margin-top: 2px;
           font-weight: 900;
-          font-size: 13px;
+          font-size: 11px;
           background: #F9FAFB;
         }
         .cash-box {
           background: #000000;
           color: #FFFFFF;
-          padding: 4px 6px;
-          border-radius: 6px;
-          margin-top: 4px;
+          padding: 2px 4px;
+          border-radius: 4px;
+          margin-top: 2px;
           font-weight: 900;
-          font-size: 12px;
+          font-size: 10px;
         }
         .page-break {
           page-break-before: always !important;
           break-before: page !important;
-          margin-top: 10px;
+          margin-top: 4px;
         }
       </style>
     </head>
@@ -189,11 +197,11 @@ export function printThermalReceipt(orderData) {
       <!-- Main Receipt Body -->
       <div class="print-wrapper">
         <div class="center">
-          <h1 style="margin: 0; font-size: 36px; font-weight: 900; line-height: 1; color: #000000;">#${orderNumber}</h1>
-          <h2 style="margin: 3px 0 0 0; font-size: 14px; font-weight: 900; color: #000000;">مطعم البرادعي للحواوشي واللحوم</h2>
-          <div style="font-size: 10px; font-weight: 700; color: #333; margin-top: 1px;">فرع: ${branchName}</div>
+          <h1 style="margin: 0; font-size: 32px; font-weight: 900; line-height: 1; color: #000000; direction: ltr; display: block; text-align: center;">#${orderNum}</h1>
+          <h2 style="margin: 1px 0 0 0; font-size: 11.5px; font-weight: 900; color: #000000;">مطعم البرادعي للحواوشي واللحوم</h2>
+          <div style="font-size: 9px; font-weight: 700; color: #333;">فرع: ${branchName}</div>
           <div class="badge">
-            ${isDelivery ? '🛵 دليفري (توصيل للمنزل)' : (orderType === 'takeaway' ? '🥡 تيك أوي (Takeaway)' : '🍽️ صالة / طاولات')}
+            ${isDelivery ? '🛵 دليفري (توصيل للمنزل)' : (orderTypeVal === 'takeaway' ? '🥡 تيك أوي (Takeaway)' : '🍽️ صالة / طاولات')}
           </div>
         </div>
 
@@ -217,37 +225,35 @@ export function printThermalReceipt(orderData) {
             <td style="text-align: right; font-weight: 700; font-size: 11px; width: 35%;">التاريخ والوقت:</td>
             <td style="text-align: left; font-weight: 900; font-size: 10px; width: 65%;">${dateStr}</td>
           </tr>
-          ${isDelivery ? `
-            ${cleanDriver ? `
-              <tr>
-                <td style="text-align: right; font-weight: 700; font-size: 11px;">الطيار المسؤول:</td>
-                <td style="text-align: left; font-weight: 900; font-size: 12px;">🚴 ${cleanDriver}</td>
-              </tr>
-            ` : ''}
-            ${cleanName ? `
-              <tr>
-                <td style="text-align: right; font-weight: 700; font-size: 11px;">اسم العميل:</td>
-                <td style="text-align: left; font-weight: 900; font-size: 11px;">${cleanName}</td>
-              </tr>
-            ` : ''}
-            ${cleanPhone ? `
-              <tr>
-                <td style="text-align: right; font-weight: 700; font-size: 11px;">رقم الهاتف:</td>
-                <td style="text-align: left; font-weight: 900; font-size: 12px;">📞 ${cleanPhone}</td>
-              </tr>
-            ` : ''}
-            ${cleanAddress ? `
-              <tr>
-                <td style="text-align: right; font-weight: 700; font-size: 11px;">العنوان:</td>
-                <td style="text-align: left; font-weight: 900; font-size: 11px;">📍 ${cleanAddress}</td>
-              </tr>
-            ` : ''}
-            ${floorApartmentText ? `
-              <tr>
-                <td style="text-align: right; font-weight: 700; font-size: 11px;">الدور / الشقة:</td>
-                <td style="text-align: left; font-weight: 900; font-size: 11px;">🏠 ${floorApartmentText}</td>
-              </tr>
-            ` : ''}
+          ${cleanDriver ? `
+            <tr>
+              <td style="text-align: right; font-weight: 700; font-size: 11px;">الطيار المسؤول:</td>
+              <td style="text-align: left; font-weight: 900; font-size: 12px;">🚴 ${cleanDriver}</td>
+            </tr>
+          ` : ''}
+          ${cleanName ? `
+            <tr>
+              <td style="text-align: right; font-weight: 700; font-size: 11px;">اسم العميل:</td>
+              <td style="text-align: left; font-weight: 900; font-size: 11px;">${cleanName}</td>
+            </tr>
+          ` : ''}
+          ${cleanPhone ? `
+            <tr>
+              <td style="text-align: right; font-weight: 700; font-size: 11px;">رقم الهاتف:</td>
+              <td style="text-align: left; font-weight: 900; font-size: 12px;">📞 ${cleanPhone}</td>
+            </tr>
+          ` : ''}
+          ${cleanAddress ? `
+            <tr>
+              <td style="text-align: right; font-weight: 700; font-size: 11px;">📍 العنوان:</td>
+              <td style="text-align: left; font-weight: 900; font-size: 11px; color: #000; word-break: break-word;">📍 ${cleanAddress}</td>
+            </tr>
+          ` : ''}
+          ${floorApartmentText ? `
+            <tr>
+              <td style="text-align: right; font-weight: 700; font-size: 11px;">الدور / الشقة:</td>
+              <td style="text-align: left; font-weight: 900; font-size: 11px;">🏠 ${floorApartmentText}</td>
+            </tr>
           ` : ''}
         </table>
 
@@ -341,7 +347,7 @@ export function printThermalReceipt(orderData) {
         <div class="page-break"></div>
         <div class="print-wrapper">
           <div class="center">
-            <h1 style="margin: 0; font-size: 42px; font-weight: 900; line-height: 1; color: #000000;">#${orderNumber}</h1>
+            <h1 style="margin: 0; font-size: 42px; font-weight: 900; line-height: 1; color: #000000;">#${orderNum}</h1>
             <div class="badge" style="font-size: 12px; padding: 3px 10px;">🛵 بون المطبخ والدليفري</div>
             ${cleanDriver ? `<h3 style="margin: 4px 0 0 0; font-size: 12px; font-weight: 900; color: #000000;">الطيار: ${cleanDriver}</h3>` : ''}
             ${cleanName ? `<h3 style="margin: 2px 0 0 0; font-size: 11px; font-weight: 800; color: #000000;">العميل: ${cleanName} ${cleanPhone ? `(${cleanPhone})` : ''}</h3>` : ''}
@@ -973,4 +979,153 @@ export function printRaffleCoupon(couponData) {
     }, 2000);
   }, 250);
 }
+
+// Thermal Receipt Helper for Order Returns (إيصال مرتجع)
+export function printReturnReceipt(returnData) {
+  if (!returnData) return;
+
+  const {
+    orderNumber = '',
+    returnType = 'partial',
+    dateStr = new Date().toLocaleString('ar-EG', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: true
+    }),
+    branchName = 'مطعم البرادعي للحواوشي',
+    cashierName = 'الكاشير',
+    customerName = '',
+    customerPhone = '',
+    returnedItems = [],
+    totalReturned = 0,
+    reason = '',
+  } = returnData;
+
+  const returnTitle = returnType === 'full' ? 'إيصال مرتجع فاتورة بالكامل' : 'إيصال مرتجع أصناف (جزئي)';
+  const cleanPhone = customerPhone ? String(customerPhone).trim() : '';
+  const cleanName = customerName ? String(customerName).trim() : '';
+
+  const itemsHtml = (returnedItems || []).map((item, idx) => {
+    let itemName = String(item.name || item.product_name || 'صنف').trim();
+    const itemSize = item.size ? `(${item.size})` : '';
+    const itemPrice = parseFloat(item.price || 0).toFixed(0);
+    const qty = parseInt(item.quantity) || 1;
+    const itemTotal = (parseFloat(item.price || 0) * qty).toFixed(0);
+
+    return `
+      <tr style="border-bottom: ${idx < returnedItems.length - 1 ? '1px dashed #999' : '1.5px solid #000'};">
+        <td style="padding: 2px 1px; font-weight: 800; text-align: right; font-size: 10px; color: #000;">
+          ${itemName} ${itemSize ? `<span style="font-size: 9px;">${itemSize}</span>` : ''}
+        </td>
+        <td style="padding: 2px 1px; font-weight: 900; text-align: center; font-size: 11px; color: #000;">${qty}</td>
+        <td style="padding: 2px 1px; font-weight: 700; text-align: center; font-size: 10px; color: #000;">${itemPrice}</td>
+        <td style="padding: 2px 1px; font-weight: 900; text-align: center; font-size: 11px; color: #000;">${itemTotal}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="ar" dir="rtl">
+    <head>
+      <meta charset="UTF-8">
+      <title>إيصال مرتجع #${orderNumber}</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&display=swap');
+        @page { size: 80mm auto; margin: 0mm !important; }
+        @media print {
+          @page { size: 80mm auto; margin: 0mm !important; }
+          html, body { width: 100% !important; margin: 0 !important; padding: 0 1.5mm !important; background: #FFF !important; color: #000 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+        * { box-sizing: border-box !important; margin: 0; padding: 0; }
+        html, body { font-family: 'Cairo', sans-serif; width: 100%; color: #000; background: #FFF; direction: rtl; }
+        .wrapper { padding: 1mm 0; }
+        .center { text-align: center; }
+        .bold { font-weight: 900; }
+        .title-box { border: 1.5px solid #000; background: #F3F4F6; padding: 3px 4px; font-size: 11.5px; font-weight: 900; margin: 2px 0; text-align: center; border-radius: 4px; }
+        .refund-box { border: 2px double #000; background: #FFF; padding: 4px 6px; font-size: 12px; font-weight: 900; margin: 3px 0; text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin: 2px 0; }
+      </style>
+    </head>
+    <body>
+      <div class="wrapper">
+        <div class="center bold" style="font-size: 14px;">مطعم البرادعي للحواوشي</div>
+        <div class="center" style="font-size: 9.5px;">${branchName}</div>
+        
+        <div class="title-box">
+          🔄 ${returnTitle}<br>
+          <span style="font-size: 10.5px;">طلب رقم: #${orderNumber}</span>
+        </div>
+
+        <table style="font-size: 10px; font-weight: 700;">
+          <tr>
+            <td>تاريخ المرتجع: ${dateStr}</td>
+            <td style="text-align: left;">الكاشير: ${cashierName}</td>
+          </tr>
+          ${cleanName ? `<tr><td colspan="2">العميل: ${cleanName} ${cleanPhone ? `(${cleanPhone})` : ''}</td></tr>` : ''}
+        </table>
+
+        <div style="border-bottom: 1px solid #000; margin: 2px 0;"></div>
+
+        <div class="bold" style="font-size: 10px; margin-bottom: 2px;">📋 الأصناف المرتجعة:</div>
+        <table>
+          <thead>
+            <tr style="border-bottom: 1.5px solid #000; font-size: 10px; font-weight: 900;">
+              <th style="text-align: right;">الصنف</th>
+              <th style="text-align: center;">العدد</th>
+              <th style="text-align: center;">السعر</th>
+              <th style="text-align: center;">الإجمالي</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+
+        <div class="refund-box">
+          💰 خصم من النقدية / مرتجع:<br>
+          <span style="font-size: 16px; font-weight: 900;">${parseFloat(totalReturned).toFixed(2)} ج.م</span>
+        </div>
+
+        ${reason ? `
+          <div style="font-size: 9.5px; font-weight: 800; border: 1px dashed #000; padding: 2px 4px; margin-top: 2px; border-radius: 4px;">
+            📝 سبب الإرجاع: ${reason}
+          </div>
+        ` : ''}
+
+        <div style="margin-top: 4px; font-size: 9px; text-align: center; font-weight: 700;">
+          توقيع الكاشير: ........................<br>
+          شكراً لتفهمكم | مطعم البرادعي
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.style.visibility = 'hidden';
+
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  setTimeout(() => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => {
+      try {
+        document.body.removeChild(iframe);
+      } catch (e) { }
+    }, 2000);
+  }, 250);
+}
+
 

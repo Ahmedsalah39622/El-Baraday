@@ -24,6 +24,9 @@ import {
   Divider,
   Stack,
   CircularProgress,
+  FormControl,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Print,
@@ -40,12 +43,27 @@ import {
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { useShiftStore } from '@/store/useShiftStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useBranchStore } from '@/store/useBranchStore';
 import { generateReportPDF } from '@/lib/reportPdfExport';
 
 export default function ShiftSummaryPage() {
   const { invoices, fetchInvoices } = useInvoiceStore();
   const { activeShift, fetchShifts, openShift, closeShift } = useShiftStore();
+  const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
   const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin' || !user?.role;
+  const effectiveBranchId = isAdmin ? selectedBranchId : (user?.branch_id || user?.branchId || 'b1');
+
+  const getBranchNameById = (branchId) => {
+    const found = (branches || []).find((b) => b.id === branchId);
+    if (found?.name) return found.name;
+    if (branchId === 'b2') return 'فرع المسلة';
+    if (branchId === 'b1') return 'فرع عزت';
+    return 'الفرع';
+  };
+
+  const branchDisplayName = getBranchNameById(effectiveBranchId);
+  const branchShortName = branchDisplayName.replace(/^فرع\s+/, '') || branchDisplayName;
 
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [openDialogOpen, setOpenDialogOpen] = useState(false);
@@ -63,7 +81,10 @@ export default function ShiftSummaryPage() {
   const fetchPastShifts = async () => {
     setLoadingHistory(true);
     try {
-      const res = await fetch('/api/shifts');
+      const url = effectiveBranchId && effectiveBranchId !== 'all'
+        ? `/api/shifts?branch_id=${effectiveBranchId}`
+        : '/api/shifts';
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setShiftsHistory(data || []);
@@ -77,8 +98,16 @@ export default function ShiftSummaryPage() {
 
   useEffect(() => {
     fetchInvoices();
-    fetchShifts();
+    fetchShifts(effectiveBranchId);
     fetchPastShifts();
+
+    // Auto-refresh every 10 seconds for real-time data (no cache)
+    const refreshInterval = setInterval(() => {
+      fetchInvoices();
+      fetchShifts(effectiveBranchId);
+    }, 10000);
+
+    return () => clearInterval(refreshInterval);
   }, []);
 
   useEffect(() => {
@@ -88,7 +117,10 @@ export default function ShiftSummaryPage() {
   }, [user]);
 
   // Filter invoices to only include those created SINCE activeShift.rawStartTime
+  // AND exclude cancelled orders
   const activeShiftInvoices = (invoices || []).filter((inv) => {
+    // Skip cancelled orders
+    if (inv.status === 'cancelled') return false;
     if (!activeShift?.rawStartTime || !inv.createdAt) return true;
     const invTime = new Date(inv.createdAt).getTime();
     const shiftStartTime = new Date(activeShift.rawStartTime).getTime();
@@ -128,7 +160,7 @@ export default function ShiftSummaryPage() {
   const handleConfirmOpenShift = async () => {
     try {
       const amount = parseFloat(newStartAmount) || 0;
-      await openShift(newCashierName, amount);
+      await openShift(newCashierName, amount, selectedBranchId);
       setOpenDialogOpen(false);
       await fetchPastShifts();
       alert('تم فتح وردية جديدة بنجاح!');
@@ -191,7 +223,7 @@ export default function ShiftSummaryPage() {
     generateReportPDF({
       title: `تقرير تسوية شيفت وتظريف الخزينة - ${targetShift?.cashier_name || cashierDisplayName}`,
       subtitle: 'مطعم البرادعي للحواوشي - كشف حساب الخزينة والعجز',
-      branchName: 'الفرع الرئيسي',
+      branchName: branchDisplayName,
       dateRangeStr: new Date().toLocaleDateString('ar-EG'),
       stats,
       columns,
@@ -205,10 +237,25 @@ export default function ShiftSummaryPage() {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         <Typography variant="h4" sx={{ fontWeight: 800, color: '#1A1A2E', fontSize: { xs: '1.4rem', md: '1.8rem' } }}>
-          ملخص الوردية والشيفت وبيانات العجز والزيادة
+          تقفيل شفت {branchShortName} وبيانات العجز والزيادة
         </Typography>
 
-        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+          {isAdmin && (
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <Select
+                value={selectedBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+                sx={{ borderRadius: '12px', bgcolor: '#FFF', fontWeight: 800 }}
+              >
+                <MenuItem value="all">🏢 كافـة الفـروع</MenuItem>
+                {branches.map((b) => (
+                  <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
           {isShiftActive ? (
             <>
               <Button
@@ -431,11 +478,11 @@ export default function ShiftSummaryPage() {
       </Paper>
 
       {/* Open New Shift Dialog */}
-      <Dialog open={openDialogOpen} onClose={() => setOpenDialogOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '16px' } }}>
+      <Dialog open={openDialogOpen} onClose={() => setOpenDialogOpen(false)} maxWidth="xs" fullWidth slotProps={{ paper: { sx: { borderRadius: '16px' } } }}>
         <DialogTitle sx={{ fontWeight: 800, textAlign: 'center' }}>فتح وردية جديدة 🔓</DialogTitle>
         <DialogContent sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           <Typography variant="body2" sx={{ color: '#4B5563', mt: 1 }}>
-            أدخل مبلغ النقدية الأولى (العهدة) الموجودة في الخزينة لبدء الوردية وتسجيل المبيعات:
+            أدخل مبلغ النقدية الأولى (العهدة) الموجودة في خزنة {branchShortName} لبدء الوردية وتسجيل المبيعات:
           </Typography>
           <TextField
             fullWidth
@@ -461,9 +508,9 @@ export default function ShiftSummaryPage() {
       </Dialog>
 
       {/* CLOSE SHIFT DIALOG WITH LIVE DEFICIT / SURPLUS CALCULATOR */}
-      <Dialog open={closeDialogOpen} onClose={() => setCloseDialogOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}>
+      <Dialog open={closeDialogOpen} onClose={() => setCloseDialogOpen(false)} maxWidth="xs" fullWidth slotProps={{ paper: { sx: { borderRadius: '20px', p: 1 } } }}>
         <DialogTitle sx={{ fontWeight: 900, textAlign: 'center', color: '#1E293B' }}>
-          🔒 جرد وتصفية وإغلاق الوردية
+          🔒 جرد وتصفية وإغلاق شفت {branchShortName}
         </DialogTitle>
         <DialogContent sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
           {/* Shift Details Box */}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Box, Typography, TextField, Button, CircularProgress, Alert, InputAdornment } from '@mui/material';
 import { Backspace, ArrowBack, PersonSearch } from '@mui/icons-material';
@@ -20,6 +20,40 @@ export default function LoginPage() {
   const [errorMsg, setErrorMsg] = useState('');
 
   const currentPinStr = pinDigits.join('');
+
+  useEffect(() => {
+    if (step !== 2) return;
+
+    const handleKeyDown = (event) => {
+      if (loading) return;
+
+      if (/^[0-9]$/.test(event.key)) {
+        event.preventDefault();
+        handleNumpadPress(event.key);
+        return;
+      }
+
+      if (event.key === 'Backspace') {
+        event.preventDefault();
+        handleBackspace();
+        return;
+      }
+
+      if (event.key === 'Delete' || event.key === 'Escape') {
+        event.preventDefault();
+        handleClearPin();
+        return;
+      }
+
+      if (event.key === 'Enter' && currentPinStr.length === 4) {
+        event.preventDefault();
+        handleLoginWithPin();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [step, loading, currentPinStr]);
 
   // Handle Step 1 Verification via Database API
   const handleVerifyUsername = async (e) => {
@@ -113,6 +147,20 @@ export default function LoginPage() {
       updated[prevIdx] = '';
       setPinDigits(updated);
       setActivePinIndex(prevIdx);
+    }
+  };
+
+  const handlePinPaste = (value) => {
+    const digitsOnly = String(value || '').replace(/\D/g, '').slice(0, 4).split('');
+    const updated = ['', '', '', ''];
+    digitsOnly.forEach((digit, idx) => {
+      updated[idx] = digit;
+    });
+    setPinDigits(updated);
+    setActivePinIndex(Math.min(digitsOnly.length, 4));
+
+    if (digitsOnly.length === 4) {
+      handleLoginWithPin(updated.join(''));
     }
   };
 
@@ -276,6 +324,34 @@ export default function LoginPage() {
               <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#374151', mt: 0.5 }}>
                 رمز PIN المكون من 4 أرقام
               </Typography>
+
+              <TextField
+                value={currentPinStr}
+                onChange={(e) => handlePinPaste(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Backspace') {
+                    e.preventDefault();
+                    handleBackspace();
+                  }
+                }}
+                inputRef={(input) => input && input.focus()}
+                autoComplete="one-time-code"
+                slotProps={{
+                  htmlInput: {
+                    inputMode: 'numeric',
+                    pattern: '[0-9]*',
+                    maxLength: 4,
+                    'aria-label': 'رمز PIN',
+                  },
+                }}
+                sx={{
+                  position: 'absolute',
+                  width: 1,
+                  height: 1,
+                  opacity: 0,
+                  pointerEvents: 'none',
+                }}
+              />
 
               {/* 4 Square Input Boxes */}
               <Box sx={{ display: 'flex', gap: 1.5, mb: 1 }}>

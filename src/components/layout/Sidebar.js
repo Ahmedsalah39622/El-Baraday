@@ -24,12 +24,14 @@ import {
   ReceiptLong,
   Receipt,
   CardGiftcard,
+  AssignmentReturnOutlined,
 } from '@mui/icons-material';
 import { useAuthStore } from '@/store/useAuthStore';
 
 const navItems = [
   { id: 'home', label: 'الرئيسية', icon: Home, path: '/' },
   { id: 'invoices', label: 'الفواتير والتحصيل', icon: Receipt, path: '/invoices' },
+  { id: 'returns', label: 'المرتجعات', icon: AssignmentReturnOutlined, path: '/returns' },
   { id: 'products', label: 'إدارة المنتجات', icon: FastfoodOutlined, path: '/products' },
   { id: 'prizes', label: 'السحب والجوائز', icon: CardGiftcard, path: '/prizes' },
   { id: 'customers', label: 'العملاء', icon: PersonOutlined, path: '/customers' },
@@ -298,17 +300,19 @@ export default function Sidebar() {
         anchor="bottom"
         open={mobileMoreOpen}
         onClose={() => setMobileMoreOpen(false)}
-        PaperProps={{
-          sx: {
-            borderTopLeftRadius: '28px',
-            borderTopRightRadius: '28px',
-            p: 2.5,
-            pb: 10, // Safe padding for bottom navigation bar
-            bgcolor: '#FAFCFF',
-            maxHeight: '85vh',
-            overflowY: 'auto',
-            boxShadow: '0 -10px 40px rgba(0,0,0,0.12)',
-          },
+        slotProps={{
+          paper: {
+            sx: {
+              borderTopLeftRadius: '28px',
+              borderTopRightRadius: '28px',
+              p: 2.5,
+              pb: 10, // Safe padding for bottom navigation bar
+              bgcolor: '#FAFCFF',
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              boxShadow: '0 -10px 40px rgba(0,0,0,0.12)',
+            },
+          }
         }}
       >
         {/* Drag Indicator Handle */}

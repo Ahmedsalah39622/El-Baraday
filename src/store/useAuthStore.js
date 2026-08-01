@@ -1,11 +1,23 @@
 "use client";
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+
+// Clear legacy persistent localStorage auth data so credentials never survive browser restarts
+if (typeof window !== 'undefined') {
+  try {
+    localStorage.removeItem('el-baraday-auth-v5');
+    localStorage.removeItem('el-baraday-auth-v4');
+    localStorage.removeItem('el-baraday-auth-v3');
+    localStorage.removeItem('el-baraday-auth-v2');
+    localStorage.removeItem('el-baraday-auth-v1');
+    localStorage.removeItem('el-baraday-auth');
+  } catch (e) {}
+}
 
 export const ROLE_PERMISSIONS = {
-  admin:   ['/', '/invoices', '/products', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance', '/inventory', '/salaries', '/reports', '/admin', '/settings'],
-  cashier: ['/', '/invoices', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance'],
+  admin:   ['/', '/invoices', '/returns', '/products', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance', '/inventory', '/salaries', '/reports', '/admin', '/settings'],
+  cashier: ['/', '/invoices', '/returns', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance'],
   driver:  ['/delivery', '/attendance', '/orders'],
   kitchen: ['/orders'],
 };
@@ -13,6 +25,7 @@ export const ROLE_PERMISSIONS = {
 export const ALL_SYSTEM_SCREENS = [
   { path: '/',              name: 'الرئيسية (الكاشير والـ POS)' },
   { path: '/invoices',      name: 'الفواتير والتحصيل المالي' },
+  { path: '/returns',       name: 'إدارة المرتجعات واسترداد النقدية' },
   { path: '/products',      name: 'إدارة المنتجات والمنيو' },
   { path: '/prizes',        name: 'السحب والجوائز وعجلة الحظ' },
   { path: '/orders',        name: 'سجل الطلبات والفواتير' },
@@ -41,6 +54,9 @@ export const useAuthStore = create(
 
       logout: () => {
         set({ user: null, isAuthenticated: false });
+        if (typeof window !== 'undefined') {
+          try { sessionStorage.clear(); } catch (e) {}
+        }
       },
 
       hasPermission: (pathname) => {
@@ -75,7 +91,8 @@ export const useAuthStore = create(
       }
     }),
     {
-      name: 'el-baraday-auth-v5',
+      name: 'el-baraday-auth-session-v1',
+      storage: createJSONStorage(() => sessionStorage),
     }
   )
 );

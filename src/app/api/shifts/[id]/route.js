@@ -25,6 +25,11 @@ export async function PUT(request, { params }) {
     if (cashDifference < -0.01) differenceType = 'deficit';
     else if (cashDifference > 0.01) differenceType = 'surplus';
 
+    // 1. Get current shift branch
+    const shiftRes = await query('SELECT branch_id FROM shifts WHERE id = $1', [id]);
+    const shiftBranch = (shiftRes.rows && shiftRes.rows[0]) ? shiftRes.rows[0].branch_id : 'b1';
+
+    // 2. Update shift status to closed & save financial metrics
     const result = await query(
       `UPDATE shifts SET 
         end_time=CURRENT_TIMESTAMP, 
@@ -39,6 +44,27 @@ export async function PUT(request, { params }) {
        WHERE id=$8 RETURNING *`,
       [actual, expected, cashDifference, differenceType, cash_sales || 0, total_orders || 0, notes || '', id]
     );
+
+    // 3. Clean/delete orders and order_items for this branch from DB tables
+    try {
+      if (shiftBranch && shiftBranch !== 'all') {
+        await query(
+          `DELETE FROM order_items WHERE order_id IN (
+            SELECT id FROM orders WHERE branch_id = $1
+          )`,
+          [shiftBranch]
+        );
+        await query(
+          `DELETE FROM orders WHERE branch_id = $1`,
+          [shiftBranch]
+        );
+      } else {
+        await query(`DELETE FROM order_items`);
+        await query(`DELETE FROM orders`);
+      }
+    } catch (err) {
+      console.warn('⚠️ Order purge on shift close failed:', err.message);
+    }
 
     const updatedShift = (result.rows && result.rows[0]) ? result.rows[0] : {
       id,

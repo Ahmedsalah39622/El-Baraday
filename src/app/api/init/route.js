@@ -1,6 +1,26 @@
 import { query } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
+let branchesChecked = false;
+async function ensureBranchesTable() {
+  if (branchesChecked) return;
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS branches (
+        id VARCHAR(100) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        phone VARCHAR(100),
+        address TEXT,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    await query(`INSERT INTO branches (id, name) VALUES ('b1', 'فرع عزت') ON DUPLICATE KEY UPDATE name='فرع عزت'`);
+    await query(`INSERT INTO branches (id, name) VALUES ('b2', 'فرع المسلة') ON DUPLICATE KEY UPDATE name='فرع المسلة'`);
+  } catch(e) {}
+  branchesChecked = true;
+}
+
 let driverAttendanceChecked = false;
 async function ensureDriverAttendanceTable() {
   if (driverAttendanceChecked) return;
@@ -75,6 +95,7 @@ const safeQuery = async (sql, params = []) => {
 
 export async function GET(req) {
   try {
+    await ensureBranchesTable();
     await ensureDriverAttendanceTable();
     await ensureInvoicesTable();
     await ensureShiftColsTable();
@@ -96,9 +117,23 @@ export async function GET(req) {
       shiftsWhere = `WHERE branch_id = $1`;
     }
 
-    const nextOrderSql = (branchId && branchId !== 'all')
-      ? "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE branch_id = $1"
-      : "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders";
+    // Active shift start_time check for order_number resetting
+    let activeShiftStartTime = null;
+    const sRes = await safeQuery("SELECT start_time FROM shifts WHERE status = 'active' ORDER BY start_time DESC LIMIT 1");
+    if (sRes.rows && sRes.rows[0]) activeShiftStartTime = sRes.rows[0].start_time;
+
+    let nextOrderSql = "SELECT 1 as next";
+    let nextOrderParams = [];
+
+    if (activeShiftStartTime) {
+      if (branchId && branchId !== 'all') {
+        nextOrderSql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND created_at >= $2";
+        nextOrderParams = [branchId, activeShiftStartTime];
+      } else {
+        nextOrderSql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE created_at >= $1";
+        nextOrderParams = [activeShiftStartTime];
+      }
+    }
 
     const [
       branchesRes,
@@ -119,7 +154,7 @@ export async function GET(req) {
       safeQuery('SELECT * FROM delivery_areas ORDER BY name'),
       safeQuery(`SELECT * FROM drivers ${driversWhere} ORDER BY name`, params),
       safeQuery(`SELECT * FROM restaurant_tables ${tablesWhere} ORDER BY number`, params),
-      safeQuery(nextOrderSql, params),
+      safeQuery(nextOrderSql, nextOrderParams),
       safeQuery(`
         SELECT o.*, b.name as branch_name
         FROM orders o

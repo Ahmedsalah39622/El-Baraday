@@ -28,7 +28,7 @@ export default function SettingsPage() {
     companyName: '', address: '', phone: '', taxRate: 0, minTableCharge: 0, delivery_timer_minutes: 30,
     whatsapp_enabled: 'true',
     whatsapp_mode: 'browser',
-    whatsapp_provider: 'ultramsg',
+    whatsapp_provider: 'greenapi',
     whatsapp_instance_id: '',
     whatsapp_token: '',
     whatsapp_api_url: ''

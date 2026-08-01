@@ -12,12 +12,13 @@ import {
   DeliveryDining, AccessTime, LocationOn, Person, Phone, Home, Print, CheckCircle,
   Warning, Add as AddIcon, Search as SearchIcon, Edit as EditIcon, Delete as DeleteIcon,
   Refresh, HowToReg, Store, CheckCircleOutlined, PlayArrow, WhatsApp,
-  AccountBalanceWallet, AttachMoney, MonetizationOn, FilterList, PictureAsPdf
+  AccountBalanceWallet, AttachMoney, MonetizationOn, FilterList, PictureAsPdf, History
 } from '@mui/icons-material';
 import { useCustomerStore } from '@/store/useCustomerStore';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { useBranchStore } from '@/store/useBranchStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useShiftStore } from '@/store/useShiftStore';
 import DeliveryTimerBadge from '@/components/delivery/DeliveryTimerBadge';
 import { printThermalReceipt } from '@/lib/printReceipt';
 import { sendDeliveryWhatsApp } from '@/lib/whatsapp';
@@ -37,6 +38,9 @@ export default function DeliveryPage() {
   const { customers, fetchCustomers, saveOrUpdateCustomer, updateCustomerAddresses, deleteCustomer, areas, fetchAreas, addArea, deleteArea, drivers, fetchDrivers, activeQueue, fetchAttendanceQueue } = useCustomerStore();
   const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
   const { user } = useAuthStore();
+  const { activeShift, fetchShifts } = useShiftStore();
+  const isShiftActive = activeShift && activeShift.status === 'active';
+  const [showPreviousShifts, setShowPreviousShifts] = useState(false);
   const isAdmin = user?.role === 'admin';
 
   // Live Orders State
@@ -120,14 +124,29 @@ export default function DeliveryPage() {
     fetchCustomers();
     fetchAreas();
     fetchDrivers();
+    fetchShifts(effectiveBranch);
     fetchAttendanceQueue(effectiveBranch);
 
     const interval = setInterval(() => {
       fetchDeliveryData(true);
       fetchAttendanceQueue(effectiveBranch);
-    }, 6000);
+    }, 3000);
     return () => clearInterval(interval);
   }, [effectiveBranch, selectedBranchId, user]);
+
+  // Filter delivery orders based on active shift boundaries and showPreviousShifts toggle
+  const visibleDeliveryOrders = (deliveryOrders || []).filter(o => {
+    if (showPreviousShifts) return true;
+    if (!isShiftActive) return false;
+    if (activeShift?.rawStartTime && (o.created_at || o.createdAt)) {
+      const orderTime = new Date(o.created_at || o.createdAt).getTime();
+      const shiftStart = new Date(activeShift.rawStartTime).getTime();
+      if (!isNaN(orderTime) && !isNaN(shiftStart) && orderTime < shiftStart) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   const handleTabChange = (event, newValue) => setTabValue(newValue);
 
@@ -385,7 +404,7 @@ export default function DeliveryPage() {
   };
 
   // Filtered Live Delivery Orders
-  const filteredOrders = (deliveryOrders || []).filter(o => {
+  const filteredOrders = (visibleDeliveryOrders || []).filter(o => {
     const isPrep = !o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل' && o.status !== 'completed';
     const isDisp = !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'مكتمل' && o.status !== 'completed';
     const isDeliv = o.status === 'delivered' || o.status === 'مكتمل' || o.status === 'completed';
@@ -404,13 +423,13 @@ export default function DeliveryPage() {
     );
   });
 
-  const preparingCount = (deliveryOrders || []).filter(o => !o.dispatched_at && o.status !== 'delivered' && o.status !== 'completed').length;
-  const dispatchedCount = (deliveryOrders || []).filter(o => !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'completed').length;
-  const deliveredCount = (deliveryOrders || []).filter(o => o.status === 'delivered' || o.status === 'completed').length;
+  const preparingCount = (visibleDeliveryOrders || []).filter(o => !o.dispatched_at && o.status !== 'delivered' && o.status !== 'completed').length;
+  const dispatchedCount = (visibleDeliveryOrders || []).filter(o => !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'completed').length;
+  const deliveredCount = (visibleDeliveryOrders || []).filter(o => o.status === 'delivered' || o.status === 'completed').length;
 
   // Driver Settlement Profile Aggregations
   const driverProfiles = (drivers || []).filter(d => !selectedBranchId || selectedBranchId === 'all' || d.branch_id === selectedBranchId).map(d => {
-    const driverOrders = (deliveryOrders || []).filter(o => (o.driver_name === d.name || o.driverName === d.name || o.driver_id === d.id));
+    const driverOrders = (visibleDeliveryOrders || []).filter(o => (o.driver_name === d.name || o.driverName === d.name || o.driver_id === d.id));
     const pendingOrders = driverOrders.filter(o => !o.is_cash_collected && !o.isCashCollected && o.status !== 'cash_collected');
     const collectedOrders = driverOrders.filter(o => o.is_cash_collected || o.isCashCollected || o.status === 'cash_collected');
 
@@ -459,7 +478,7 @@ export default function DeliveryPage() {
   const totalCollectedAllDriversCash = driverProfiles.reduce((sum, p) => sum + p.collectedCashTotal, 0);
 
   // Settlement Orders Filtered for Selected Driver View
-  const settlementFilteredOrders = (deliveryOrders || []).filter(o => {
+  const settlementFilteredOrders = (visibleDeliveryOrders || []).filter(o => {
     const driverName = o.driver_name || o.driverName;
     if (selectedDriverForSettlement !== 'all' && driverName !== selectedDriverForSettlement) return false;
 
@@ -471,7 +490,7 @@ export default function DeliveryPage() {
   });
 
   // Collected Orders List (For History Popup Modal)
-  const collectedOrdersList = (deliveryOrders || []).filter(o => {
+  const collectedOrdersList = (visibleDeliveryOrders || []).filter(o => {
     const isCollected = o.is_cash_collected || o.isCashCollected || o.status === 'cash_collected';
     if (!isCollected) return false;
     const driverName = o.driver_name || o.driverName;
@@ -543,9 +562,269 @@ export default function DeliveryPage() {
         4: `${totalOrdersSubtotal.toLocaleString()} ج.م`,
         5: `${totalDeliveryFeesSum.toLocaleString()} ج.م`,
         6: `${grandTotalSum.toLocaleString()} ج.م`,
-        7: ''
       }
     });
+  };
+
+  const renderOrderCard = (order) => {
+    const isDispatched = !!order.dispatched_at;
+    const isDelivered = order.status === 'delivered' || order.status === 'completed' || order.status === 'cash_collected';
+    const isCashCollected = order.is_cash_collected || order.isCashCollected || order.status === 'cash_collected';
+
+    return (
+      <Card
+        key={order.id}
+        sx={{
+          borderRadius: '16px',
+          border: '2px solid',
+          borderColor: isDelivered ? '#10B981' : (isDispatched ? '#3B82F6' : '#F59E0B'),
+          boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
+          transition: 'all 0.2s ease',
+          '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 8px 20px rgba(0,0,0,0.08)' }
+        }}
+      >
+        <CardContent sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          {/* Top Header: Order #, Branch & Live Timer */}
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="h6" fontWeight={900} color="#1A1A2E">
+                أوردر #{order.order_number || order.orderNumber}
+              </Typography>
+              <Chip label={order.branch_name || 'الفرع الرئيسي'} size="small" sx={{ bgcolor: '#F3F4F6', fontWeight: 800, fontSize: '0.7rem' }} />
+            </Box>
+
+            <DeliveryTimerBadge
+              dispatchedAt={order.dispatched_at}
+              isDelivered={isDelivered}
+              targetMinutes={deliveryTimerMinutes}
+            />
+          </Box>
+
+          <Divider />
+
+          {/* Customer Info & Address */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Person sx={{ color: '#4285F4', fontSize: 18 }} />
+                <Typography variant="body2" fontWeight={800} color="#1E293B">
+                  {order.customer_name || order.customerName || 'عميل ديليفري'}
+                </Typography>
+              </Box>
+              {order.customer_phone && (
+                <Tooltip title="إرسال إشعار واتساب للعميل بالطلب وبيانات الطيار">
+                  <Button
+                    size="small"
+                    startIcon={<WhatsApp sx={{ color: '#25D366' }} />}
+                    onClick={() => handleSendWhatsAppToCustomer(order)}
+                    sx={{
+                      fontSize: '0.7rem',
+                      fontWeight: 800,
+                      bgcolor: '#F0FDF4',
+                      color: '#15803D',
+                      border: '1px solid #86EFAC',
+                      py: 0.2,
+                      px: 1,
+                      '&:hover': { bgcolor: '#BBF7D0' }
+                    }}
+                  >
+                    واتساب
+                  </Button>
+                </Tooltip>
+              )}
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mt: 0.5 }}>
+              <Home sx={{ color: '#9CA3AF', fontSize: 18, mt: 0.3 }} />
+              <Typography variant="caption" fontWeight={700} color="#475569" sx={{ lineHeight: 1.4 }}>
+                الوجهة: {order.customer_address || order.customerAddress || 'عنوان غير محدد'}
+                {order.customer_floor ? ` - (د ${order.customer_floor}` : ''}
+                {order.customer_apartment ? ` ش ${order.customer_apartment})` : order.customer_floor ? ')' : ''}
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Order Items Breakdown Details */}
+          {Array.isArray(order.items) && order.items.length > 0 && (
+            <Paper sx={{ p: 1.2, borderRadius: '10px', bgcolor: '#F8FAFC', border: '1px solid #E2E8F0', my: 0.5 }}>
+              <Typography variant="caption" fontWeight={800} color="#334155" sx={{ display: 'block', mb: 0.5, fontSize: '0.75rem' }}>
+                📦 الأصناف المطلوبة ({order.items.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0)}):
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
+                {order.items.map((item, idx) => (
+                  <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
+                    <Typography variant="caption" fontWeight={700} color="#1E293B">
+                      • {item.product_name || item.name || item.productName || 'صنف'} {item.size ? `(${item.size})` : ''} × {item.quantity || 1}
+                    </Typography>
+                    <Typography variant="caption" fontWeight={800} color="#059669">
+                      {(parseFloat(item.price || 0) * parseInt(item.quantity || 1)).toLocaleString()} ج.م
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+              {(order.notes || order.orderNotes) && (
+                <Typography variant="caption" color="#D97706" fontWeight={800} sx={{ display: 'block', mt: 0.5, pt: 0.5, borderTop: '1px dashed #CBD5E1' }}>
+                  📝 ملاحظات: {order.notes || order.orderNotes}
+                </Typography>
+              )}
+            </Paper>
+          )}
+
+          {/* Driver Status Banner */}
+          <Paper
+            sx={{
+              p: 1.2,
+              borderRadius: '12px',
+              bgcolor: isDelivered ? '#ECFDF5' : (isDispatched ? '#DBEAFE' : '#FFFBEB'),
+              border: '1px solid',
+              borderColor: isDelivered ? '#A7F3D0' : (isDispatched ? '#BFDBFE' : '#FDE68A'),
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <DeliveryDining sx={{ color: isDelivered ? '#047857' : (isDispatched ? '#1D4ED8' : '#D97706') }} />
+              <Typography variant="caption" fontWeight={800} color={isDelivered ? '#065F46' : (isDispatched ? '#1E40AF' : '#92400E')}>
+                {isDelivered
+                  ? `✅ اكتمل التوصيل | الطيار: ${order.driver_name || order.driverName || '—'}`
+                  : (isDispatched
+                      ? `🚀 خارج للتوصيل | الطيار: ${order.driver_name || order.driverName || '—'}`
+                      : `⏳ قيد التحضير بالمطبخ | الطيار: ${order.driver_name || order.driverName || 'لم يحدد بعد'}`
+                    )
+                }
+              </Typography>
+            </Box>
+            <Typography variant="subtitle2" fontWeight={900} color="#059669">
+              {parseFloat(order.total || 0).toLocaleString()} ج.م
+            </Typography>
+          </Paper>
+
+          {/* Action Buttons Grid */}
+          <Grid container spacing={1} sx={{ mt: 0.5 }}>
+            <Grid xs={3}>
+              <Button
+                fullWidth
+                size="small"
+                variant={isDispatched ? 'outlined' : 'contained'}
+                disabled={isDelivered}
+                onClick={() => handleDriverPickedUp(order)}
+                sx={{
+                  borderRadius: '10px',
+                  fontWeight: 800,
+                  fontSize: '0.72rem',
+                  px: 0.5,
+                  py: 0.8,
+                  bgcolor: isDispatched ? 'transparent' : '#E06B1F',
+                  color: isDispatched ? '#E06B1F' : '#FFF',
+                  borderColor: '#E06B1F',
+                  '&:hover': { bgcolor: isDispatched ? 'rgba(224,107,31,0.08)' : '#C85A17' }
+                }}
+              >
+                الطيار استلم
+              </Button>
+            </Grid>
+
+            <Grid xs={3}>
+              <Button
+                fullWidth
+                size="small"
+                variant={isDispatched && !isDelivered ? 'contained' : 'outlined'}
+                disabled={!isDispatched || isDelivered}
+                onClick={() => handleMarkDelivered(order)}
+                sx={{
+                  borderRadius: '10px',
+                  fontWeight: 800,
+                  fontSize: '0.72rem',
+                  px: 0.5,
+                  py: 0.8,
+                  bgcolor: isDispatched && !isDelivered ? '#10B981' : 'transparent',
+                  color: isDispatched && !isDelivered ? '#FFF' : '#10B981',
+                  borderColor: '#10B981',
+                  '&:hover': { bgcolor: isDispatched && !isDelivered ? '#059669' : 'rgba(16,185,129,0.08)' }
+                }}
+              >
+                تم التوصيل
+              </Button>
+            </Grid>
+
+            <Grid xs={3}>
+              <Button
+                fullWidth
+                size="small"
+                variant="outlined"
+                disabled={isDelivered}
+                onClick={() => handleOpenDispatch(order)}
+                sx={{
+                  borderRadius: '10px',
+                  fontWeight: 800,
+                  fontSize: '0.72rem',
+                  px: 0.5,
+                  py: 0.8,
+                  color: '#3B82F6',
+                  borderColor: '#3B82F6',
+                  '&:hover': { bgcolor: 'rgba(59,130,246,0.08)' }
+                }}
+              >
+                تغيير الطيار
+              </Button>
+            </Grid>
+
+            <Grid xs={3}>
+              <Button
+                fullWidth
+                size="small"
+                variant="outlined"
+                startIcon={<Print sx={{ fontSize: '14px !important' }} />}
+                onClick={() => handlePrintDelivery(order)}
+                sx={{
+                  borderRadius: '10px',
+                  fontWeight: 800,
+                  fontSize: '0.72rem',
+                  px: 0.5,
+                  py: 0.8,
+                  color: '#4B5563',
+                  borderColor: '#9CA3AF',
+                  '&:hover': { bgcolor: 'rgba(156,163,175,0.1)' }
+                }}
+              >
+                طباعة
+              </Button>
+            </Grid>
+          </Grid>
+
+          {/* Prominent Cash Collection Button (تم استلام النقدية وتوريد المبلغ) */}
+          <Box sx={{ mt: 1 }}>
+            {isCashCollected ? (
+              <Box sx={{ bgcolor: '#DCFCE7', color: '#166534', p: 1, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, border: '1px solid #86EFAC' }}>
+                <CheckCircle sx={{ fontSize: 18, color: '#16A34A' }} />
+                <Typography variant="caption" fontWeight={900}>
+                  🟢 تم استلام النقدية وتوريد المبلغ للخزينة
+                </Typography>
+              </Box>
+            ) : (
+              <Button
+                fullWidth
+                size="small"
+                variant="contained"
+                onClick={() => handleConfirmCashCollected(order)}
+                sx={{
+                  borderRadius: '10px',
+                  fontWeight: 900,
+                  fontSize: '0.82rem',
+                  py: 0.9,
+                  bgcolor: '#059669',
+                  color: '#FFF',
+                  boxShadow: '0 4px 12px rgba(5,150,105,0.25)',
+                  '&:hover': { bgcolor: '#047857' }
+                }}
+              >
+                💵 تم استلام النقدية (تُسجل بالشيفت)
+              </Button>
+            )}
+          </Box>
+        </CardContent>
+      </Card>
+    );
   };
 
   return (
@@ -576,6 +855,23 @@ export default function DeliveryPage() {
               </Select>
             </FormControl>
           )}
+
+          <Button
+            variant={showPreviousShifts ? 'contained' : 'outlined'}
+            startIcon={<History />}
+            onClick={() => setShowPreviousShifts(!showPreviousShifts)}
+            sx={{
+              borderRadius: '12px',
+              fontWeight: 800,
+              py: 1,
+              bgcolor: showPreviousShifts ? '#1E40AF' : 'transparent',
+              color: showPreviousShifts ? '#FFF' : '#3B82F6',
+              borderColor: '#3B82F6',
+              '&:hover': { bgcolor: showPreviousShifts ? '#1E3A8A' : 'rgba(59,130,246,0.08)' }
+            }}
+          >
+            {showPreviousShifts ? '✕ إخفاء الشيفتات السابقة' : '📋 إظهار طلبات الشيفتات السابقة'}
+          </Button>
 
           <Button
             variant="outlined"
@@ -673,6 +969,105 @@ export default function DeliveryPage() {
 
       {/* Tab 0: Live Delivery Control Board & Timers */}
       <TabPanel value={tabValue} index={0}>
+        {/* Top 3 Delivery Status KPI Cards (Matching Screenshot 1) */}
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          {/* 1. Preparing in Kitchen */}
+          <Grid xs={12} sm={4}>
+            <Paper
+              elevation={0}
+              onClick={() => setOrderStatusFilter('preparing')}
+              sx={{
+                p: 2,
+                borderRadius: '16px',
+                bgcolor: '#FFFDF5',
+                border: '2px solid',
+                borderColor: orderStatusFilter === 'preparing' ? '#D97706' : '#FDE68A',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 6px 16px rgba(245,158,11,0.15)' }
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography variant="caption" fontWeight={800} color="#D97706" display="block">
+                    ⏳ قيد التجهيز بالمطبخ
+                  </Typography>
+                  <Typography variant="h4" fontWeight={900} color="#B45309" sx={{ mt: 0.5 }}>
+                    {preparingCount} <Typography component="span" variant="subtitle2" fontWeight={800}>طلب</Typography>
+                  </Typography>
+                </Box>
+                <Box sx={{ width: 48, height: 48, borderRadius: '14px', bgcolor: '#FEF3C7', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <AccessTime sx={{ fontSize: 28 }} />
+                </Box>
+              </Box>
+            </Paper>
+          </Grid>
+
+          {/* 2. Out for Delivery */}
+          <Grid xs={12} sm={4}>
+            <Paper
+              elevation={0}
+              onClick={() => setOrderStatusFilter('dispatched')}
+              sx={{
+                p: 2,
+                borderRadius: '16px',
+                bgcolor: '#F8FAFC',
+                border: '2px solid',
+                borderColor: orderStatusFilter === 'dispatched' ? '#1D4ED8' : '#BFDBFE',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 6px 16px rgba(59,130,246,0.15)' }
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography variant="caption" fontWeight={800} color="#1D4ED8" display="block">
+                    🚀 خارج للتوصيل (مع العداد)
+                  </Typography>
+                  <Typography variant="h4" fontWeight={900} color="#1E40AF" sx={{ mt: 0.5 }}>
+                    {dispatchedCount} <Typography component="span" variant="subtitle2" fontWeight={800}>طلب</Typography>
+                  </Typography>
+                </Box>
+                <Box sx={{ width: 48, height: 48, borderRadius: '14px', bgcolor: '#DBEAFE', color: '#1D4ED8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <DeliveryDining sx={{ fontSize: 28 }} />
+                </Box>
+              </Box>
+            </Paper>
+          </Grid>
+
+          {/* 3. Delivered */}
+          <Grid xs={12} sm={4}>
+            <Paper
+              elevation={0}
+              onClick={() => setOrderStatusFilter('delivered')}
+              sx={{
+                p: 2,
+                borderRadius: '16px',
+                bgcolor: '#F0FDF4',
+                border: '2px solid',
+                borderColor: orderStatusFilter === 'delivered' ? '#047857' : '#86EFAC',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 6px 16px rgba(16,185,129,0.15)' }
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography variant="caption" fontWeight={800} color="#047857" display="block">
+                    ✅ تم التوصيل واكتمال الطلبات
+                  </Typography>
+                  <Typography variant="h4" fontWeight={900} color="#166534" sx={{ mt: 0.5 }}>
+                    {deliveredCount} <Typography component="span" variant="subtitle2" fontWeight={800}>طلب</Typography>
+                  </Typography>
+                </Box>
+                <Box sx={{ width: 48, height: 48, borderRadius: '14px', bgcolor: '#DCFCE7', color: '#047857', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <CheckCircle sx={{ fontSize: 28 }} />
+                </Box>
+              </Box>
+            </Paper>
+          </Grid>
+        </Grid>
+
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 3 }}>
           {/* Status Filter Chips */}
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -718,268 +1113,138 @@ export default function DeliveryPage() {
             <Typography variant="h6" fontWeight={800} color="text.secondary">لا توجد طلبات ديليفري مطابقة حالياً</Typography>
           </Paper>
         ) : (
-          <Grid container spacing={2}>
-            {filteredOrders.map(order => {
-              const isDispatched = !!order.dispatched_at;
-              const isDelivered = order.status === 'delivered' || order.status === 'completed' || order.status === 'cash_collected';
-              const isCashCollected = order.is_cash_collected || order.isCashCollected || order.status === 'cash_collected';
-
-              return (
-                <Grid xs={12} sm={6} md={4} key={order.id}>
-                  <Card
-                    sx={{
-                      borderRadius: '16px',
-                      border: '2px solid',
-                      borderColor: isDelivered ? '#10B981' : (isDispatched ? '#3B82F6' : '#F59E0B'),
-                      boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
-                      transition: 'all 0.2s ease',
-                      '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 8px 20px rgba(0,0,0,0.08)' }
-                    }}
-                  >
-                    <CardContent sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                      {/* Top Header: Order #, Branch & Live Timer */}
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="h6" fontWeight={900} color="#1A1A2E">
-                            أوردر #{order.order_number || order.orderNumber}
-                          </Typography>
-                          <Chip label={order.branch_name || 'الفرع الرئيسي'} size="small" sx={{ bgcolor: '#F3F4F6', fontWeight: 800, fontSize: '0.7rem' }} />
-                        </Box>
-
-                        <DeliveryTimerBadge
-                          dispatchedAt={order.dispatched_at}
-                          isDelivered={isDelivered}
-                          targetMinutes={deliveryTimerMinutes}
-                        />
+          <Grid container spacing={2.5}>
+            {/* 1. COLUMN 1: قيد التحضير بالمطبخ */}
+            {(orderStatusFilter === 'all' || orderStatusFilter === 'preparing') && (
+              <Grid xs={12} lg={orderStatusFilter === 'preparing' ? 12 : 4}>
+                <Paper sx={{ p: 2, borderRadius: '16px', bgcolor: '#FFFDF5', border: '2px solid #FDE68A', height: '100%' }}>
+                  {/* Column Header */}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, pb: 1.5, borderBottom: '2px solid #FEF3C7' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box sx={{ width: 34, height: 34, borderRadius: '10px', bgcolor: '#FEF3C7', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <AccessTime sx={{ fontSize: 20 }} />
                       </Box>
-
-                      <Divider />
-
-                      {/* Customer Info & Address */}
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Person sx={{ color: '#4285F4', fontSize: 18 }} />
-                            <Typography variant="body2" fontWeight={800} color="#1E293B">
-                              {order.customer_name || order.customerName || 'عميل ديليفري'}
-                            </Typography>
-                          </Box>
-                          {order.customer_phone && (
-                            <Tooltip title="إرسال إشعار واتساب للعميل بالطلب وبيانات الطيار">
-                              <Button
-                                size="small"
-                                startIcon={<WhatsApp sx={{ color: '#25D366' }} />}
-                                onClick={() => handleSendWhatsAppToCustomer(order)}
-                                sx={{
-                                  fontSize: '0.7rem',
-                                  fontWeight: 800,
-                                  bgcolor: '#F0FDF4',
-                                  color: '#15803D',
-                                  border: '1px solid #86EFAC',
-                                  py: 0.2,
-                                  px: 1,
-                                  '&:hover': { bgcolor: '#BBF7D0' }
-                                }}
-                              >
-                                واتساب
-                              </Button>
-                            </Tooltip>
-                          )}
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mt: 0.5 }}>
-                          <Home sx={{ color: '#9CA3AF', fontSize: 18, mt: 0.3 }} />
-                          <Typography variant="caption" fontWeight={700} color="#475569" sx={{ lineHeight: 1.4 }}>
-                            الوجهة: {order.customer_address || order.customerAddress || 'عنوان غير محدد'}
-                            {order.customer_floor ? ` - (د ${order.customer_floor}` : ''}
-                            {order.customer_apartment ? ` ش ${order.customer_apartment})` : order.customer_floor ? ')' : ''}
-                          </Typography>
-                        </Box>
+                      <Box>
+                        <Typography variant="subtitle1" fontWeight={900} color="#B45309">
+                          ⏳ قيد التحضير بالمطبخ
+                        </Typography>
+                        <Typography variant="caption" color="#D97706" fontWeight={700}>
+                          إجمالي: {(filteredOrders.filter(o => !o.dispatched_at && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cash_collected').reduce((s,o) => s + (parseFloat(o.total)||0), 0)).toLocaleString()} ج.م
+                        </Typography>
                       </Box>
+                    </Box>
+                    <Chip
+                      label={`${filteredOrders.filter(o => !o.dispatched_at && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cash_collected').length} طلب`}
+                      size="small"
+                      sx={{ bgcolor: '#F59E0B', color: '#FFF', fontWeight: 900, fontSize: '0.78rem' }}
+                    />
+                  </Box>
 
-                      {/* Order Items Breakdown Details */}
-                      {Array.isArray(order.items) && order.items.length > 0 && (
-                        <Paper sx={{ p: 1.2, borderRadius: '10px', bgcolor: '#F8FAFC', border: '1px solid #E2E8F0', my: 0.5 }}>
-                          <Typography variant="caption" fontWeight={800} color="#334155" sx={{ display: 'block', mb: 0.5, fontSize: '0.75rem' }}>
-                            📦 الأصناف المطلوبة ({order.items.reduce((s, i) => s + (parseInt(i.quantity) || 1), 0)}):
-                          </Typography>
-                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4 }}>
-                            {order.items.map((item, idx) => (
-                              <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem' }}>
-                                <Typography variant="caption" fontWeight={700} color="#1E293B">
-                                  • {item.product_name || item.name || item.productName || 'صنف'} {item.size ? `(${item.size})` : ''} × {item.quantity || 1}
-                                </Typography>
-                                <Typography variant="caption" fontWeight={800} color="#059669">
-                                  {(parseFloat(item.price || 0) * parseInt(item.quantity || 1)).toLocaleString()} ج.م
-                                </Typography>
-                              </Box>
-                            ))}
-                          </Box>
-                          {(order.notes || order.orderNotes) && (
-                            <Typography variant="caption" color="#D97706" fontWeight={800} sx={{ display: 'block', mt: 0.5, pt: 0.5, borderTop: '1px dashed #CBD5E1' }}>
-                              📝 ملاحظات: {order.notes || order.orderNotes}
-                            </Typography>
-                          )}
-                        </Paper>
-                      )}
+                  {/* Column Card List */}
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {filteredOrders
+                      .filter(o => !o.dispatched_at && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cash_collected')
+                      .map(order => renderOrderCard(order))}
 
-                      {/* Driver Status Banner */}
-                      <Paper
-                        sx={{
-                          p: 1.2,
-                          borderRadius: '12px',
-                          bgcolor: isDelivered ? '#ECFDF5' : (isDispatched ? '#DBEAFE' : '#FFFBEB'),
-                          border: '1px solid',
-                          borderColor: isDelivered ? '#A7F3D0' : (isDispatched ? '#BFDBFE' : '#FDE68A'),
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center'
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <DeliveryDining sx={{ color: isDelivered ? '#047857' : (isDispatched ? '#1D4ED8' : '#D97706') }} />
-                          <Typography variant="caption" fontWeight={800} color={isDelivered ? '#065F46' : (isDispatched ? '#1E40AF' : '#92400E')}>
-                            {isDelivered
-                              ? `✅ اكتمل التوصيل | الطيار: ${order.driver_name || order.driverName || '—'}`
-                              : (isDispatched
-                                  ? `🚀 خارج للتوصيل | الطيار: ${order.driver_name || order.driverName || '—'}`
-                                  : `⏳ قيد التحضير بالمطبخ | الطيار: ${order.driver_name || order.driverName || 'لم يحدد بعد'}`
-                                )
-                            }
-                          </Typography>
-                        </Box>
-                        <Typography variant="subtitle2" fontWeight={900} color="#059669">
-                          {parseFloat(order.total || 0).toLocaleString()} ج.م
+                    {filteredOrders.filter(o => !o.dispatched_at && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cash_collected').length === 0 && (
+                      <Paper sx={{ p: 3, textAlign: 'center', borderRadius: '12px', bgcolor: '#FFF', border: '1px dashed #FDE68A' }}>
+                        <Typography variant="body2" color="#D97706" fontWeight={700}>
+                          لا توجد طلبات قيد التحضير حالياً 👍
                         </Typography>
                       </Paper>
+                    )}
+                  </Box>
+                </Paper>
+              </Grid>
+            )}
 
-                      {/* Action Buttons Grid */}
-                      <Grid container spacing={1} sx={{ mt: 0.5 }}>
-                        <Grid item xs={3}>
-                          <Button
-                            fullWidth
-                            size="small"
-                            variant={isDispatched ? 'outlined' : 'contained'}
-                            disabled={isDelivered}
-                            onClick={() => handleDriverPickedUp(order)}
-                            sx={{
-                              borderRadius: '10px',
-                              fontWeight: 800,
-                              fontSize: '0.72rem',
-                              px: 0.5,
-                              py: 0.8,
-                              bgcolor: isDispatched ? 'transparent' : '#E06B1F',
-                              color: isDispatched ? '#E06B1F' : '#FFF',
-                              borderColor: '#E06B1F',
-                              '&:hover': { bgcolor: isDispatched ? 'rgba(224,107,31,0.08)' : '#C85A17' }
-                            }}
-                          >
-                            الطيار استلم
-                          </Button>
-                        </Grid>
-
-                        <Grid item xs={3}>
-                          <Button
-                            fullWidth
-                            size="small"
-                            variant={isDispatched && !isDelivered ? 'contained' : 'outlined'}
-                            disabled={!isDispatched || isDelivered}
-                            onClick={() => handleMarkDelivered(order)}
-                            sx={{
-                              borderRadius: '10px',
-                              fontWeight: 800,
-                              fontSize: '0.72rem',
-                              px: 0.5,
-                              py: 0.8,
-                              bgcolor: isDispatched && !isDelivered ? '#10B981' : 'transparent',
-                              color: isDispatched && !isDelivered ? '#FFF' : '#10B981',
-                              borderColor: '#10B981',
-                              '&:hover': { bgcolor: isDispatched && !isDelivered ? '#059669' : 'rgba(16,185,129,0.08)' }
-                            }}
-                          >
-                            تم التوصيل
-                          </Button>
-                        </Grid>
-
-                        <Grid item xs={3}>
-                          <Button
-                            fullWidth
-                            size="small"
-                            variant="outlined"
-                            disabled={isDelivered}
-                            onClick={() => handleOpenDispatch(order)}
-                            sx={{
-                              borderRadius: '10px',
-                              fontWeight: 800,
-                              fontSize: '0.72rem',
-                              px: 0.5,
-                              py: 0.8,
-                              color: '#3B82F6',
-                              borderColor: '#3B82F6',
-                              '&:hover': { bgcolor: 'rgba(59,130,246,0.08)' }
-                            }}
-                          >
-                            تغيير الطيار
-                          </Button>
-                        </Grid>
-
-                        <Grid item xs={3}>
-                          <Button
-                            fullWidth
-                            size="small"
-                            variant="outlined"
-                            startIcon={<Print sx={{ fontSize: '14px !important' }} />}
-                            onClick={() => handlePrintDelivery(order)}
-                            sx={{
-                              borderRadius: '10px',
-                              fontWeight: 800,
-                              fontSize: '0.72rem',
-                              px: 0.5,
-                              py: 0.8,
-                              color: '#4B5563',
-                              borderColor: '#9CA3AF',
-                              '&:hover': { bgcolor: 'rgba(156,163,175,0.1)' }
-                            }}
-                          >
-                            طباعة
-                          </Button>
-                        </Grid>
-                      </Grid>
-
-                      {/* Prominent Cash Collection Button (تم استلام النقدية وتوريد المبلغ) */}
-                      <Box sx={{ mt: 1 }}>
-                        {isCashCollected ? (
-                          <Box sx={{ bgcolor: '#DCFCE7', color: '#166534', p: 1, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, border: '1px solid #86EFAC' }}>
-                            <CheckCircle sx={{ fontSize: 18, color: '#16A34A' }} />
-                            <Typography variant="caption" fontWeight={900}>
-                              🟢 تم استلام النقدية وتوريد المبلغ للخزينة
-                            </Typography>
-                          </Box>
-                        ) : (
-                          <Button
-                            fullWidth
-                            size="small"
-                            variant="contained"
-                            onClick={() => handleConfirmCashCollected(order)}
-                            sx={{
-                              borderRadius: '10px',
-                              fontWeight: 900,
-                              fontSize: '0.82rem',
-                              py: 0.9,
-                              bgcolor: '#059669',
-                              color: '#FFF',
-                              boxShadow: '0 4px 12px rgba(5,150,105,0.25)',
-                              '&:hover': { bgcolor: '#047857' }
-                            }}
-                          >
-                            💵 تم استلام النقدية (تُسجل بالشيفت)
-                          </Button>
-                        )}
+            {/* 2. COLUMN 2: خارج للتوصيل (مع الطيار) */}
+            {(orderStatusFilter === 'all' || orderStatusFilter === 'dispatched') && (
+              <Grid xs={12} lg={orderStatusFilter === 'dispatched' ? 12 : 4}>
+                <Paper sx={{ p: 2, borderRadius: '16px', bgcolor: '#F8FAFC', border: '2px solid #BFDBFE', height: '100%' }}>
+                  {/* Column Header */}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, pb: 1.5, borderBottom: '2px solid #DBEAFE' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box sx={{ width: 34, height: 34, borderRadius: '10px', bgcolor: '#DBEAFE', color: '#1D4ED8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <DeliveryDining sx={{ fontSize: 20 }} />
                       </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              );
-            })}
+                      <Box>
+                        <Typography variant="subtitle1" fontWeight={900} color="#1E40AF">
+                          🚀 خارج للتوصيل (مع العداد)
+                        </Typography>
+                        <Typography variant="caption" color="#2563EB" fontWeight={700}>
+                          إجمالي: {(filteredOrders.filter(o => !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cash_collected').reduce((s,o) => s + (parseFloat(o.total)||0), 0)).toLocaleString()} ج.م
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Chip
+                      label={`${filteredOrders.filter(o => !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cash_collected').length} طلب`}
+                      size="small"
+                      sx={{ bgcolor: '#3B82F6', color: '#FFF', fontWeight: 900, fontSize: '0.78rem' }}
+                    />
+                  </Box>
+
+                  {/* Column Card List */}
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {filteredOrders
+                      .filter(o => !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cash_collected')
+                      .map(order => renderOrderCard(order))}
+
+                    {filteredOrders.filter(o => !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cash_collected').length === 0 && (
+                      <Paper sx={{ p: 3, textAlign: 'center', borderRadius: '12px', bgcolor: '#FFF', border: '1px dashed #BFDBFE' }}>
+                        <Typography variant="body2" color="#1E40AF" fontWeight={700}>
+                          لا توجد طلبات خارجة للتوصيل حالياً
+                        </Typography>
+                      </Paper>
+                    )}
+                  </Box>
+                </Paper>
+              </Grid>
+            )}
+
+            {/* 3. COLUMN 3: تم التوصيل واكتمال الطلبات */}
+            {(orderStatusFilter === 'all' || orderStatusFilter === 'delivered') && (
+              <Grid xs={12} lg={orderStatusFilter === 'delivered' ? 12 : 4}>
+                <Paper sx={{ p: 2, borderRadius: '16px', bgcolor: '#F0FDF4', border: '2px solid #86EFAC', height: '100%' }}>
+                  {/* Column Header */}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, pb: 1.5, borderBottom: '2px solid #DCFCE7' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box sx={{ width: 34, height: 34, borderRadius: '10px', bgcolor: '#DCFCE7', color: '#15803D', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <CheckCircle sx={{ fontSize: 20 }} />
+                      </Box>
+                      <Box>
+                        <Typography variant="subtitle1" fontWeight={900} color="#166534">
+                          ✅ تم التوصيل (مكتمل)
+                        </Typography>
+                        <Typography variant="caption" color="#15803D" fontWeight={700}>
+                          إجمالي: {(filteredOrders.filter(o => o.status === 'delivered' || o.status === 'completed' || o.status === 'cash_collected').reduce((s,o) => s + (parseFloat(o.total)||0), 0)).toLocaleString()} ج.م
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Chip
+                      label={`${filteredOrders.filter(o => o.status === 'delivered' || o.status === 'completed' || o.status === 'cash_collected').length} طلب`}
+                      size="small"
+                      sx={{ bgcolor: '#10B981', color: '#FFF', fontWeight: 900, fontSize: '0.78rem' }}
+                    />
+                  </Box>
+
+                  {/* Column Card List */}
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {filteredOrders
+                      .filter(o => o.status === 'delivered' || o.status === 'completed' || o.status === 'cash_collected')
+                      .map(order => renderOrderCard(order))}
+
+                    {filteredOrders.filter(o => o.status === 'delivered' || o.status === 'completed' || o.status === 'cash_collected').length === 0 && (
+                      <Paper sx={{ p: 3, textAlign: 'center', borderRadius: '12px', bgcolor: '#FFF', border: '1px dashed #86EFAC' }}>
+                        <Typography variant="body2" color="#166534" fontWeight={700}>
+                          لا توجد طلبات مكتملة التوصيل بعد
+                        </Typography>
+                      </Paper>
+                    )}
+                  </Box>
+                </Paper>
+              </Grid>
+            )}
           </Grid>
         )}
       </TabPanel>
@@ -1454,7 +1719,7 @@ export default function DeliveryPage() {
       </TabPanel>
 
       {/* Dispatch Modal Dialog */}
-      <Dialog open={dispatchDialog} onClose={() => setDispatchDialog(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}>
+      <Dialog open={dispatchDialog} onClose={() => setDispatchDialog(false)} maxWidth="xs" fullWidth slotProps={{ paper: { sx: { borderRadius: '20px', p: 1 } } }}>
         <DialogTitle sx={{ fontWeight: 900, textAlign: 'center', color: '#1A1A2E' }}>
           🚴 اختيار وتعيين طيار التوصيل
         </DialogTitle>
@@ -1492,7 +1757,7 @@ export default function DeliveryPage() {
         onClose={() => setCollectedOrdersDialogOpen(false)}
         maxWidth="md"
         fullWidth
-        PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}
+        slotProps={{ paper: { sx: { borderRadius: '20px', p: 1 } } }}
       >
         <DialogTitle sx={{ fontWeight: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

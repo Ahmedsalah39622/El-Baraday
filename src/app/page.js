@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Box, Typography, Button, Drawer, Badge, Dialog, DialogTitle, DialogContent, DialogActions, Chip, Paper, IconButton } from '@mui/material';
+import { Box, Typography, Button, Drawer, Badge, Dialog, DialogTitle, DialogContent, DialogActions, Chip, Paper, IconButton, FormControl, Select, MenuItem } from '@mui/material';
 import { ShoppingBagOutlined, AccountBalanceWallet, Store } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
 import CategoryTabs from '@/components/pos/CategoryTabs';
@@ -22,9 +22,14 @@ export default function POSPage() {
   const { items, addItem, updateQuantity, removeItem, clearOrder, orderType, setOrderType } = useOrderStore();
   const { invoices } = useInvoiceStore();
   const { activeShift } = useShiftStore();
-  const { selectedBranchId } = useBranchStore();
+  const { branches, selectedBranchId, setSelectedBranchId, fetchBranches } = useBranchStore();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin';
+  const effectiveBranchId = isAdmin ? selectedBranchId : (user?.branch_id || user?.branchId || 'b1');
+
+  useEffect(() => {
+    fetchBranches();
+  }, []);
 
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -35,10 +40,15 @@ export default function POSPage() {
   const [qtyLarge, setQtyLarge] = useState(1);
 
   useEffect(() => {
+    // Clear old shift localStorage cache (we no longer use persist for shifts)
+    try { localStorage.removeItem('el-baraday-shift-v2'); } catch (e) {}
+
     // Ultra-Fast Combined Single Init Request (Populates all stores in ~30ms)
     async function loadSystemData() {
       try {
-        const url = selectedBranchId && selectedBranchId !== 'all' ? `/api/init?branch_id=${selectedBranchId}` : '/api/init';
+        const url = isAdmin && selectedBranchId && selectedBranchId !== 'all'
+          ? `/api/init?branch_id=${selectedBranchId}`
+          : `/api/init?branch_id=${effectiveBranchId}`;
         const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
@@ -130,7 +140,7 @@ export default function POSPage() {
               deliveryFee: parseFloat(o.delivery_fee || 0),
               discount: parseFloat(o.discount || 0),
               status: o.status,
-              createdAt: o.created_at,
+              createdAt: o.created_at ? (new Date(o.created_at).toISOString ? new Date(o.created_at).toISOString() : String(o.created_at)) : new Date().toISOString(),
               branchId: o.branch_id,
               branch_id: o.branch_id,
             }));
@@ -138,7 +148,9 @@ export default function POSPage() {
           }
 
           if (data.shifts && Array.isArray(data.shifts)) {
-            const active = data.shifts.find(s => s.status === 'active');
+            const active = effectiveBranchId && effectiveBranchId !== 'all'
+              ? data.shifts.find(s => s.status === 'active' && (s.branch_id === effectiveBranchId || (!s.branch_id && effectiveBranchId === 'b1')))
+              : null;
             if (active) {
               const rawStart = active.start_time || active.created_at || new Date().toISOString();
               let formattedTime = '08:00 AM';
@@ -147,6 +159,7 @@ export default function POSPage() {
               } catch (e) {}
 
               useShiftStore.setState({
+                shifts: data.shifts,
                 activeShift: {
                   id: active.id,
                   cashierName: active.cashier_name || 'administrator',
@@ -158,11 +171,10 @@ export default function POSPage() {
                 }
               });
             } else {
-              const localShift = useShiftStore.getState().activeShift;
-              if (localShift && localShift.status !== 'active') {
-                useShiftStore.setState({ activeShift: null });
-              }
+              useShiftStore.setState({ activeShift: null, shifts: data.shifts });
             }
+          } else {
+            useShiftStore.setState({ activeShift: null, shifts: [] });
           }
         }
       } catch (err) {
@@ -172,48 +184,44 @@ export default function POSPage() {
 
     loadSystemData();
 
-    // Fast 5s background sync for products
+    // Fast 3s background sync for live updates (no manual refresh needed)
     const interval = setInterval(() => {
-      fetchProducts();
-    }, 5000);
+      loadSystemData();
+    }, 3000);
 
     return () => clearInterval(interval);
-  }, [selectedBranchId]);
+  }, [selectedBranchId, effectiveBranchId, isAdmin]);
 
-  // Calculate current till cash drawer amount for active shift and isolated branch only
-  const isShiftActive = activeShift && activeShift.status === 'active';
-  const startCash = isShiftActive ? (parseFloat(activeShift.startAmount) || 0) : 0;
-  
-  const totalCashSales = (invoices || []).reduce((sum, inv) => {
-    if (!isShiftActive) return sum;
-    if (selectedBranchId && selectedBranchId !== 'all') {
-      const invBranch = inv.branchId || inv.branch_id || 'b1';
-      if (invBranch !== selectedBranchId) return sum;
-    }
-    if (activeShift?.rawStartTime && inv.createdAt) {
-      const invTime = new Date(inv.createdAt).getTime();
-      const shiftStartTime = new Date(activeShift.rawStartTime).getTime();
-      if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < shiftStartTime) {
-        return sum; // Skip invoices before shift start
-      }
-    }
+  // Active shift resolution for Branch 1 and Branch 2
+  const { shifts: allShiftsList } = useShiftStore();
+  const getBranchActiveShift = (targetBranchId) => {
+    const list = (allShiftsList && allShiftsList.length > 0) ? allShiftsList : (activeShift ? [activeShift] : []);
+    const found = list.find(s => s.status === 'active' && (s.branch_id === targetBranchId || (!s.branch_id && targetBranchId === 'b1')));
+    if (!found) return null;
+    return {
+      id: found.id,
+      cashierName: found.cashier_name || found.cashierName || 'administrator',
+      rawStartTime: found.start_time || found.rawStartTime || found.created_at,
+      startAmount: parseFloat(found.start_amount || found.startAmount || 0),
+      status: 'active',
+      branch_id: found.branch_id || targetBranchId
+    };
+  };
 
-    // Exclude delivery orders from till cash drawer until cash is explicitly collected from driver
-    const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
-    if (isDelivery) {
-      const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
-      if (!isCashCollected) return sum;
-    }
+  const b1ActiveShift = getBranchActiveShift('b1');
+  const b2ActiveShift = getBranchActiveShift('b2');
 
-    return sum + (parseFloat(inv.paidAmount || inv.total || 0));
-  }, 0);
-
-  const currentTillCash = isShiftActive ? (startCash + totalCashSales) : 0;
-
-  // Calculate Cash drawer totals for Branch 1 and Branch 2 for Admin View (excluding uncollected delivery cash)
-  const b1CashSales = (invoices || []).reduce((sum, inv) => {
+  // Calculate Branch 1 cash drawer amount: Returns 0.00 if Branch 1 shift is CLOSED
+  const b1CashSales = !b1ActiveShift ? 0 : b1ActiveShift.startAmount + (invoices || []).reduce((sum, inv) => {
     const invBranch = inv.branchId || inv.branch_id || 'b1';
     if (invBranch !== 'b1') return sum;
+    if (inv.status === 'cancelled') return sum;
+
+    if (b1ActiveShift.rawStartTime && inv.createdAt) {
+      const invTime = new Date(inv.createdAt).getTime();
+      const shiftStartTime = new Date(b1ActiveShift.rawStartTime).getTime();
+      if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 300000)) return sum;
+    }
 
     const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
     if (isDelivery) {
@@ -224,9 +232,17 @@ export default function POSPage() {
     return sum + (parseFloat(inv.paidAmount || inv.total || 0));
   }, 0);
 
-  const b2CashSales = (invoices || []).reduce((sum, inv) => {
+  // Calculate Branch 2 cash drawer amount: Returns 0.00 if Branch 2 shift is CLOSED
+  const b2CashSales = !b2ActiveShift ? 0 : b2ActiveShift.startAmount + (invoices || []).reduce((sum, inv) => {
     const invBranch = inv.branchId || inv.branch_id || 'b1';
     if (invBranch !== 'b2') return sum;
+    if (inv.status === 'cancelled') return sum;
+
+    if (b2ActiveShift.rawStartTime && inv.createdAt) {
+      const invTime = new Date(inv.createdAt).getTime();
+      const shiftStartTime = new Date(b2ActiveShift.rawStartTime).getTime();
+      if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 300000)) return sum;
+    }
 
     const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
     if (isDelivery) {
@@ -236,6 +252,13 @@ export default function POSPage() {
 
     return sum + (parseFloat(inv.paidAmount || inv.total || 0));
   }, 0);
+
+  const isShiftActive = activeShift && activeShift.status === 'active';
+  const currentTillCash = isAdmin
+    ? (selectedBranchId === 'all'
+        ? (b1CashSales + b2CashSales)
+        : (selectedBranchId === 'b2' ? b2CashSales : b1CashSales))
+    : (effectiveBranchId === 'b2' ? b2CashSales : b1CashSales);
 
   // Filter products by category & search, explicitly sorted by sortOrder
   const filteredProducts = (products || [])
@@ -304,83 +327,116 @@ export default function POSPage() {
           overflow: 'hidden',
         }}
       >
-        {/* Header Bar: Home Title + Mobile Till Cash Badges (Both Branches) + SearchBar */}
+        {/* Header Section: Title, Admin Branch Selector, Till Badges, SearchBar */}
         <Box
           sx={{
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            flexDirection: 'column',
+            gap: 1.2,
             width: '100%',
-            gap: 1.5,
-            flexWrap: { xs: 'wrap', sm: 'nowrap' },
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-            <Typography variant="h4" sx={{ fontWeight: 800, color: '#1A1A2E', fontSize: { xs: '1.2rem', md: '2rem' } }}>
-              الرئيسية
-            </Typography>
+          {/* Top Row: Title + Admin Branch Selector */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              gap: 1,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+              <Typography variant="h4" sx={{ fontWeight: 800, color: '#1A1A2E', fontSize: { xs: '1.25rem', md: '1.8rem' } }}>
+                الرئيسية
+              </Typography>
 
-            {/* Mobile Till Cash Badges: Displaying Both Branches 1 & 2 */}
+              {isAdmin && (
+                <FormControl size="small" sx={{ minWidth: { xs: 130, sm: 160 } }}>
+                  <Select
+                    value={selectedBranchId}
+                    onChange={(e) => setSelectedBranchId(e.target.value)}
+                    sx={{ borderRadius: '12px', bgcolor: '#FFF', fontWeight: 800, height: 36, fontSize: '0.82rem' }}
+                  >
+                    <MenuItem value="all">🏢 كافـة الفـروع</MenuItem>
+                    {(branches || []).map((b) => (
+                      <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+            </Box>
+          </Box>
+
+          {/* Mobile Till Cash Badges Row: 2 Balanced Cards (Branch 1 & Branch 2) */}
+          {isAdmin && (
             <Box
               sx={{
                 display: { xs: 'flex', md: 'none' },
-                alignItems: 'center',
-                gap: 0.8,
+                width: '100%',
+                gap: 1,
               }}
             >
               {/* Branch 1 Mobile Cash Pill */}
               <Box
                 sx={{
+                  flex: 1,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 0.5,
-                  bgcolor: '#ECFDF5',
-                  border: '1.5px solid #10B981',
-                  px: 1,
-                  py: 0.3,
-                  borderRadius: '10px',
-                  boxShadow: '0 2px 4px rgba(16, 185, 129, 0.1)',
+                  justifyContent: 'space-between',
+                  bgcolor: b1ActiveShift ? '#ECFDF5' : '#F9FAFB',
+                  border: '1.5px solid',
+                  borderColor: b1ActiveShift ? '#10B981' : '#CBD5E1',
+                  px: 1.2,
+                  py: 0.6,
+                  borderRadius: '12px',
+                  boxShadow: b1ActiveShift ? '0 2px 4px rgba(16, 185, 129, 0.1)' : 'none',
                 }}
               >
-                <Store sx={{ fontSize: 14, color: '#10B981' }} />
                 <Box sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <Typography variant="caption" sx={{ color: '#047857', fontWeight: 800, fontSize: '0.6rem', display: 'block', lineHeight: 1 }}>
-                    ف 1 الرئيسي
+                  <Typography variant="caption" sx={{ color: b1ActiveShift ? '#047857' : '#64748B', fontWeight: 800, fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>
+                    فرع عزت
                   </Typography>
-                  <Typography variant="caption" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.78rem', lineHeight: 1.1 }}>
-                    {b1CashSales.toFixed(0)} ج.م
+                  <Typography variant="caption" sx={{ color: b1ActiveShift ? '#065F46' : '#64748B', fontWeight: 900, fontSize: '0.82rem', lineHeight: 1.1 }}>
+                    {b1ActiveShift ? `${b1CashSales.toFixed(0)} ج.م` : '🔒 مغلق'}
                   </Typography>
                 </Box>
+                <Store sx={{ fontSize: 18, color: b1ActiveShift ? '#10B981' : '#94A3B8' }} />
               </Box>
 
               {/* Branch 2 Mobile Cash Pill */}
               <Box
                 sx={{
+                  flex: 1,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 0.5,
-                  bgcolor: '#EFF6FF',
-                  border: '1.5px solid #3B82F6',
-                  px: 1,
-                  py: 0.3,
-                  borderRadius: '10px',
-                  boxShadow: '0 2px 4px rgba(59, 130, 246, 0.1)',
+                  justifyContent: 'space-between',
+                  bgcolor: b2ActiveShift ? '#EFF6FF' : '#F9FAFB',
+                  border: '1.5px solid',
+                  borderColor: b2ActiveShift ? '#3B82F6' : '#CBD5E1',
+                  px: 1.2,
+                  py: 0.6,
+                  borderRadius: '12px',
+                  boxShadow: b2ActiveShift ? '0 2px 4px rgba(59, 130, 246, 0.1)' : 'none',
                 }}
               >
-                <Store sx={{ fontSize: 14, color: '#3B82F6' }} />
                 <Box sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <Typography variant="caption" sx={{ color: '#1E40AF', fontWeight: 800, fontSize: '0.6rem', display: 'block', lineHeight: 1 }}>
-                    ف 2 الثاني
+                  <Typography variant="caption" sx={{ color: b2ActiveShift ? '#1E40AF' : '#64748B', fontWeight: 800, fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>
+                    فرع المسلة
                   </Typography>
-                  <Typography variant="caption" sx={{ color: '#1D4ED8', fontWeight: 900, fontSize: '0.78rem', lineHeight: 1.1 }}>
-                    {b2CashSales.toFixed(0)} ج.م
+                  <Typography variant="caption" sx={{ color: b2ActiveShift ? '#1D4ED8' : '#64748B', fontWeight: 900, fontSize: '0.82rem', lineHeight: 1.1 }}>
+                    {b2ActiveShift ? `${b2CashSales.toFixed(0)} ج.م` : '🔒 مغلق'}
                   </Typography>
                 </Box>
+                <Store sx={{ fontSize: 18, color: b2ActiveShift ? '#3B82F6' : '#94A3B8' }} />
               </Box>
             </Box>
-          </Box>
+          )}
 
-          <SearchBar value={searchQuery} onChange={setSearchQuery} />
+          {/* Search Bar Row */}
+          <Box sx={{ width: '100%' }}>
+            <SearchBar value={searchQuery} onChange={setSearchQuery} />
+          </Box>
         </Box>
 
         {/* Categories Section */}
@@ -420,21 +476,22 @@ export default function POSPage() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 1,
-                  bgcolor: '#ECFDF5',
-                  border: '1.5px solid #10B981',
+                  bgcolor: b1ActiveShift ? '#ECFDF5' : '#F9FAFB',
+                  border: '1.5px solid',
+                  borderColor: b1ActiveShift ? '#10B981' : '#CBD5E1',
                   px: 1.8,
                   py: 0.6,
                   borderRadius: '12px',
-                  boxShadow: '0 2px 6px rgba(16, 185, 129, 0.12)',
+                  boxShadow: b1ActiveShift ? '0 2px 6px rgba(16, 185, 129, 0.12)' : 'none',
                 }}
               >
-                <Store sx={{ color: '#10B981', fontSize: 20 }} />
+                <Store sx={{ color: b1ActiveShift ? '#10B981' : '#64748B', fontSize: 20 }} />
                 <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="caption" sx={{ color: '#047857', fontWeight: 800, display: 'block', lineHeight: 1.1, fontSize: '0.72rem' }}>
-                    خزنة الفرع الأول
+                  <Typography variant="caption" sx={{ color: b1ActiveShift ? '#047857' : '#64748B', fontWeight: 800, display: 'block', lineHeight: 1.1, fontSize: '0.72rem' }}>
+                    خزنة فرع عزت
                   </Typography>
-                  <Typography variant="subtitle2" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.95rem', lineHeight: 1.2 }}>
-                    {b1CashSales.toFixed(2)} ج.م
+                  <Typography variant="subtitle2" sx={{ color: b1ActiveShift ? '#065F46' : '#64748B', fontWeight: 900, fontSize: '0.95rem', lineHeight: 1.2 }}>
+                    {b1ActiveShift ? `${b1CashSales.toFixed(2)} ج.م` : '🔒 الشيفت مغلق'}
                   </Typography>
                 </Box>
               </Box>
@@ -445,21 +502,22 @@ export default function POSPage() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 1,
-                  bgcolor: '#EFF6FF',
-                  border: '1.5px solid #3B82F6',
+                  bgcolor: b2ActiveShift ? '#EFF6FF' : '#F9FAFB',
+                  border: '1.5px solid',
+                  borderColor: b2ActiveShift ? '#3B82F6' : '#CBD5E1',
                   px: 1.8,
                   py: 0.6,
                   borderRadius: '12px',
-                  boxShadow: '0 2px 6px rgba(59, 130, 246, 0.12)',
+                  boxShadow: b2ActiveShift ? '0 2px 6px rgba(59, 130, 246, 0.12)' : 'none',
                 }}
               >
-                <Store sx={{ color: '#3B82F6', fontSize: 20 }} />
+                <Store sx={{ color: b2ActiveShift ? '#3B82F6' : '#64748B', fontSize: 20 }} />
                 <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="caption" sx={{ color: '#1E40AF', fontWeight: 800, display: 'block', lineHeight: 1.1, fontSize: '0.72rem' }}>
-                    خزنة الفرع الثاني
+                  <Typography variant="caption" sx={{ color: b2ActiveShift ? '#1E40AF' : '#64748B', fontWeight: 800, display: 'block', lineHeight: 1.1, fontSize: '0.72rem' }}>
+                    خزنة فرع المسلة
                   </Typography>
-                  <Typography variant="subtitle2" sx={{ color: '#1D4ED8', fontWeight: 900, fontSize: '0.95rem', lineHeight: 1.2 }}>
-                    {b2CashSales.toFixed(2)} ج.م
+                  <Typography variant="subtitle2" sx={{ color: b2ActiveShift ? '#1D4ED8' : '#64748B', fontWeight: 900, fontSize: '0.95rem', lineHeight: 1.2 }}>
+                    {b2ActiveShift ? `${b2CashSales.toFixed(2)} ج.م` : '🔒 الشيفت مغلق'}
                   </Typography>
                 </Box>
               </Box>
@@ -547,13 +605,15 @@ export default function POSPage() {
         anchor="bottom"
         open={mobileCartOpen}
         onClose={() => setMobileCartOpen(false)}
-        PaperProps={{
-          sx: {
-            height: '92vh',
-            borderTopLeftRadius: '24px',
-            borderTopRightRadius: '24px',
-            overflow: 'hidden',
-          },
+        slotProps={{
+          paper: {
+            sx: {
+              height: '92vh',
+              borderTopLeftRadius: '24px',
+              borderTopRightRadius: '24px',
+              overflow: 'hidden',
+            },
+          }
         }}
       >
         <OrderDetailsPanel
@@ -575,8 +635,10 @@ export default function POSPage() {
         onClose={() => setSizeModalOpen(false)}
         maxWidth="xs"
         fullWidth
-        PaperProps={{
-          sx: { borderRadius: '24px', p: 1.5 }
+        slotProps={{
+          paper: {
+            sx: { borderRadius: '24px', p: 1.5 }
+          }
         }}
       >
         <DialogTitle sx={{ fontWeight: 900, textAlign: 'center', color: '#1A1A2E', pb: 0.5, fontSize: '1.3rem' }}>

@@ -56,7 +56,15 @@ export async function PUT(request, { params }) {
 export async function DELETE(request, { params }) {
   try {
     const { id } = await params;
-    await query('DELETE FROM users WHERE id = $1', [id]);
+    if (!id) {
+      return NextResponse.json({ error: 'User id is required' }, { status: 400 });
+    }
+
+    const result = await query('DELETE FROM users WHERE id = $1', [id]);
+    if ((result?.rowCount || 0) === 0) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('❌ Error deleting user:', error);

@@ -56,8 +56,9 @@ export default function InvoicesPage() {
     fetchInvoices 
   } = useInvoiceStore();
   const { settings } = useSettingsStore();
-  const { selectedBranchId } = useBranchStore();
+  const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
   const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin' || !user?.role;
   const effectiveBranch = (user && user.role !== 'admin' && user.branch_id) ? user.branch_id : selectedBranchId;
 
   // Filters & State for Custom Invoices
@@ -386,7 +387,22 @@ export default function InvoicesPage() {
             إنشاء وإدارة فواتير التحصيل لأي جهة أو عميل، مع إمكانية عرض الفواتير وطباعتها وتصفيتها.
           </Typography>
         </Box>
-        <Stack direction="row" spacing={1.5}>
+        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+          {isAdmin && (
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <Select
+                value={selectedBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+                sx={{ borderRadius: '12px', bgcolor: '#FFF', fontWeight: 800, height: 42 }}
+              >
+                <MenuItem value="all">🏢 كافـة الفـروع</MenuItem>
+                {branches.map((b) => (
+                  <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
           <Button
             variant="outlined"
             size="large"
@@ -539,7 +555,7 @@ export default function InvoicesPage() {
       <TabPanel value={tabValue} index={0} className="no-print">
         {/* Filters bar */}
         <Paper sx={{ p: 2, mb: 3, borderRadius: '16px', bgcolor: 'background.paper' }}>
-          <Grid container spacing={2} alignItems="center">
+          <Grid container spacing={2} sx={{ alignItems: 'center' }}>
             <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
@@ -805,7 +821,7 @@ export default function InvoicesPage() {
         onClose={() => setCreateDialogOpen(false)} 
         maxWidth="md" 
         fullWidth
-        PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}
+        slotProps={{ paper: { sx: { borderRadius: '20px', p: 1 } } }}
       >
         <DialogTitle sx={{ fontWeight: '900', fontSize: '1.3rem', color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1 }}>
           <ReceiptIcon />
@@ -1046,7 +1062,7 @@ export default function InvoicesPage() {
         onClose={() => setViewDialogOpen(false)}
         maxWidth="sm"
         fullWidth
-        PaperProps={{ sx: { borderRadius: '20px', p: 2 } }}
+        slotProps={{ paper: { sx: { borderRadius: '20px', p: 2 } } }}
       >
         <DialogTitle className="no-print" sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="h6" fontWeight="bold">معاينة وطباعة الفاتورة</Typography>

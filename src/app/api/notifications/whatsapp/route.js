@@ -24,8 +24,8 @@ export async function POST(request) {
     const token = settings.whatsapp_token || '';
     const apiUrl = settings.whatsapp_api_url || '';
 
-    // Auto-detect Green API if instanceId is a Green-API numeric ID
-    if (instanceId && (instanceId.startsWith('7107') || instanceId.length >= 10)) {
+    // Auto-detect Green API if instanceId starts with 7107 or is numeric, unless provider is explicitly specified as ultramsg
+    if (!settings.whatsapp_provider && instanceId && (instanceId.startsWith('7107') || instanceId.length >= 10)) {
       provider = 'greenapi';
     }
 
@@ -36,11 +36,16 @@ export async function POST(request) {
     // If mode is 'api' and credentials are provided, send via API Gateway
     if (mode === 'api' && (instanceId || apiUrl)) {
       if (provider === 'ultramsg' && instanceId && token) {
+        let cleanDigits = phone.replace(/\D/g, '');
+        if (cleanDigits.startsWith('01') && cleanDigits.length === 11) cleanDigits = '2' + cleanDigits;
+
         const url = `https://api.ultramsg.com/${instanceId}/messages/chat`;
         const params = new URLSearchParams();
         params.append('token', token);
-        params.append('to', phone);
+        params.append('to', cleanDigits);
         params.append('body', message);
+
+        console.log(`📡 Sending UltraMsg to ${cleanDigits} via ${url}`);
 
         const apiResponse = await fetch(url, {
           method: 'POST',
@@ -48,9 +53,13 @@ export async function POST(request) {
           body: params.toString()
         });
 
-        if (apiResponse.ok) {
-          const resData = await apiResponse.json();
+        const resData = await apiResponse.json();
+        console.log('✅ UltraMsg Result:', resData);
+
+        if (apiResponse.ok && (resData.sent === 'true' || resData.sent === true || resData.id || !resData.error)) {
           return NextResponse.json({ sentViaApi: true, provider: 'ultramsg', result: resData });
+        } else {
+          return NextResponse.json({ sentViaApi: false, error: resData.error || resData.message || 'UltraMsg Error', result: resData }, { status: 400 });
         }
       } else if (provider === 'greenapi' || (instanceId && token)) {
         const cleanId = (instanceId || '7103131720').trim();

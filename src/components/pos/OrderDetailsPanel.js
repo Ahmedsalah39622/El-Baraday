@@ -13,7 +13,8 @@ import { sendDeliveryWhatsApp } from '@/lib/whatsapp';
 
 import { useAuthStore } from '@/store/useAuthStore';
 import { useBranchStore } from '@/store/useBranchStore';
-import { Store } from '@mui/icons-material';
+import { useShiftStore } from '@/store/useShiftStore';
+import { Store, Lock } from '@mui/icons-material';
 
 export default function OrderDetailsPanel({
   items = [],
@@ -31,7 +32,11 @@ export default function OrderDetailsPanel({
   const { customers = [], drivers = [], activeQueue = [], saveOrUpdateCustomer } = useCustomerStore();
   const { user } = useAuthStore();
   const { branches, selectedBranchId, fetchBranches } = useBranchStore();
+  const { activeShift } = useShiftStore();
+  const isShiftActive = activeShift && activeShift.status === 'active';
   const activeCashierName = user?.name || user?.username || 'أحمد محمود';
+
+  const [shiftClosedDialogOpen, setShiftClosedDialogOpen] = useState(false);
 
   const [orderBranchId, setOrderBranchId] = useState(selectedBranchId !== 'all' ? selectedBranchId : (user?.branch_id || 'b1'));
 
@@ -151,8 +156,33 @@ export default function OrderDetailsPanel({
     }
   };
 
+  const resetOrderFormAfterCompletion = () => {
+    if (onClearOrder) onClearOrder();
+    if (orderType === 'delivery' && onOrderTypeChange) {
+      onOrderTypeChange('takeaway');
+    }
+    setCustomerName('');
+    setCustomerPhone('');
+    setCustomerAddress('');
+    setCustomerFloor('');
+    setCustomerApartment('');
+    setSavedAddresses([]);
+    setDeliveryFee(15);
+    setPaidAmount('');
+    setOrderNotes('');
+    setDiscountType('amount');
+    setDiscountValue('');
+    setPaymentMethod('cash');
+    if (onCloseMobile) onCloseMobile();
+  };
+
   const handleCompleteOrder = () => {
     if (items.length === 0) return;
+
+    if (!isShiftActive) {
+      setShiftClosedDialogOpen(true);
+      return;
+    }
 
     const currentOrderNum = nextOrderNumber ? nextOrderNumber.toString() : '35';
 
@@ -246,17 +276,14 @@ export default function OrderDetailsPanel({
       setWhatsAppStatus(null);
     }
 
-    // Clear order cart & close mobile drawer
-    if (onClearOrder) onClearOrder();
-    setOrderNotes('');
-    if (onCloseMobile) onCloseMobile();
+    // Clear order cart, form fields, and return to takeaway after delivery completion.
+    resetOrderFormAfterCompletion();
   };
 
   const handleCloseDialog = () => {
     setSuccessDialogOpen(false);
     setWhatsAppStatus(null);
-    if (onClearOrder) onClearOrder();
-    if (onCloseMobile) onCloseMobile();
+    resetOrderFormAfterCompletion();
   };
 
   return (
@@ -1003,6 +1030,57 @@ export default function OrderDetailsPanel({
             sx={{ borderRadius: '12px', px: 3, fontWeight: 600 }}
           >
             إغلاق وطلب جديد
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Shift Closed Warning Dialog Popup */}
+      <Dialog
+        open={shiftClosedDialogOpen}
+        onClose={() => setShiftClosedDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        slotProps={{
+          paper: {
+            sx: { borderRadius: '24px', p: 1, textAlign: 'center' }
+          }
+        }}
+      >
+        <DialogTitle sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, pt: 3 }}>
+          <Box sx={{ width: 64, height: 64, borderRadius: '50%', bgcolor: '#FEF2F2', color: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 0.5 }}>
+            <Lock sx={{ fontSize: 36 }} />
+          </Box>
+          <Typography variant="h6" sx={{ fontWeight: 900, color: '#991B1B' }}>
+            ⚠️ الوردية (الشيفت) مغلق حالياً
+          </Typography>
+        </DialogTitle>
+
+        <DialogContent sx={{ px: 3, py: 1 }}>
+          <Typography variant="body1" sx={{ color: '#374151', fontWeight: 700, mb: 1 }}>
+            لا يمكن تسجيل أو تنفيذ أو طباعة أي أوردر بدون فتح وردية نشطة.
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#6B7280', fontWeight: 600 }}>
+            برجاء التوجه لصفحة **ملخص الوردية والشيفت** وسحب عهدة البداية لفتح الشيفت أولاً.
+          </Typography>
+        </DialogContent>
+
+        <DialogActions sx={{ justifyContent: 'center', pb: 3, px: 3, gap: 1.5, flexWrap: 'wrap' }}>
+          <Button
+            variant="outlined"
+            onClick={() => setShiftClosedDialogOpen(false)}
+            sx={{ borderRadius: '12px', fontWeight: 700, px: 2.5, borderColor: '#D1D5DB', color: '#4B5563' }}
+          >
+            إلغاء
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setShiftClosedDialogOpen(false);
+              window.location.href = '/shift-summary';
+            }}
+            sx={{ bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' }, borderRadius: '12px', fontWeight: 800, px: 3, py: 1 }}
+          >
+            فتح وردية جديدة 🔓
           </Button>
         </DialogActions>
       </Dialog>

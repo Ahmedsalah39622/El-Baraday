@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -22,23 +22,42 @@ import {
   Divider,
   FormControl,
   Select,
-  MenuItem
+  MenuItem,
+  Grid,
 } from '@mui/material';
-import { Print, VisibilityOutlined, Close, Person, Phone, LocationOn, ReceiptLong, Store, CancelOutlined } from '@mui/icons-material';
+import {
+  Print,
+  VisibilityOutlined,
+  Close,
+  Person,
+  Phone,
+  LocationOn,
+  ReceiptLong,
+  Store,
+  CancelOutlined,
+  AccountBalanceWallet,
+  DeliveryDining,
+  LocalShipping,
+  History,
+  CheckCircle,
+} from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { useBranchStore } from '@/store/useBranchStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useShiftStore } from '@/store/useShiftStore';
 import { printThermalReceipt } from '@/lib/printReceipt';
 import DeliveryTimerBadge from '@/components/delivery/DeliveryTimerBadge';
 
 export default function OrdersPage() {
   const { invoices, fetchInvoices, cancelOrder } = useInvoiceStore();
   const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
+  const { activeShift, fetchShifts } = useShiftStore();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin';
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [showPreviousShifts, setShowPreviousShifts] = useState(false);
 
   // View Order Details Modal State
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -48,13 +67,38 @@ export default function OrdersPage() {
   const targetBranch = effectiveBranch || 'all';
 
   useEffect(() => {
-    fetchInvoices(100, targetBranch);
+    fetchInvoices(500, targetBranch);
+    fetchShifts(targetBranch);
+
+    const interval = setInterval(() => {
+      fetchInvoices(500, targetBranch);
+      fetchShifts(targetBranch);
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, [targetBranch, user]);
 
-  // Filter orders strictly by selected branch & search query
+  // Filter orders strictly by selected branch, shift time, & search query
+  const isShiftActive = activeShift && activeShift.status === 'active';
+
   const filteredOrders = (invoices || []).filter((inv) => {
     const matchBranch = !targetBranch || targetBranch === 'all' || inv.branchId === targetBranch || inv.branch_id === targetBranch;
     if (!matchBranch) return false;
+
+    // When NOT showing previous shifts: hide old orders
+    if (!showPreviousShifts) {
+      // Shift is closed → hide ALL orders (they're still in DB, just hidden)
+      if (!isShiftActive) return false;
+
+      // Shift is active → only show orders from current shift (with 5-minute buffer for clock sync)
+      if (activeShift?.rawStartTime && inv.createdAt) {
+        const invTime = new Date(inv.createdAt).getTime();
+        const shiftStartTime = new Date(activeShift.rawStartTime).getTime();
+        if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 300000)) {
+          return false;
+        }
+      }
+    }
 
     if (!searchQuery) return true;
     const cleanSearch = searchQuery.toLowerCase().trim();
@@ -65,6 +109,77 @@ export default function OrdersPage() {
       inv.customerPhone?.includes(cleanSearch)
     );
   });
+
+  // Dynamic calculations for selected branch (excluding cancelled orders).
+  const branchSummaryOrders = useMemo(() => {
+    return (invoices || []).filter((inv) => {
+      const matchBranch = !targetBranch || targetBranch === 'all' || inv.branchId === targetBranch || inv.branch_id === targetBranch;
+      if (!matchBranch || inv.status === 'cancelled') return false;
+
+      // When a shift is active, keep the KPI cards aligned with the current shift window.
+      if (isShiftActive && activeShift?.rawStartTime && inv.createdAt) {
+        const invTime = new Date(inv.createdAt).getTime();
+        const shiftStartTime = new Date(activeShift.rawStartTime).getTime();
+        if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < shiftStartTime) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [invoices, targetBranch, isShiftActive, activeShift]);
+
+  // 1. Total Cash in Drawer (إجمالي النقدية في الخزنة) - Exactly aligned with POS till logic
+  const totalCashInDrawer = useMemo(() => {
+    const isShiftActive = activeShift && activeShift.status === 'active';
+    const shiftBranchMatch = !targetBranch || targetBranch === 'all' || activeShift?.branch_id === targetBranch;
+    const startCash = (isShiftActive && shiftBranchMatch) ? (parseFloat(activeShift.startAmount) || 0) : 0;
+
+    const cashSalesSum = branchSummaryOrders.reduce((sum, inv) => {
+      // Filter by active shift start time if shift is active
+      if (isShiftActive && shiftBranchMatch && activeShift?.rawStartTime && inv.createdAt) {
+        const invTime = new Date(inv.createdAt).getTime();
+        const shiftStartTime = new Date(activeShift.rawStartTime).getTime();
+        if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < shiftStartTime) {
+          return sum; // Skip invoices before current active shift start
+        }
+      }
+
+      // Exclude uncollected delivery cash
+      const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
+      if (isDelivery) {
+        const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
+        if (!isCashCollected) return sum;
+      }
+
+      // Cash payments only
+      const pm = inv.paymentMethod || inv.payment_method || 'cash';
+      if (pm !== 'cash') return sum;
+
+      return sum + (parseFloat(inv.paidAmount || inv.total || 0));
+    }, 0);
+
+    return startCash + cashSalesSum;
+  }, [branchSummaryOrders, activeShift, targetBranch]);
+
+  // 2. Total Delivery Sales (إجمالي مبيعات الدليفري)
+  const totalDeliverySales = useMemo(() => {
+    return branchSummaryOrders
+      .filter((inv) => inv.orderType === 'delivery' || inv.order_type === 'delivery')
+      .reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0);
+  }, [branchSummaryOrders]);
+
+  // 3. Total Delivery Service Fee (إجمالي خدمة الدليفري)
+  const totalDeliveryFee = useMemo(() => {
+    return branchSummaryOrders
+      .filter((inv) => inv.orderType === 'delivery' || inv.order_type === 'delivery')
+      .reduce((sum, inv) => sum + (parseFloat(inv.deliveryFee || inv.delivery_fee) || 0), 0);
+  }, [branchSummaryOrders]);
+
+  // Total All Sales for the branch
+  const totalBranchSales = useMemo(() => {
+    return branchSummaryOrders.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0);
+  }, [branchSummaryOrders]);
 
   const handleOpenDetails = (order) => {
     setSelectedOrder(order);
@@ -120,8 +235,103 @@ export default function OrdersPage() {
           )}
 
           <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="ابحث برقم الطلب أو اسم العميل..." />
+
+          {/* Toggle Previous Shifts Button */}
+          <Button
+            variant={showPreviousShifts ? 'contained' : 'outlined'}
+            startIcon={<History sx={{ fontSize: '18px !important' }} />}
+            onClick={() => setShowPreviousShifts(!showPreviousShifts)}
+            size="small"
+            sx={{
+              borderRadius: '10px',
+              fontWeight: 800,
+              fontSize: '0.78rem',
+              px: 1.8,
+              py: 0.8,
+              minHeight: 36,
+              whiteSpace: 'nowrap',
+              border: '1.5px solid',
+              borderColor: showPreviousShifts ? '#1E40AF' : '#CBD5E1',
+              bgcolor: showPreviousShifts ? '#1E40AF' : '#F8FAFC',
+              color: showPreviousShifts ? '#FFF' : '#475569',
+              boxShadow: showPreviousShifts ? '0 2px 8px rgba(30, 64, 175, 0.3)' : '0 1px 3px rgba(0,0,0,0.06)',
+              '&:hover': {
+                bgcolor: showPreviousShifts ? '#1E3A8A' : '#F1F5F9',
+                borderColor: showPreviousShifts ? '#1E3A8A' : '#94A3B8',
+              },
+            }}
+          >
+            {showPreviousShifts ? '✕ إخفاء السابقة' : '📋 طلبات الشيفتات السابقة'}
+          </Button>
         </Box>
       </Box>
+
+      {/* KPI Dynamic Summary Cards based on Selected Branch */}
+      <Grid container spacing={2}>
+        <Grid xs={12} sm={6} md={3}>
+          <Paper sx={{ p: 2, borderRadius: '16px', border: '1px solid #ECFDF5', bgcolor: '#ECFDF5', display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ p: 1.5, borderRadius: '12px', bgcolor: '#10B981', color: '#FFF' }}>
+              <AccountBalanceWallet sx={{ fontSize: 26 }} />
+            </Box>
+            <Box>
+              <Typography variant="caption" sx={{ color: '#047857', fontWeight: 800 }}>
+                إجمالي الخزنة (النقدية)
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 900, color: '#065F46' }}>
+                {totalCashInDrawer.toLocaleString()} ج.م
+              </Typography>
+            </Box>
+          </Paper>
+        </Grid>
+
+        <Grid xs={12} sm={6} md={3}>
+          <Paper sx={{ p: 2, borderRadius: '16px', border: '1px solid #FFF3EB', bgcolor: '#FFF3EB', display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ p: 1.5, borderRadius: '12px', bgcolor: '#E06B1F', color: '#FFF' }}>
+              <DeliveryDining sx={{ fontSize: 26 }} />
+            </Box>
+            <Box>
+              <Typography variant="caption" sx={{ color: '#C2410C', fontWeight: 800 }}>
+                إجمالي مبيعات الدليفري
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 900, color: '#9A3412' }}>
+                {totalDeliverySales.toLocaleString()} ج.م
+              </Typography>
+            </Box>
+          </Paper>
+        </Grid>
+
+        <Grid xs={12} sm={6} md={3}>
+          <Paper sx={{ p: 2, borderRadius: '16px', border: '1px solid #FEF3C7', bgcolor: '#FEF3C7', display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ p: 1.5, borderRadius: '12px', bgcolor: '#F59E0B', color: '#FFF' }}>
+              <LocalShipping sx={{ fontSize: 26 }} />
+            </Box>
+            <Box>
+              <Typography variant="caption" sx={{ color: '#B45309', fontWeight: 800 }}>
+                إجمالي خدمة الدليفري
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 900, color: '#78350F' }}>
+                {totalDeliveryFee.toLocaleString()} ج.م
+              </Typography>
+            </Box>
+          </Paper>
+        </Grid>
+
+        <Grid xs={12} sm={6} md={3}>
+          <Paper sx={{ p: 2, borderRadius: '16px', border: '1px solid #EFF6FF', bgcolor: '#EFF6FF', display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ p: 1.5, borderRadius: '12px', bgcolor: '#4285F4', color: '#FFF' }}>
+              <ReceiptLong sx={{ fontSize: 26 }} />
+            </Box>
+            <Box>
+              <Typography variant="caption" sx={{ color: '#1E40AF', fontWeight: 800 }}>
+                إجمالي مبيعات الفرع الكلية
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: 900, color: '#1E3A8A' }}>
+                {totalBranchSales.toLocaleString()} ج.م
+              </Typography>
+            </Box>
+          </Paper>
+        </Grid>
+      </Grid>
 
       {/* Orders Table */}
       <TableContainer component={Paper} sx={{ borderRadius: '16px', border: '1px solid #E5E7EB', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', overflowX: 'auto' }}>
@@ -233,7 +443,7 @@ export default function OrdersPage() {
                   <TableCell>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-start' }}>
                       <Chip
-                        label={row.status === 'cancelled' ? '🔴 ملغي' : (row.status || 'مكتمل')}
+                        label={row.status === 'cancelled' ? '🔴 ملغي' : (row.status || 'completed')}
                         size="small"
                         sx={{
                           bgcolor: row.status === 'cancelled' ? '#FEF2F2' : '#D1FAE5',
@@ -241,6 +451,14 @@ export default function OrdersPage() {
                           fontWeight: 800
                         }}
                       />
+                      {(isDelivery || row.status === 'delivered' || row.status === 'cash_collected') && row.status !== 'cancelled' && (
+                        <Chip
+                          icon={<CheckCircle sx={{ fontSize: '13px !important', color: '#059669' }} />}
+                          label="تم التوصيل"
+                          size="small"
+                          sx={{ bgcolor: '#ECFDF5', color: '#047857', border: '1px solid #A7F3D0', fontWeight: 800, fontSize: '0.72rem' }}
+                        />
+                      )}
                       {isDelivery && row.status !== 'cancelled' && (row.dispatched_at || row.createdAt) && (
                         <DeliveryTimerBadge dispatchedAt={row.dispatched_at || row.createdAt} status={row.status} />
                       )}
@@ -253,41 +471,6 @@ export default function OrdersPage() {
 
                   <TableCell align="center">
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                      {/* View Details Button */}
-                      <Tooltip title="عرض تفاصيل الطلب والفاتورة الكاملة" arrow>
-                        <IconButton
-                          size="small"
-                          onClick={() => handleOpenDetails(row)}
-                          sx={{ color: '#10B981', bgcolor: '#ECFDF5', '&:hover': { bgcolor: '#D1FAE5' } }}
-                        >
-                          <VisibilityOutlined fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-
-                      {/* Reprint Invoice Button */}
-                      {row.status !== 'cancelled' && (
-                        <Tooltip title="إعادة طباعة الفاتورة" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => printThermalReceipt({
-                              orderNumber: row.orderNumber || '1',
-                              dateStr: new Date(row.createdAt || Date.now()).toLocaleString('ar-EG'),
-                              cashierName: row.cashierName || '',
-                              customerName: row.customerName,
-                              customerPhone: row.customerPhone,
-                              items: row.items || [],
-                              subtotal: row.subtotal || row.total,
-                              deliveryFee: row.deliveryFee || 0,
-                              total: row.total,
-                              orderType: row.orderType || 'takeaway'
-                            })}
-                            sx={{ color: '#4285F4', bgcolor: '#F0F7FF', '&:hover': { bgcolor: '#DBEAFE' } }}
-                          >
-                            <Print fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-
                       {/* Cancel Order Button */}
                       {row.status !== 'cancelled' ? (
                         <Tooltip title="إلغاء هذا الطلب وتخصيم المجموع من المبيعات" arrow>
@@ -300,8 +483,53 @@ export default function OrdersPage() {
                           </IconButton>
                         </Tooltip>
                       ) : (
-                        <Chip label="تم الإلغاء" size="small" sx={{ bgcolor: '#F3F4F6', color: '#9CA3AF', fontWeight: 800, fontSize: '0.7rem' }} />
+                        <Chip label="ملغي" size="small" color="error" variant="outlined" sx={{ fontWeight: 800 }} />
                       )}
+
+                      {/* Reprint Invoice Button */}
+                      {row.status !== 'cancelled' && (
+                        <Tooltip title="إعادة طباعة الفاتورة" arrow>
+                          <IconButton
+                            size="small"
+                            onClick={() => printThermalReceipt({
+                              orderNumber: row.orderNumber || row.order_number || '1',
+                              dateStr: new Date(row.createdAt || row.created_at || Date.now()).toLocaleString('ar-EG'),
+                              cashierName: row.cashierName || row.cashier_name || 'الكاشير',
+                              driverName: row.driverName || row.driver_name || '',
+                              customerName: row.customerName || row.customer_name || '',
+                              customerPhone: row.customerPhone || row.customer_phone || '',
+                              customerAddress: row.customerAddress || row.customer_address || row.address || row.customerArea || row.customer_area || '',
+                              customerFloor: row.customerFloor || row.customer_floor || row.floor || '',
+                              customerApartment: row.customerApartment || row.customer_apartment || row.apartment || '',
+                              items: row.items || [],
+                              subtotal: row.subtotal || row.total,
+                              deliveryFee: row.deliveryFee || row.delivery_fee || 0,
+                              discount: row.discount || 0,
+                              total: row.total,
+                              paidAmount: row.paidAmount || row.paid_amount || row.total,
+                              remainingAmount: row.remainingAmount || row.remaining_amount || 0,
+                              paymentMethod: row.paymentMethod || row.payment_method || 'cash',
+                              orderType: row.orderType || row.order_type || 'takeaway',
+                              isCashCollected: row.is_cash_collected || row.isCashCollected || false,
+                              notes: row.notes || row.orderNotes || '',
+                            })}
+                            sx={{ color: '#4285F4', bgcolor: '#F0F7FF', '&:hover': { bgcolor: '#DBEAFE' } }}
+                          >
+                            <Print fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+
+                      {/* View Details Button */}
+                      <Tooltip title="عرض تفاصيل الطلب والفاتورة الكاملة" arrow>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleOpenDetails(row)}
+                          sx={{ color: '#10B981', bgcolor: '#ECFDF5', '&:hover': { bgcolor: '#D1FAE5' } }}
+                        >
+                          <VisibilityOutlined fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                     </Box>
                   </TableCell>
                 </TableRow>
@@ -310,8 +538,24 @@ export default function OrdersPage() {
 
             {filteredOrders.length === 0 && (
               <TableRow>
-                <TableCell colSpan={9} align="center" sx={{ py: 4, color: '#9CA3AF', fontWeight: 700 }}>
-                  لا توجد طلبات مسجلة لهذا الفرع حالياً.
+                <TableCell colSpan={10} align="center" sx={{ py: 6 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
+                    <ReceiptLong sx={{ fontSize: 48, color: '#D1D5DB' }} />
+                    <Typography variant="h6" sx={{ color: '#6B7280', fontWeight: 800 }}>
+                      {!isShiftActive && !showPreviousShifts
+                        ? 'الشيفت مقفول — مفيش طلبات للعرض'
+                        : isShiftActive && !showPreviousShifts
+                        ? 'لا توجد طلبات في الشيفت الحالي بعد'
+                        : 'لا توجد طلبات مسجلة لهذا الفرع حالياً.'}
+                    </Typography>
+                    {!showPreviousShifts && (
+                      <Typography variant="body2" sx={{ color: '#9CA3AF', fontWeight: 600 }}>
+                        {!isShiftActive
+                          ? 'افتح وردية جديدة من صفحة ملخص الشيفت، أو اضغط "عرض طلبات الشيفتات السابقة" لعرض الطلبات القديمة.'
+                          : 'الطلبات الجديدة هتظهر هنا تلقائياً. أو اضغط على "عرض طلبات الشيفتات السابقة" لعرض الطلبات القديمة.'}
+                      </Typography>
+                    )}
+                  </Box>
                 </TableCell>
               </TableRow>
             )}

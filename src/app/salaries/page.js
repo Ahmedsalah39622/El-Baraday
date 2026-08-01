@@ -19,6 +19,7 @@ import {
 } from '@mui/icons-material';
 import { useEmployeeStore } from '@/store/useEmployeeStore';
 import { useBranchStore } from '@/store/useBranchStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { generateReportPDF } from '@/lib/reportPdfExport';
 import { exportToExcel } from '@/lib/exportToExcel';
 
@@ -74,7 +75,9 @@ export function calculateEmployeeSalary(emp) {
 
 export default function SalariesPage() {
   const { employees, fetchEmployees, addAdvance, markAsPaid, addEmployee, updateEmployee, deleteEmployee, settleEmployeeAccount } = useEmployeeStore();
-  const { branches, fetchBranches } = useBranchStore();
+  const { branches, selectedBranchId, setSelectedBranchId, fetchBranches } = useBranchStore();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin' || !user?.role;
   const [selectedMonth, setSelectedMonth] = useState('يوليو 2026');
 
   // Main Page Tabs (0: شاشة المرتبات والعمليات الحية, 1: تقارير القبض وصرف المرتبات, 2: تقارير السُلف والمسحوبات, 3: تقارير البونص والخصومات)
@@ -655,7 +658,22 @@ export default function SalariesPage() {
           </Box>
         </Box>
 
-        <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+          {isAdmin && (
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <Select
+                value={selectedBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+                sx={{ borderRadius: '12px', bgcolor: '#FFF', fontWeight: 800, height: 42 }}
+              >
+                <MenuItem value="all">🏢 كافـة الفـروع</MenuItem>
+                {branches.map((b) => (
+                  <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
           <Button
             variant="contained"
             color="success"
@@ -1135,7 +1153,7 @@ export default function SalariesPage() {
       )}
 
       {/* GLOBAL BONUS MODAL */}
-      <Dialog open={bonusModalOpen} onClose={() => setBonusModalOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}>
+      <Dialog open={bonusModalOpen} onClose={() => setBonusModalOpen(false)} maxWidth="sm" fullWidth slotProps={{ paper: { sx: { borderRadius: '20px', p: 1 } } }}>
         <DialogTitle sx={{ fontWeight: 900, color: 'success.main', display: 'flex', alignItems: 'center', gap: 1 }}>
           <BonusIcon fontSize="large" />
           إضافة بونص ومكافأة لموظف
@@ -1233,7 +1251,7 @@ export default function SalariesPage() {
       </Dialog>
 
       {/* GLOBAL DEDUCTION MODAL */}
-      <Dialog open={deductionModalOpen} onClose={() => setDeductionModalOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}>
+      <Dialog open={deductionModalOpen} onClose={() => setDeductionModalOpen(false)} maxWidth="sm" fullWidth slotProps={{ paper: { sx: { borderRadius: '20px', p: 1 } } }}>
         <DialogTitle sx={{ fontWeight: 900, color: 'error.main', display: 'flex', alignItems: 'center', gap: 1 }}>
           <DeductionIcon fontSize="large" />
           تسجيل خصم / جزاء على موظف
@@ -1330,7 +1348,7 @@ export default function SalariesPage() {
       </Dialog>
 
       {/* HOURLY ADJUSTMENTS DIALOG */}
-      <Dialog open={hoursDialog} onClose={() => setHoursDialog(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: '16px' } }}>
+      <Dialog open={hoursDialog} onClose={() => setHoursDialog(false)} maxWidth="sm" fullWidth slotProps={{ paper: { sx: { borderRadius: '16px' } } }}>
         <DialogTitle sx={{ fontWeight: 800, color: '#0284C7', display: 'flex', alignItems: 'center', gap: 1 }}>
           <TimeIcon />
           تعديل ساعات الخصم والزيادة - {hoursEmpData?.name}
@@ -1457,7 +1475,7 @@ export default function SalariesPage() {
       </Dialog>
 
       {/* Advance Dialog with Required Notes/Statement */}
-      <Dialog open={advanceDialog} onClose={() => setAdvanceDialog(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '16px' } }}>
+      <Dialog open={advanceDialog} onClose={() => setAdvanceDialog(false)} maxWidth="xs" fullWidth slotProps={{ paper: { sx: { borderRadius: '16px' } } }}>
         <DialogTitle sx={{ fontWeight: 900, color: '#EF4444' }}>💸 تسجيل سلفة جديدة مع البيان</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1.5 }}>
           <Typography variant="body2" color="text.secondary">
@@ -1506,7 +1524,7 @@ export default function SalariesPage() {
       </Dialog>
 
       {/* Advances History Dialog */}
-      <Dialog open={advancesHistoryDialog} onClose={() => setAdvancesHistoryDialog(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: '16px' } }}>
+      <Dialog open={advancesHistoryDialog} onClose={() => setAdvancesHistoryDialog(false)} maxWidth="sm" fullWidth slotProps={{ paper: { sx: { borderRadius: '16px' } } }}>
         <DialogTitle sx={{ fontWeight: 900, color: '#1E293B', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>📑 سجل تفاصيل وبيانات سُلف الموظف ({historyEmp?.name})</span>
           <Chip label={`إجمالي السلف: ${historyEmp?.advances || 0} ج.م`} color="error" size="small" sx={{ fontWeight: 800 }} />

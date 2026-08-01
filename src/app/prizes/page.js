@@ -16,6 +16,8 @@ import {
 } from '@mui/icons-material';
 import { useCustomerStore } from '@/store/useCustomerStore';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
+import { useBranchStore } from '@/store/useBranchStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { generateReportPDF } from '@/lib/reportPdfExport';
 import { exportToExcel } from '@/lib/exportToExcel';
 import { printRaffleCoupon } from '@/lib/printReceipt';
@@ -43,6 +45,9 @@ const WHEEL_SECTORS = [
 export default function PrizesPage() {
   const { customers, fetchCustomers } = useCustomerStore();
   const { invoices, fetchInvoices } = useInvoiceStore();
+  const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin' || !user?.role;
 
   const [tabValue, setTabValue] = useState(0);
 
@@ -367,7 +372,22 @@ export default function PrizesPage() {
           </Box>
         </Box>
 
-        <Stack direction="row" spacing={1.5} flexWrap="wrap">
+        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+          {isAdmin && (
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <Select
+                value={selectedBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+                sx={{ borderRadius: '12px', bgcolor: '#FFF', color: '#1E293B', fontWeight: 800, height: 42 }}
+              >
+                <MenuItem value="all">🏢 كافـة الفـروع</MenuItem>
+                {branches.map((b) => (
+                  <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
           <Button
             variant="contained"
             startIcon={<PictureAsPdf />}
@@ -946,7 +966,7 @@ export default function PrizesPage() {
       </TabPanel>
 
       {/* WHEEL WINNER CELEBRATION MODAL */}
-      <Dialog open={wheelDialogOpen} onClose={() => setWheelDialogOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '24px', p: 1, textAlign: 'center', bgcolor: '#1E293B', color: '#FFF' } }}>
+      <Dialog open={wheelDialogOpen} onClose={() => setWheelDialogOpen(false)} maxWidth="xs" fullWidth slotProps={{ paper: { sx: { borderRadius: '24px', p: 1, textAlign: 'center', bgcolor: '#1E293B', color: '#FFF' } } }}>
         <DialogTitle sx={{ fontWeight: 900, fontSize: '1.4rem', color: '#EC4899' }}>
           🎉 مبروووك الجائزة! 🎉
         </DialogTitle>
@@ -969,7 +989,7 @@ export default function PrizesPage() {
       </Dialog>
 
       {/* RAFFLE WINNER CELEBRATION MODAL */}
-      <Dialog open={winnerDialogOpen} onClose={() => setWinnerDialogOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: '24px', p: 1.5, textAlign: 'center', bgcolor: '#0F172A', color: '#FFF' } }}>
+      <Dialog open={winnerDialogOpen} onClose={() => setWinnerDialogOpen(false)} maxWidth="sm" fullWidth slotProps={{ paper: { sx: { borderRadius: '24px', p: 1.5, textAlign: 'center', bgcolor: '#0F172A', color: '#FFF' } } }}>
         <DialogTitle sx={{ fontWeight: 900, fontSize: '1.6rem', color: '#F59E0B' }}>
           👑 الفائز بالجائزة الكبرى! 🏆
         </DialogTitle>

@@ -128,7 +128,7 @@ export async function POST(req) {
       // 2. Always update employee status in employees table if exists
       if (driver_name || targetId) {
         await query(
-          `UPDATE employees SET status = 'active' WHERE (id = $1 OR name = $2 OR name ILIKE $2)`,
+          `UPDATE employees SET status = 'active' WHERE id = $1 OR name = $2`,
           [targetId || '', driver_name || '']
         );
       }
@@ -138,20 +138,28 @@ export async function POST(req) {
 
     // Action: Check-out (انصراف / مغادرة)
     if (action === 'check_out') {
-      if (attendance_id || driver_id) {
-        const targetId = attendance_id || (driver_id ? (await query(`SELECT id FROM driver_attendance WHERE (driver_id = $1 OR driver_name = $2) AND check_out_time IS NULL`, [driver_id, driver_name || ''])).rows[0]?.id : null);
-        if (targetId) {
-          await query(
-            `UPDATE driver_attendance SET check_out_time = CURRENT_TIMESTAMP, status = 'offline' WHERE id = $1 RETURNING *`,
-            [targetId]
-          );
-        }
+      const targetStaffId = staff_id || driver_id || '';
+      const targetName = driver_name || '';
+
+      // 1. Mark driver_attendance offline
+      if (attendance_id) {
+        await query(
+          `UPDATE driver_attendance SET check_out_time = CURRENT_TIMESTAMP, status = 'offline' WHERE id = $1`,
+          [attendance_id]
+        );
+      }
+      if (targetStaffId || targetName) {
+        await query(
+          `UPDATE driver_attendance SET check_out_time = CURRENT_TIMESTAMP, status = 'offline' WHERE (driver_id = $1 OR driver_name = $2) AND check_out_time IS NULL`,
+          [targetStaffId || '', targetName || '']
+        );
       }
 
-      if (staff_id || driver_name || driver_id) {
+      // 2. Mark employee status inactive
+      if (targetStaffId || targetName) {
         await query(
-          `UPDATE employees SET status = 'inactive' WHERE (id = $1 OR name = $2 OR name ILIKE $2)`,
-          [staff_id || driver_id || '', driver_name || '']
+          `UPDATE employees SET status = 'inactive' WHERE id = $1 OR name = $2`,
+          [targetStaffId || '', targetName || '']
         );
       }
 
