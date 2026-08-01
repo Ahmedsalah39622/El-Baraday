@@ -41,6 +41,7 @@ import {
   Refresh
 } from '@mui/icons-material';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
+import { useReturnsStore } from '@/store/useReturnsStore';
 import { useShiftStore } from '@/store/useShiftStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useBranchStore } from '@/store/useBranchStore';
@@ -48,6 +49,7 @@ import { generateReportPDF } from '@/lib/reportPdfExport';
 
 export default function ShiftSummaryPage() {
   const { invoices, fetchInvoices } = useInvoiceStore();
+  const { returns, fetchReturns } = useReturnsStore();
   const { activeShift, fetchShifts, openShift, closeShift } = useShiftStore();
   const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
   const { user } = useAuthStore();
@@ -100,15 +102,17 @@ export default function ShiftSummaryPage() {
     fetchInvoices();
     fetchShifts(effectiveBranchId);
     fetchPastShifts();
+    fetchReturns(effectiveBranchId);
 
     // Auto-refresh every 10 seconds for real-time data (no cache)
     const refreshInterval = setInterval(() => {
       fetchInvoices();
       fetchShifts(effectiveBranchId);
+      fetchReturns(effectiveBranchId);
     }, 10000);
 
     return () => clearInterval(refreshInterval);
-  }, []);
+  }, [effectiveBranchId]);
 
   useEffect(() => {
     if (user?.name) {
@@ -128,7 +132,31 @@ export default function ShiftSummaryPage() {
     return invTime >= shiftStartTime;
   });
 
-  const totalSales = activeShiftInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0);
+  const activeShiftInvoiceMap = new Map(activeShiftInvoices.map((inv) => [inv.id, inv]));
+  const activeShiftReturns = (returns || []).filter((ret) => {
+    if (!ret?.created_at || !activeShift?.rawStartTime) return false;
+
+    const retTime = new Date(ret.created_at).getTime();
+    const shiftStartTime = new Date(activeShift.rawStartTime).getTime();
+    if (isNaN(retTime) || isNaN(shiftStartTime) || retTime < shiftStartTime) return false;
+
+    const matchBranch = !effectiveBranchId || effectiveBranchId === 'all'
+      ? true
+      : ret.branch_id === effectiveBranchId;
+
+    return matchBranch;
+  });
+
+  const returnDeduction = activeShiftReturns.reduce((sum, ret) => {
+    const relatedInvoice = activeShiftInvoiceMap.get(ret.order_id);
+    const relatedStatus = relatedInvoice?.status;
+    const alreadyReflected = relatedStatus === 'refunded' || relatedStatus === 'partially_refunded' || relatedStatus === 'cancelled';
+    if (alreadyReflected) return sum;
+
+    return sum + (parseFloat(ret.total_returned) || 0);
+  }, 0);
+
+  const totalSales = activeShiftInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0) - returnDeduction;
   const startCash = activeShift?.startAmount || 0;
   const expectedDrawerCash = activeShift ? (startCash + totalSales) : 0;
 
