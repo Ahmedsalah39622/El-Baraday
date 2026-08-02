@@ -103,7 +103,7 @@ export async function PUT(request, { params }) {
       const cleanName = (targetDriverName || '').trim();
       const cleanId = (targetDriverId || '').trim();
 
-      if (targetStatus === 'dispatched' || targetStatus === 'out_for_delivery') {
+      if (targetStatus === 'dispatched' || targetStatus === 'out_for_delivery' || targetStatus === 'preparing') {
         await query(
           `UPDATE driver_attendance SET status = 'on_delivery', current_order_id = $1
            WHERE (TRIM(driver_name) = $2 OR driver_name LIKE $2 OR (driver_id = $3 AND $3 != '')) AND check_out_time IS NULL`,

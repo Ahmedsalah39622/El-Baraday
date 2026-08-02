@@ -183,8 +183,8 @@ export async function POST(request) {
       }
     }
 
-    // If order was explicitly created as dispatched, update driver status
-    if (isDispatched && (driver_name || driver_id)) {
+    // If order has a driver assigned, update driver status immediately (even if still preparing)
+    if ((initialStatus === 'preparing' || isDispatched) && (driver_name || driver_id)) {
       const cleanName = (driver_name || '').trim();
       const cleanId = (driver_id || '').trim();
       await query(
