@@ -27,6 +27,10 @@ export const useShiftStore = create(
         const res = await fetch(url);
         if (res.ok) {
           const rows = await res.json();
+          if (rows && rows.error) {
+            console.warn('⚠️ Fetch shifts API error:', rows.error);
+            return; // Exit without clearing activeShift
+          }
           if (Array.isArray(rows)) {
             set({ shifts: rows });
             const active = branchId && branchId !== 'all'
@@ -53,7 +57,7 @@ export const useShiftStore = create(
         }
       } catch (err) {
         console.warn('⚠️ Fetch shifts network error:', err.message);
-        set({ activeShift: null, shifts: [] });
+        // Do NOT clear activeShift on transient network/connection-limit errors!
       }
     },
 

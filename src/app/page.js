@@ -52,6 +52,10 @@ export default function POSPage() {
         const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
+          if (data && data.error) {
+            console.warn('⚠️ Init load API error:', data.error);
+            return;
+          }
           
           if (data.products && data.products.length > 0) {
             const mappedDB = data.products.map((r) => ({
@@ -184,10 +188,10 @@ export default function POSPage() {
 
     loadSystemData();
 
-    // Fast 3s background sync for live updates (no manual refresh needed)
+    // Stable 10s background sync for live updates (saves database connections)
     const interval = setInterval(() => {
       loadSystemData();
-    }, 3000);
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [selectedBranchId, effectiveBranchId, isAdmin]);
