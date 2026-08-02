@@ -188,10 +188,10 @@ export default function POSPage() {
 
     loadSystemData();
 
-    // Stable 10s background sync for live updates (saves database connections)
+    // Fast 3s background sync for live updates (realtime speed)
     const interval = setInterval(() => {
       loadSystemData();
-    }, 10000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [selectedBranchId, effectiveBranchId, isAdmin]);
