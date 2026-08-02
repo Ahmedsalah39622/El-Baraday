@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     const result = await query(`
-      SELECT u.id, u.username, u.name, u.role, u.permissions, u.status,
+      SELECT u.id, u.username, u.name, u.pin, u.role, u.permissions, u.status,
              u.avatar, u.last_login, u.created_at, u.branch_id,
              COALESCE(b.name, 'الفرع الرئيسي') as branch_name
       FROM users u

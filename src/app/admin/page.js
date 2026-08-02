@@ -279,7 +279,7 @@ export default function AdminPage() {
                   <TableCell sx={{ fontFamily: 'monospace', fontWeight: 800, color: '#475569' }}>
                     <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
                       <Key sx={{ fontSize: 14, color: '#9CA3AF' }} />
-                      {u.pin || '1234'}
+                      {u.pin || '—'}
                     </Box>
                   </TableCell>
                   <TableCell>

@@ -33,12 +33,21 @@ export async function PUT(request, { params }) {
     if (result.rows.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     const emp = result.rows[0];
 
-    // If employee is a delivery driver, sync branch transfer to drivers table too
-    if (emp.name && (emp.role?.includes('طيار') || emp.role?.includes('دليفري'))) {
-      await query(
-        `UPDATE drivers SET name=$1, phone=$2, branch_id=COALESCE($3, branch_id) WHERE name=$1 OR phone=$2`,
-        [emp.name, emp.phone || '', emp.branch_id]
-      );
+    // If employee is a delivery driver, sync branch transfer/updates to drivers table too
+    if (emp.name && (emp.role?.includes('طيار') || emp.role?.includes('دليفري') || emp.role?.toLowerCase()?.includes('driver'))) {
+      const dCheck = await query(`SELECT id FROM drivers WHERE name = $1 OR phone = $2`, [emp.name, emp.phone || '']);
+      if (dCheck.rows && dCheck.rows.length > 0) {
+        await query(
+          `UPDATE drivers SET name=$1, phone=$2, branch_id=COALESCE($3, branch_id) WHERE id=$4`,
+          [emp.name, emp.phone || '', emp.branch_id, dCheck.rows[0].id]
+        );
+      } else {
+        await query(
+          `INSERT INTO drivers (id, name, phone, status, branch_id)
+           VALUES (gen_random_uuid()::TEXT, $1, $2, 'active', $3)`,
+          [emp.name, emp.phone || '', emp.branch_id]
+        );
+      }
     }
 
     return NextResponse.json(emp);

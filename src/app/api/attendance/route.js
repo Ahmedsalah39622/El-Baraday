@@ -26,6 +26,27 @@ async function ensureDriverAttendanceTable() {
 export async function GET(req) {
   try {
     await ensureDriverAttendanceTable();
+
+    // SELF-HEALING: Sync missing drivers from employees table
+    try {
+      const deliveryEmployees = await query(
+        `SELECT name, phone, branch_id FROM employees 
+         WHERE role LIKE '%طيار%' OR role LIKE '%دليفري%' OR LOWER(role) LIKE '%driver%'`
+      );
+      for (const emp of (deliveryEmployees.rows || [])) {
+        const dCheck = await query(`SELECT id FROM drivers WHERE name = $1 OR phone = $2`, [emp.name, emp.phone || '']);
+        if (!dCheck.rows || dCheck.rows.length === 0) {
+          await query(
+            `INSERT INTO drivers (id, name, phone, status, branch_id)
+             VALUES (gen_random_uuid()::TEXT, $1, $2, 'active', $3)`,
+            [emp.name, emp.phone || '', emp.branch_id || 'b1']
+          );
+        }
+      }
+    } catch (err) {
+      console.error('Error syncing delivery employees to drivers:', err);
+    }
+
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get('branch_id');
 

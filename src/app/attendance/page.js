@@ -89,7 +89,7 @@ export default function AttendancePage() {
   // 2. Add other staff members (cashier, chef, manager, worker...)
   employees.forEach(emp => {
     if (!allStaffOptions.some(opt => opt.name === emp.name)) {
-      const isDriver = emp.role === 'طيار' || emp.role === 'driver' || emp.role?.includes('طيار');
+      const isDriver = emp.role === 'طيار' || emp.role === 'driver' || emp.role?.includes('طيار') || emp.role?.includes('دليفري') || emp.role?.toLowerCase()?.includes('driver') || emp.role?.toLowerCase()?.includes('delivery');
       const driverObj = isDriver ? allDrivers.find(d => d.name === emp.name) : null;
       const isCheckedIn = isDriver
         ? activeQueue.some(q => q.driver_name === emp.name)
@@ -103,7 +103,7 @@ export default function AttendancePage() {
         driverId: driverObj ? driverObj.id : emp.id,
         branchName: emp.branch_name || 'الفرع الرئيسي',
         isCheckedIn,
-        label: `👤 ${emp.name} (${emp.role || 'موظف'} - ${emp.branch_name || 'الرئيسي'}) ${isCheckedIn ? '✔️ حاضر بالسيستم' : ''}`
+        label: `${isDriver ? '🛵' : '👤'} ${emp.name} (${emp.role || 'موظف'} - ${emp.branch_name || 'الرئيسي'}) ${isCheckedIn ? (isDriver ? '✔️ متواجد بالدور' : '✔️ حاضر بالسيستم') : ''}`
       });
     }
   });
@@ -161,7 +161,7 @@ export default function AttendancePage() {
   const handleEmployeeToggleAttendance = async (emp) => {
     try {
       const action = emp.status === 'active' ? 'check_out' : 'check_in';
-      const isDriver = emp.role === 'طيار' || emp.role === 'driver' || emp.role?.includes('طيار');
+      const isDriver = emp.role === 'طيار' || emp.role === 'driver' || emp.role?.includes('طيار') || emp.role?.includes('دليفري') || emp.role?.toLowerCase()?.includes('driver') || emp.role?.toLowerCase()?.includes('delivery');
       const driverObj = isDriver ? allDrivers.find(d => d.name === emp.name) : null;
 
       await fetch('/api/attendance', {
