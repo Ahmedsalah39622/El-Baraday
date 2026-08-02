@@ -27,15 +27,28 @@ export async function GET(req) {
   try {
     await ensureDriverAttendanceTable();
 
-    // SELF-HEALING: Sync missing drivers from employees table
+    // SELF-HEALING: Sync and update drivers from employees table
     try {
       const deliveryEmployees = await query(
         `SELECT name, phone, branch_id FROM employees 
          WHERE role LIKE '%طيار%' OR role LIKE '%دليفري%' OR LOWER(role) LIKE '%driver%'`
       );
       for (const emp of (deliveryEmployees.rows || [])) {
-        const dCheck = await query(`SELECT id FROM drivers WHERE name = $1 OR phone = $2`, [emp.name, emp.phone || '']);
-        if (!dCheck.rows || dCheck.rows.length === 0) {
+        let dCheck = { rows: [] };
+        dCheck = await query(`SELECT id, name, phone, branch_id FROM drivers WHERE name = $1`, [emp.name]);
+        if (dCheck.rows.length === 0 && emp.phone && emp.phone.trim() !== '') {
+          dCheck = await query(`SELECT id, name, phone, branch_id FROM drivers WHERE phone = $1`, [emp.phone]);
+        }
+
+        if (dCheck.rows && dCheck.rows.length > 0) {
+          const existingDriver = dCheck.rows[0];
+          if (existingDriver.name !== emp.name || existingDriver.phone !== emp.phone || existingDriver.branch_id !== emp.branch_id) {
+            await query(
+              `UPDATE drivers SET name = $1, phone = $2, branch_id = $3 WHERE id = $4`,
+              [emp.name, emp.phone || '', emp.branch_id || 'b1', existingDriver.id]
+            );
+          }
+        } else {
           await query(
             `INSERT INTO drivers (id, name, phone, status, branch_id)
              VALUES (gen_random_uuid()::TEXT, $1, $2, 'active', $3)`,
