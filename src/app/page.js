@@ -199,20 +199,18 @@ export default function POSPage() {
           : effectiveBranchId;
           
         const ordersUrl = `/api/orders?branch_id=${branchParam}`;
-        const attendanceUrl = `/api/attendance?branch_id=${branchParam}`;
+        const shiftsUrl = branchParam && branchParam !== 'all'
+          ? `/api/shifts?branch_id=${branchParam}`
+          : '/api/shifts';
 
-        const [ordersRes, attendanceRes] = await Promise.all([
+        const [ordersRes, shiftsRes] = await Promise.all([
           fetch(ordersUrl),
-          fetch(attendanceUrl)
+          fetch(shiftsUrl)
         ]);
 
         if (ordersRes.ok) {
           const ordersData = await ordersRes.json();
-          if (ordersData && ordersData.error) {
-            console.warn('⚠️ Realtime orders fetch API error:', ordersData.error);
-            return;
-          }
-          if (Array.isArray(ordersData)) {
+          if (ordersData && !ordersData.error && Array.isArray(ordersData)) {
             const mappedOrders = ordersData.map((o) => ({
               id: o.id,
               orderNumber: String(o.order_number),
@@ -236,14 +234,36 @@ export default function POSPage() {
           }
         }
 
-        if (attendanceRes.ok) {
-          const attendanceData = await attendanceRes.json();
-          if (attendanceData && attendanceData.error) {
-            console.warn('⚠️ Realtime attendance fetch API error:', attendanceData.error);
-            return;
-          }
-          if (attendanceData && attendanceData.activeQueue) {
-            useCustomerStore.setState({ activeQueue: attendanceData.activeQueue });
+        // Always refresh shift status from DB
+        if (shiftsRes.ok) {
+          const shiftsData = await shiftsRes.json();
+          if (shiftsData && !shiftsData.error && Array.isArray(shiftsData) && shiftsData.length > 0) {
+            let active = null;
+            if (branchParam && branchParam !== 'all') {
+              active = shiftsData.find(s => s.status === 'active' && (s.branch_id === branchParam || (!s.branch_id && branchParam === 'b1')));
+            } else {
+              active = shiftsData.find(s => s.status === 'active' && (s.branch_id === 'b1' || !s.branch_id))
+                    || shiftsData.find(s => s.status === 'active');
+            }
+            if (active) {
+              const rawStart = active.start_time || active.created_at || new Date().toISOString();
+              let formattedTime = '08:00 AM';
+              try { formattedTime = new Date(rawStart).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }); } catch (e) {}
+              useShiftStore.setState({
+                shifts: shiftsData,
+                activeShift: {
+                  id: active.id,
+                  cashierName: active.cashier_name || 'administrator',
+                  rawStartTime: rawStart,
+                  startTime: formattedTime,
+                  startAmount: parseFloat(active.start_amount || 0),
+                  status: 'active',
+                  branch_id: active.branch_id
+                }
+              });
+            } else {
+              useShiftStore.setState({ activeShift: null, shifts: shiftsData });
+            }
           }
         }
       } catch (err) {
@@ -253,8 +273,15 @@ export default function POSPage() {
 
     loadSystemData();
 
-    // Fast 3s background sync for orders & attendance (realtime speed)
-    // Only poll when tab is visible to save DB connections
+    // Re-fetch full data when user switches back to this tab
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadSystemData();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Fast 3s background sync (realtime speed, only when tab is visible)
     let isPolling = false;
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible' && !isPolling) {
@@ -263,7 +290,10 @@ export default function POSPage() {
       }
     }, 3000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [selectedBranchId, effectiveBranchId, isAdmin]);
 
   // Active shift resolution for Branch 1 and Branch 2
