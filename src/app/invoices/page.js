@@ -247,7 +247,7 @@ export default function InvoicesPage() {
   };
 
   const getWhatsAppShareUrl = (inv) => {
-    const text = `🧾 *${settings?.company_name || 'مطعم البرادعي'}*
+    const text = `🧾 *مطعم البرادعي للحواوشي*
 📌 *فاتورة رقم:* ${inv.invoice_number}
 👤 *الاسم:* ${inv.customer_name}
 📅 *التاريخ:* ${inv.invoice_date?.split('T')[0]}
