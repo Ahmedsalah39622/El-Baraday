@@ -185,11 +185,16 @@ export async function POST(request) {
         );
 
         // 🥩 Automatic Inventory Raw Material Deductions (خصم الخامات والمكونات المربوطة بالأحجام)
-        if (prodId) {
+        let baseProdId = prodId;
+        if (baseProdId && (baseProdId.endsWith('_صغير') || baseProdId.endsWith('_كبير'))) {
+          baseProdId = baseProdId.replace(/_(صغير|كبير)$/, '');
+        }
+
+        if (baseProdId) {
           try {
             const ingRes = await query(
-              'SELECT inventory_item_id, quantity, size FROM product_ingredients WHERE product_id = $1',
-              [prodId]
+              'SELECT inventory_item_id, quantity, size FROM product_ingredients WHERE product_id = $1 OR product_id = $2',
+              [baseProdId, prodId]
             );
 
             if (ingRes.rows && ingRes.rows.length > 0) {
