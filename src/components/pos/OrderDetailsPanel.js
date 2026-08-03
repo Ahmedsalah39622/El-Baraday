@@ -262,7 +262,7 @@ export default function OrderDetailsPanel({
         orderData: currentOrderData,
         driverPhone: targetDriverPhone,
         companySettings: { company_name: activeBranchName },
-        autoOpenBrowser: false
+        autoOpenBrowser: true
       })
       .then(res => {
         console.log('📱 WhatsApp Send Result:', res);

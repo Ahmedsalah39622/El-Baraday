@@ -61,8 +61,40 @@ export const useInventoryStore = create(
           await fetch(`/api/inventory/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ current_stock: newQty })
+            body: JSON.stringify({ current_stock: newQty, currentStock: newQty })
           });
+        } catch (e) {}
+      },
+
+      updateItem: async (id, itemData) => {
+        set((state) => ({
+          items: state.items.map(item => item.id === id ? { ...item, ...itemData } : item)
+        }));
+        try {
+          const res = await fetch(`/api/inventory/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: itemData.name,
+              unit: itemData.unit,
+              current_stock: itemData.currentStock ?? itemData.current_stock,
+              min_stock: itemData.minStock ?? itemData.min_stock,
+              cost_per_unit: itemData.costPerUnit ?? itemData.cost_per_unit,
+              category: itemData.category
+            })
+          });
+          if (res.ok) {
+            get().fetchInventory();
+          }
+        } catch (e) {}
+      },
+
+      deleteItem: async (id) => {
+        set((state) => ({
+          items: state.items.filter(item => item.id !== id)
+        }));
+        try {
+          await fetch(`/api/inventory/${id}`, { method: 'DELETE' });
         } catch (e) {}
       },
 
@@ -71,11 +103,22 @@ export const useInventoryStore = create(
         const newItem = { id: newId, ...itemData };
         set((state) => ({ items: [...state.items, newItem] }));
         try {
-          await fetch('/api/inventory', {
+          const res = await fetch('/api/inventory', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newItem)
+            body: JSON.stringify({
+              id: newId,
+              name: itemData.name,
+              unit: itemData.unit,
+              current_stock: itemData.currentStock ?? itemData.current_stock,
+              min_stock: itemData.minStock ?? itemData.min_stock,
+              cost_per_unit: itemData.costPerUnit ?? itemData.cost_per_unit,
+              category: itemData.category
+            })
           });
+          if (res.ok) {
+            get().fetchInventory();
+          }
         } catch (e) {}
       },
 

@@ -130,8 +130,8 @@ export async function query(text, params = []) {
     } else if (result && typeof result === 'object') {
       rowCount = result.affectedRows || 0;
       if (hasReturning && tableName) {
-        // Use injected UUID, or genUuid, or MySQL insertId, or first param as fallback
-        const idParam = injectedId || genUuid || (result.insertId !== 0 ? result.insertId : null) || params[0];
+        // Use injected UUID, or genUuid, or MySQL insertId, or last param (WHERE id = ?), or first param
+        const idParam = injectedId || genUuid || (result.insertId && result.insertId !== 0 ? result.insertId : null) || params[params.length - 1] || params[0];
         if (idParam) {
           try {
             const [fetchedRows] = await currentPool.query(`SELECT * FROM \`${tableName}\` WHERE id = ?`, [idParam]);

@@ -118,8 +118,8 @@ export async function sendDeliveryWhatsApp({ orderData, driverPhone, companySett
 
     if (apiRes.ok) {
       const data = await apiRes.json();
-      if (data.sentViaApi) {
-        return { success: true, sentVia: 'api', provider: data.provider };
+      if (data.sentViaApi || data.success) {
+        return { success: true, sentVia: 'api', provider: data.provider || 'greenapi', result: data.result };
       }
     }
   } catch (err) {
