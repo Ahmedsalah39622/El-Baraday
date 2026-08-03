@@ -236,10 +236,14 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
             <Grid xs={12} sm={6}>
               {selectedProduct && (
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' } }}>
-                  {isMultiSizeProduct ? (
+                  {selectedSize === 'صغير' ? (
+                    <Chip label={`🟡 سعر الحجم الصغير: ${pPriceSmall} ج.م`} sx={{ bgcolor: '#F59E0B', color: '#FFF', fontWeight: 900, fontSize: '0.9rem' }} />
+                  ) : selectedSize === 'كبير' ? (
+                    <Chip label={`🔵 سعر الحجم الكبير: ${pPriceLarge} ج.م`} sx={{ bgcolor: '#3B82F6', color: '#FFF', fontWeight: 900, fontSize: '0.9rem' }} />
+                  ) : isMultiSizeProduct ? (
                     <>
-                      <Chip label={`📏 صغير: ${pPriceSmall} ج.م`} color="warning" sx={{ fontWeight: 800 }} />
-                      <Chip label={`📏 كبير: ${pPriceLarge} ج.م`} color="primary" sx={{ fontWeight: 800 }} />
+                      <Chip label={`📏 صغير: ${pPriceSmall} ج.م`} sx={{ bgcolor: '#FEF3C7', color: '#B45309', fontWeight: 800 }} />
+                      <Chip label={`📏 كبير: ${pPriceLarge} ج.م`} sx={{ bgcolor: '#DBEAFE', color: '#1E40AF', fontWeight: 800 }} />
                     </>
                   ) : (
                     <Chip label={`السعر: ${sellingPrice} ج.م`} color="primary" sx={{ fontWeight: 800 }} />
