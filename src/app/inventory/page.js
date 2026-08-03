@@ -6,9 +6,10 @@ import {
   TableContainer, TableHead, TableRow, TextField, Button, Chip, Dialog,
   DialogTitle, DialogContent, DialogActions, IconButton, Tooltip, MenuItem, Select, FormControl, InputLabel
 } from '@mui/material';
-import { Add, Save, WarningAmber, Edit as EditIcon, Delete as DeleteIcon, Science } from '@mui/icons-material';
+import { Add, Save, WarningAmber, Edit as EditIcon, Delete as DeleteIcon, Science, LocalShipping } from '@mui/icons-material';
 import { useInventoryStore } from '@/store/useInventoryStore';
 import ProductRecipeModal from '@/components/dialogs/ProductRecipeModal';
+import BranchTransferModal from '@/components/dialogs/BranchTransferModal';
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -23,8 +24,9 @@ export default function InventoryPage() {
   const [tabValue, setTabValue] = useState(0);
   const { items, fetchInventory, updateStock, addItem, updateItem, deleteItem } = useInventoryStore();
 
-  // Recipe Modal State
+  // Recipe & Transfer Modal States
   const [recipeModalOpen, setRecipeModalOpen] = useState(false);
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
 
   // Add Dialog State
   const [openAddDialog, setOpenAddDialog] = useState(false);
@@ -123,6 +125,15 @@ export default function InventoryPage() {
         </Box>
 
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Button
+            variant="contained"
+            startIcon={<LocalShipping />}
+            onClick={() => setTransferModalOpen(true)}
+            sx={{ bgcolor: '#D97706', borderRadius: '12px', px: 2.5, py: 1, fontWeight: 800, '&:hover': { bgcolor: '#B45309' } }}
+          >
+            تحويل خامات بين الفروع 🚚
+          </Button>
+
           <Button
             variant="contained"
             startIcon={<Science />}
@@ -423,6 +434,12 @@ export default function InventoryPage() {
       <ProductRecipeModal
         open={recipeModalOpen}
         onClose={() => setRecipeModalOpen(false)}
+      />
+
+      {/* Inter-Branch Raw Material Transfer Modal */}
+      <BranchTransferModal
+        open={transferModalOpen}
+        onClose={() => setTransferModalOpen(false)}
       />
     </Box>
   );
