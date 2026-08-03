@@ -12,6 +12,7 @@ export async function GET(request) {
         pi.product_id,
         pi.inventory_item_id,
         pi.quantity,
+        pi.size,
         pi.created_at,
         inv.name AS inventory_item_name,
         inv.unit AS inventory_item_unit,
@@ -44,22 +45,24 @@ export async function POST(request) {
     const productId = (body.product_id || body.productId || '').trim();
     const inventoryItemId = (body.inventory_item_id || body.inventoryItemId || '').trim();
     const quantity = parseFloat(body.quantity || 1);
+    const size = body.size || 'all';
 
     if (!productId || !inventoryItemId) {
       return NextResponse.json({ error: 'المنتج والخامة مطلوبان' }, { status: 400 });
     }
 
     const result = await query(
-      `INSERT INTO product_ingredients (product_id, inventory_item_id, quantity)
-       VALUES ($1, $2, $3) RETURNING *`,
-      [productId, inventoryItemId, quantity]
+      `INSERT INTO product_ingredients (product_id, inventory_item_id, quantity, size)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [productId, inventoryItemId, quantity, size]
     );
 
     const created = result.rows && result.rows.length > 0 ? result.rows[0] : {
       id: body.id || Date.now().toString(),
       product_id: productId,
       inventory_item_id: inventoryItemId,
-      quantity
+      quantity,
+      size
     };
 
     return NextResponse.json(created, { status: 201 });

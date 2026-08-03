@@ -184,16 +184,29 @@ export async function POST(request) {
           parseFloat(item.price) || 0, itemQty, item.size || null, item.extras || null, item.notes || null]
         );
 
-        // 🥩 Automatic Inventory Raw Material Deductions (خصم الخامات والمكونات المربوطة)
+        // 🥩 Automatic Inventory Raw Material Deductions (خصم الخامات والمكونات المربوطة بالأحجام)
         if (prodId) {
           try {
             const ingRes = await query(
-              'SELECT inventory_item_id, quantity FROM product_ingredients WHERE product_id = $1',
+              'SELECT inventory_item_id, quantity, size FROM product_ingredients WHERE product_id = $1',
               [prodId]
             );
 
             if (ingRes.rows && ingRes.rows.length > 0) {
+              const itemSize = (item.size || '').toString().trim().toLowerCase();
+
               for (const ing of ingRes.rows) {
+                const ingSize = (ing.size || 'all').toString().trim().toLowerCase();
+
+                // Match size logic
+                const matchesSize = ingSize === 'all' || ingSize === 'عادي' ||
+                                    ingSize === itemSize ||
+                                    (itemSize.includes('صغير') && (ingSize.includes('صغير') || ingSize === 'small')) ||
+                                    (itemSize.includes('كبير') && (ingSize.includes('كبير') || ingSize === 'large')) ||
+                                    (!itemSize && ingSize === 'all');
+
+                if (!matchesSize) continue;
+
                 const deductAmount = (parseFloat(ing.quantity) || 0) * itemQty;
                 if (deductAmount > 0) {
                   // Deduct from inventory_items current_stock
@@ -207,7 +220,7 @@ export async function POST(request) {
                   await query(
                     `INSERT INTO inventory_transactions (id, item_id, type, quantity, notes)
                      VALUES ($1, $2, 'out', $3, $4)`,
-                    [transId, ing.inventory_item_id, deductAmount, `خصم أوتوماتيكي - طلب #${nextNum}`]
+                    [transId, ing.inventory_item_id, deductAmount, `خصم أوتوماتيكي (${item.size || 'عادي'}) - طلب #${nextNum}`]
                   );
                 }
               }

@@ -18,6 +18,7 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
   // New ingredient form
   const [selectedInventoryId, setSelectedInventoryId] = useState('');
   const [quantity, setQuantity] = useState('0.15');
+  const [selectedSize, setSelectedSize] = useState('all');
   const [addSuccess, setAddSuccess] = useState(false);
 
   // Load all products and inventory items when modal opens
@@ -97,7 +98,8 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
         body: JSON.stringify({
           product_id: selectedProduct.id,
           inventory_item_id: selectedInventoryId,
-          quantity: numQty
+          quantity: numQty,
+          size: selectedSize
         })
       });
 
@@ -187,7 +189,7 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
               <AddIcon sx={{ fontSize: 20 }} /> إضافة خامة جديدة لـ ({selectedProduct.name}):
             </Typography>
             <Grid container spacing={2} alignItems="center">
-              <Grid xs={12} sm={5}>
+              <Grid xs={12} sm={4}>
                 <FormControl fullWidth size="small">
                   <InputLabel>اختر الخامة المراد خصمها *</InputLabel>
                   <Select
@@ -204,20 +206,37 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid xs={12} sm={4}>
+
+              <Grid xs={12} sm={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>الحجم المخصص *</InputLabel>
+                  <Select
+                    value={selectedSize}
+                    label="الحجم المخصص *"
+                    onChange={(e) => setSelectedSize(e.target.value)}
+                    sx={{ bgcolor: '#FFF' }}
+                  >
+                    <MenuItem value="all">🌐 الكل / جميع الأحجام</MenuItem>
+                    <MenuItem value="صغير">📏 صغير (Small)</MenuItem>
+                    <MenuItem value="كبير">📏 كبير (Large)</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid xs={12} sm={3}>
                 <TextField
                   fullWidth
                   size="small"
                   type="number"
-                  label="الكمية المخصومة لكل 1 قطعة"
+                  label="الكمية المخصومة"
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
-                  placeholder="مثال: 0.150 كجم أو 1 رغيف"
+                  placeholder="مثال: 0.150"
                   sx={{ bgcolor: '#FFF' }}
-                  helperText="مثال: 0.15 كجم لحم، أو 1 رغيف عيش"
                 />
               </Grid>
-              <Grid xs={12} sm={3}>
+
+              <Grid xs={12} sm={2}>
                 <Button
                   fullWidth
                   variant="contained"
@@ -225,7 +244,7 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
                   startIcon={<AddIcon />}
                   sx={{ bgcolor: '#D97706', color: '#FFF', fontWeight: 800, py: 1, '&:hover': { bgcolor: '#B45309' } }}
                 >
-                  إضافة الخامة
+                  إضافة
                 </Button>
               </Grid>
             </Grid>
@@ -245,6 +264,7 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
                   <TableRow>
                     <TableCell sx={{ fontWeight: 800 }}>اسم الخامة</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>الفئة</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>الحجم المخصص</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>الكمية المخصومة</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>الوحدة</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>تكلفة التكعيب للمنتج</TableCell>
@@ -263,6 +283,15 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
                       <TableRow key={ing.id} hover>
                         <TableCell sx={{ fontWeight: 800, color: '#1E293B' }}>{ing.inventory_item_name || 'خامة'}</TableCell>
                         <TableCell sx={{ color: '#64748B', fontWeight: 600 }}>{ing.inventory_item_category || 'عام'}</TableCell>
+                        <TableCell>
+                          {ing.size === 'صغير' || ing.size === 'small' ? (
+                            <Chip label="📏 صغير" size="small" sx={{ bgcolor: '#FEF3C7', color: '#B45309', fontWeight: 800 }} />
+                          ) : ing.size === 'كبير' || ing.size === 'large' ? (
+                            <Chip label="📏 كبير" size="small" sx={{ bgcolor: '#DBEAFE', color: '#1E40AF', fontWeight: 800 }} />
+                          ) : (
+                            <Chip label="🌐 الكل / عادي" size="small" sx={{ bgcolor: '#F3F4F6', color: '#374151', fontWeight: 700 }} />
+                          )}
+                        </TableCell>
                         <TableCell sx={{ fontWeight: 900, color: '#2563EB' }}>{ingQty}</TableCell>
                         <TableCell sx={{ color: '#64748B' }}>{ing.inventory_item_unit || 'كجم'}</TableCell>
                         <TableCell sx={{ fontWeight: 800, color: '#166534' }}>{itemCost.toFixed(2)} ج.م</TableCell>
