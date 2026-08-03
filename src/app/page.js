@@ -253,9 +253,14 @@ export default function POSPage() {
 
     loadSystemData();
 
-    // Fast 3s background sync for orders & attendance (realtime speed without shifts/static overhead)
+    // Fast 3s background sync for orders & attendance (realtime speed)
+    // Only poll when tab is visible to save DB connections
+    let isPolling = false;
     const interval = setInterval(() => {
-      pollRealtimeData();
+      if (document.visibilityState === 'visible' && !isPolling) {
+        isPolling = true;
+        pollRealtimeData().finally(() => { isPolling = false; });
+      }
     }, 3000);
 
     return () => clearInterval(interval);

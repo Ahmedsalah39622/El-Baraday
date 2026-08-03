@@ -71,8 +71,10 @@ export default function OrdersPage() {
     fetchShifts(targetBranch);
 
     const interval = setInterval(() => {
-      fetchInvoices(500, targetBranch);
-      fetchShifts(targetBranch);
+      if (document.visibilityState === 'visible') {
+        fetchInvoices(500, targetBranch);
+        fetchShifts(targetBranch);
+      }
     }, 3000);
 
     return () => clearInterval(interval);

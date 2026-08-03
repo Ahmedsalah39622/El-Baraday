@@ -64,7 +64,9 @@ export default function AttendancePage() {
 
   useEffect(() => {
     fetchAttendance(false);
-    const interval = setInterval(() => fetchAttendance(true), 5000); // 5s silent realtime sync
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchAttendance(true);
+    }, 5000);
     return () => clearInterval(interval);
   }, [selectedBranchId]);
 

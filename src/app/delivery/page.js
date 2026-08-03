@@ -128,8 +128,10 @@ export default function DeliveryPage() {
     fetchAttendanceQueue(effectiveBranch);
 
     const interval = setInterval(() => {
-      fetchDeliveryData(true);
-      fetchAttendanceQueue(effectiveBranch);
+      if (document.visibilityState === 'visible') {
+        fetchDeliveryData(true);
+        fetchAttendanceQueue(effectiveBranch);
+      }
     }, 3000);
     return () => clearInterval(interval);
   }, [effectiveBranch, selectedBranchId, user]);
