@@ -277,7 +277,7 @@ export async function POST(request) {
           if (cleanPhone.startsWith('01')) cleanPhone = '2' + cleanPhone;
           const chatId = `${cleanPhone}@c.us`;
 
-          let msg = `✨ *مطعم البردعي - حواوشي ولحوم طازجة* ✨\n\n`;
+          let msg = `✨ *مطعم البرادعي للحواوشي* ✨\n\n`;
           msg += `شكراً لطلبك! تم تسجيل طلبك بنجاح ❤️\n`;
           msg += `🧾 *رقم الطلب:* #${nextNum}\n`;
           msg += `💰 *الإجمالي:* ${total} ج.م\n`;
@@ -289,7 +289,7 @@ export async function POST(request) {
             if (customer_address) msg += `📍 *عنوان التوصيل:* ${customer_address}\n`;
           }
 
-          msg += `\nنتمنى لك وجبة شهية لديدة! 🍔🥩`;
+          msg += `\nنتمنى لك وجبة شهية لذيذة! 🍔🥩`;
 
           fetch(`https://api.green-api.com/waInstance${instanceId}/sendMessage/${apiToken}`, {
             method: 'POST',

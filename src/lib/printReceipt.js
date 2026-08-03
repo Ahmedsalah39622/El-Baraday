@@ -199,7 +199,7 @@ export function printThermalReceipt(orderData) {
         <div class="center">
           <h1 style="margin: 0; font-size: 32px; font-weight: 900; line-height: 1; color: #000000; direction: ltr; display: block; text-align: center;">#${orderNum}</h1>
           <h2 style="margin: 1px 0 0 0; font-size: 11.5px; font-weight: 900; color: #000000;">مطعم البرادعي للحواوشي واللحوم</h2>
-          <div style="font-size: 9px; font-weight: 700; color: #333;">فرع: ${branchName}</div>
+          <div style="font-size: 9px; font-weight: 700; color: #333;">فرع: ${branchName ? String(branchName).replace(/^فرع\s+/, '') : 'الرئيسي'}</div>
           <div class="badge">
             ${isDelivery ? '🛵 دليفري (توصيل للمنزل)' : (orderTypeVal === 'takeaway' ? '🥡 تيك أوي (Takeaway)' : '🍽️ صالة / طاولات')}
           </div>
