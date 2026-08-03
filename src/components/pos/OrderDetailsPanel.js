@@ -201,6 +201,8 @@ export default function OrderDetailsPanel({
     const currentOrderData = {
       orderNumber: currentOrderNum,
       dateStr: new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
+      branchName: currentBranch?.name || activeBranchName,
+      branch_name: currentBranch?.name || activeBranchName,
       driverName,
       cashierName: activeCashierName,
       customerName,
@@ -386,6 +388,40 @@ export default function OrderDetailsPanel({
         </Button>
       </Box>
 
+      {/* Takeaway Branch Selector Box - ADMIN ONLY */}
+      {orderType === 'takeaway' && (user?.role === 'admin' || !user) && (
+        <Box
+          sx={{
+            bgcolor: '#EFF6FF',
+            border: '1.5px solid #BFDBFE',
+            borderRadius: '14px',
+            p: 1.2,
+          }}
+        >
+          <FormControl fullWidth size="small">
+            <InputLabel sx={{ fontSize: '0.75rem', fontWeight: 800 }}>🏢 فرع التيك أوي المنفذ (الأدمن فقط)</InputLabel>
+            <Select
+              value={orderBranchId}
+              label="🏢 فرع التيك أوي المنفذ (الأدمن فقط)"
+              onChange={(e) => {
+                const newBranchId = e.target.value;
+                setOrderBranchId(newBranchId);
+                fetchNextOrderNumber(newBranchId);
+              }}
+              renderValue={(val) => {
+                const found = branches.find(b => b.id === val);
+                return found ? `🏢 ${found.name}` : (val || '');
+              }}
+              sx={{ borderRadius: '8px', bgcolor: '#FFF', fontSize: '0.813rem', fontWeight: 800 }}
+            >
+              {branches.map((b) => (
+                <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
+      )}
+
       {/* Delivery Details Collapsible Box */}
       {orderType === 'delivery' && (
         <Box
@@ -428,7 +464,11 @@ export default function OrderDetailsPanel({
                   <Select
                     value={orderBranchId}
                     label="🏢 فرع التوصيل المنفذ (الأدمن فقط)"
-                    onChange={(e) => setOrderBranchId(e.target.value)}
+                    onChange={(e) => {
+                      const newBranchId = e.target.value;
+                      setOrderBranchId(newBranchId);
+                      fetchNextOrderNumber(newBranchId);
+                    }}
                     renderValue={(val) => {
                       const found = branches.find(b => b.id === val);
                       return found ? `🏢 ${found.name}` : (val || '');
@@ -606,9 +646,23 @@ export default function OrderDetailsPanel({
                   size="small"
                   label="التوصيل"
                   value={deliveryFee}
-                  onChange={(e) => setDeliveryFee(parseFloat(e.target.value) || 0)}
+                  onChange={(e) => setDeliveryFee(e.target.value)}
+                  onFocus={(e) => e.target.select()}
                   slotProps={{ htmlInput: { suppressHydrationWarning: true } }}
-                  sx={{ width: '40%', bgcolor: '#FFF', '& input': { textAlign: 'center', fontWeight: 700, fontSize: '0.813rem' } }}
+                  sx={{
+                    width: '40%',
+                    bgcolor: '#FFF',
+                    '& input': {
+                      textAlign: 'center',
+                      fontWeight: 700,
+                      fontSize: '0.813rem',
+                      MozAppearance: 'textfield',
+                      '&::-webkit-outer-spin-button, &::-webkit-inner-spin-button': {
+                        WebkitAppearance: 'none',
+                        margin: 0,
+                      },
+                    },
+                  }}
                 />
               </Box>
             </>
@@ -861,6 +915,7 @@ export default function OrderDetailsPanel({
             placeholder={finalTotal.toFixed(0)}
             value={paidAmount}
             onChange={(e) => setPaidAmount(e.target.value)}
+            onFocus={(e) => e.target.select()}
             slotProps={{ htmlInput: { suppressHydrationWarning: true } }}
             sx={{ width: 100, '& input': { textAlign: 'center', fontWeight: 800, p: 0.6, color: '#1A1A2E', fontSize: '0.875rem' } }}
           />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -91,7 +91,7 @@ export default function ProductsPage() {
 
   // Offer Builder State (Selecting base products & quantities)
   const [offerItemsList, setOfferItemsList] = useState([]);
-  const [selectedBaseProductId, setSelectedBaseProductId] = useState('');
+  const [selectedBaseItemKey, setSelectedBaseItemKey] = useState('');
   const [baseProductQuantity, setBaseProductQuantity] = useState(1);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -104,6 +104,35 @@ export default function ProductsPage() {
 
   const baseProductsOnly = (products || []).filter((p) => p.categoryId !== '5' && !p.isOffer);
 
+  // Expanded menu items list including size variations (small / large) with respective prices
+  const selectableOfferItems = useMemo(() => {
+    const itemsList = [];
+    (baseProductsOnly || []).forEach((p) => {
+      if (p.hasMultipleSizes) {
+        itemsList.push({
+          key: `${p.id}_small`,
+          productId: p.id,
+          name: `${p.name} (صغير)`,
+          price: parseFloat(p.priceSmall || p.price || 0),
+        });
+        itemsList.push({
+          key: `${p.id}_large`,
+          productId: p.id,
+          name: `${p.name} (كبير)`,
+          price: parseFloat(p.priceLarge || p.price || 0),
+        });
+      } else {
+        itemsList.push({
+          key: String(p.id),
+          productId: p.id,
+          name: p.name,
+          price: parseFloat(p.price || 0),
+        });
+      }
+    });
+    return itemsList;
+  }, [baseProductsOnly]);
+
   const filteredProducts = (products || [])
     .filter((p) => {
       const matchesCategory = selectedCategory === 'All' || p.categoryId === selectedCategory;
@@ -113,6 +142,8 @@ export default function ProductsPage() {
     .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
   const handleOpenDialog = (product = null, isNewOffer = false) => {
+    setSelectedBaseItemKey('');
+    setBaseProductQuantity(1);
     if (product) {
       setCurrentProduct({
         ...product,
@@ -161,14 +192,14 @@ export default function ProductsPage() {
   };
 
   const handleAddOfferItem = () => {
-    if (!selectedBaseProductId) return;
-    const baseProd = products.find((p) => p.id === selectedBaseProductId);
-    if (!baseProd) return;
+    if (!selectedBaseItemKey) return;
+    const targetItem = selectableOfferItems.find((it) => it.key === selectedBaseItemKey);
+    if (!targetItem) return;
 
     const newItem = {
-      productId: baseProd.id,
-      name: baseProd.name,
-      price: baseProd.price,
+      productId: targetItem.productId,
+      name: targetItem.name,
+      price: targetItem.price,
       quantity: Math.max(1, baseProductQuantity),
     };
 
@@ -185,7 +216,7 @@ export default function ProductsPage() {
       originalPrice: calculatedOriginalTotal > 0 ? calculatedOriginalTotal : prev.originalPrice,
     }));
 
-    setSelectedBaseProductId('');
+    setSelectedBaseItemKey('');
     setBaseProductQuantity(1);
   };
 
@@ -585,16 +616,16 @@ export default function ProductsPage() {
 
               {/* Product Selector & Quantity Selector Row */}
               <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
-                <FormControl size="small" sx={{ flex: 1, minWidth: 200, bgcolor: '#FFF' }}>
-                  <InputLabel>اختر صنف من المنيو</InputLabel>
+                <FormControl size="small" sx={{ flex: 1, minWidth: 220, bgcolor: '#FFF' }}>
+                  <InputLabel>اختر صنف أو مقاس من المنيو</InputLabel>
                   <Select
-                    value={selectedBaseProductId}
-                    label="اختر صنف من المنيو"
-                    onChange={(e) => setSelectedBaseProductId(e.target.value)}
+                    value={selectedBaseItemKey}
+                    label="اختر صنف أو مقاس من المنيو"
+                    onChange={(e) => setSelectedBaseItemKey(e.target.value)}
                   >
-                    {baseProductsOnly.map((bp) => (
-                      <MenuItem key={bp.id} value={bp.id}>
-                        {bp.name} ({bp.price} ج.م)
+                    {selectableOfferItems.map((item) => (
+                      <MenuItem key={item.key} value={item.key}>
+                        {item.name} ({item.price} ج.م)
                       </MenuItem>
                     ))}
                   </Select>
@@ -614,7 +645,7 @@ export default function ProductsPage() {
                   variant="contained"
                   startIcon={<AddShoppingCartOutlined />}
                   onClick={handleAddOfferItem}
-                  disabled={!selectedBaseProductId}
+                  disabled={!selectedBaseItemKey}
                   sx={{ bgcolor: '#D97706', '&:hover': { bgcolor: '#B45309' }, borderRadius: '10px', px: 2, fontWeight: 800 }}
                 >
                   إضافة للعرض

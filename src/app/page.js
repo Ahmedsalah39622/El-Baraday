@@ -540,20 +540,7 @@ export default function POSPage() {
   const total = subtotal;
 
   const handleSelectProduct = (product) => {
-    if (product.isOffer || product.categoryId === '5') {
-      setSelectedOfferProduct(product);
-      const initSelections = {};
-      const category1Prods = (products || []).filter(p => p.categoryId === '1');
-      const listToUse = getOfferFlavorsAndQuantities(product, category1Prods, defaultHawawshiFlavors);
-
-      listToUse.forEach(item => {
-        const itemKey = item.id || item.name;
-        initSelections[itemKey] = { small: 0, large: 0, name: item.name };
-      });
-
-      setOfferHawawshiSelections(initSelections);
-      setOfferModalOpen(true);
-    } else if (product.hasMultipleSizes) {
+    if (product.hasMultipleSizes && !product.isOffer) {
       setSelectedProductForSize(product);
       setQtySmall(1);
       setQtyLarge(1);
@@ -564,6 +551,7 @@ export default function POSPage() {
         name: product.name,
         price: product.price,
         image: product.image,
+        notes: product.offerComponents || '',
         quantity: 1,
       });
     }
