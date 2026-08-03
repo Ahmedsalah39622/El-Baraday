@@ -335,7 +335,7 @@ export default function POSPage() {
               if (initialLoadDoneRef.current && !knownOrderIdsRef.current.has(o.id)) {
                 const matchBranch = !effectiveBranchId || effectiveBranchId === 'all' || o.branch_id === effectiveBranchId || o.branchId === effectiveBranchId;
                 const isRemote = o.cashier_name !== user?.name && o.cashier_name !== user?.username;
-                if (matchBranch && isRemote) {
+                if (matchBranch && isRemote && !isAdmin) {
                   newOrdersToPrint.push(o);
                 }
               }
@@ -363,36 +363,38 @@ export default function POSPage() {
             }));
             useInvoiceStore.setState({ invoices: mappedOrders });
 
-            // Automatically print incoming remote orders for this branch
-            newOrdersToPrint.forEach((ord) => {
-              try {
-                const printObj = {
-                  id: ord.id,
-                  orderNumber: String(ord.order_number || ord.orderNumber || '1'),
-                  orderType: ord.order_type || ord.orderType || 'takeaway',
-                  customerName: ord.customer_name || ord.customerName || '',
-                  customerPhone: ord.customer_phone || ord.customerPhone || '',
-                  customerAddress: ord.customer_address || ord.customerAddress || ord.address || '',
-                  customerFloor: ord.customer_floor || ord.customerFloor || ord.floor || '',
-                  customerApartment: ord.customer_apartment || ord.customerApartment || ord.apartment || '',
-                  cashierName: ord.cashier_name || ord.cashierName || 'الكاشير',
-                  driverName: ord.driver_name || ord.driverName || '',
-                  items: ord.items || [],
-                  subtotal: parseFloat(ord.subtotal || 0),
-                  total: parseFloat(ord.total || 0),
-                  paidAmount: parseFloat(ord.paid_amount || ord.paidAmount || 0),
-                  remainingAmount: parseFloat(ord.remaining_amount || ord.remainingAmount || 0),
-                  deliveryFee: parseFloat(ord.delivery_fee || ord.deliveryFee || 0),
-                  discount: parseFloat(ord.discount || 0),
-                  notes: ord.notes || ord.orderNotes || '',
-                  createdAt: ord.created_at || ord.createdAt,
-                  branch_id: ord.branch_id || ord.branchId
-                };
-                printThermalReceipt(printObj);
-              } catch (err) {
-                console.error('❌ Remote order thermal print failed:', err);
-              }
-            });
+            // Automatically print incoming remote orders for this branch (Only for Cashiers, NOT for Admin)
+            if (!isAdmin) {
+              newOrdersToPrint.forEach((ord) => {
+                try {
+                  const printObj = {
+                    id: ord.id,
+                    orderNumber: String(ord.order_number || ord.orderNumber || '1'),
+                    orderType: ord.order_type || ord.orderType || 'takeaway',
+                    customerName: ord.customer_name || ord.customerName || '',
+                    customerPhone: ord.customer_phone || ord.customerPhone || '',
+                    customerAddress: ord.customer_address || ord.customerAddress || ord.address || '',
+                    customerFloor: ord.customer_floor || ord.customerFloor || ord.floor || '',
+                    customerApartment: ord.customer_apartment || ord.customerApartment || ord.apartment || '',
+                    cashierName: ord.cashier_name || ord.cashierName || 'الكاشير',
+                    driverName: ord.driver_name || ord.driverName || '',
+                    items: ord.items || [],
+                    subtotal: parseFloat(ord.subtotal || 0),
+                    total: parseFloat(ord.total || 0),
+                    paidAmount: parseFloat(ord.paid_amount || ord.paidAmount || 0),
+                    remainingAmount: parseFloat(ord.remaining_amount || ord.remainingAmount || 0),
+                    deliveryFee: parseFloat(ord.delivery_fee || ord.deliveryFee || 0),
+                    discount: parseFloat(ord.discount || 0),
+                    notes: ord.notes || ord.orderNotes || '',
+                    createdAt: ord.created_at || ord.createdAt,
+                    branch_id: ord.branch_id || ord.branchId
+                  };
+                  printThermalReceipt(printObj);
+                } catch (err) {
+                  console.error('❌ Remote order thermal print failed:', err);
+                }
+              });
+            }
           }
         }
 
