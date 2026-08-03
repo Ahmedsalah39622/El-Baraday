@@ -39,9 +39,11 @@ import {
   CloudUploadOutlined,
   LocalOfferOutlined,
   AddShoppingCartOutlined,
+  Science,
 } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
 import { useProductStore } from '@/store/useProductStore';
+import ProductRecipeModal from '@/components/dialogs/ProductRecipeModal';
 
 const categoriesList = [
   { id: '1', name: 'حواوشي' },
@@ -94,6 +96,10 @@ export default function ProductsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false);
+
+  // Recipe & Ingredients Management Modal State
+  const [recipeModalOpen, setRecipeModalOpen] = useState(false);
+  const [recipeModalProductId, setRecipeModalProductId] = useState(null);
 
   const baseProductsOnly = (products || []).filter((p) => p.categoryId !== '5' && !p.isOffer);
 
@@ -263,6 +269,29 @@ export default function ProductsPage() {
 
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
           <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="ابحث باسم المنتج أو العرض..." />
+
+          {/* Manage Ingredients Button */}
+          <Button
+            variant="contained"
+            startIcon={<Science />}
+            onClick={() => {
+              setRecipeModalProductId(null);
+              setRecipeModalOpen(true);
+            }}
+            sx={{
+              bgcolor: '#4F46E5',
+              '&:hover': { bgcolor: '#4338CA' },
+              borderRadius: '12px',
+              px: 2.5,
+              py: 1,
+              fontWeight: 800,
+              whiteSpace: 'nowrap',
+              boxShadow: '0 4px 12px rgba(79, 70, 229, 0.3)',
+              width: { xs: '100%', sm: 'auto' }
+            }}
+          >
+            إدارة خامات المنتجات والمكسات 🥩
+          </Button>
 
           {/* Add Special Offer Button */}
           <Button
@@ -469,6 +498,18 @@ export default function ProductsPage() {
                   </TableCell>
 
                   <TableCell align="center">
+                    <Tooltip title="إدارة خامات ومكونات الصنف المخصومة">
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          setRecipeModalProductId(row.id);
+                          setRecipeModalOpen(true);
+                        }}
+                        sx={{ color: '#4F46E5', bgcolor: '#EEF2FF', mr: 0.5, '&:hover': { bgcolor: '#C7D2FE' } }}
+                      >
+                        <Science fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                     <IconButton size="small" onClick={() => handleOpenDialog(row)} sx={{ color: '#4285F4' }}>
                       <EditOutlined fontSize="small" />
                     </IconButton>
@@ -812,6 +853,13 @@ export default function ProductsPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Product Recipe & Raw Materials Management Modal */}
+      <ProductRecipeModal
+        open={recipeModalOpen}
+        onClose={() => setRecipeModalOpen(false)}
+        initialProductId={recipeModalProductId}
+      />
     </Box>
   );
 }

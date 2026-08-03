@@ -6,8 +6,9 @@ import {
   TableContainer, TableHead, TableRow, TextField, Button, Chip, Dialog,
   DialogTitle, DialogContent, DialogActions, IconButton, Tooltip, MenuItem, Select, FormControl, InputLabel
 } from '@mui/material';
-import { Add, Save, WarningAmber, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { Add, Save, WarningAmber, Edit as EditIcon, Delete as DeleteIcon, Science } from '@mui/icons-material';
 import { useInventoryStore } from '@/store/useInventoryStore';
+import ProductRecipeModal from '@/components/dialogs/ProductRecipeModal';
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -21,6 +22,9 @@ function TabPanel(props) {
 export default function InventoryPage() {
   const [tabValue, setTabValue] = useState(0);
   const { items, fetchInventory, updateStock, addItem, updateItem, deleteItem } = useInventoryStore();
+
+  // Recipe Modal State
+  const [recipeModalOpen, setRecipeModalOpen] = useState(false);
 
   // Add Dialog State
   const [openAddDialog, setOpenAddDialog] = useState(false);
@@ -118,14 +122,25 @@ export default function InventoryPage() {
           </Typography>
         </Box>
 
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => setOpenAddDialog(true)}
-          sx={{ bgcolor: '#4285F4', borderRadius: '12px', px: 2.5, py: 1, fontWeight: 700 }}
-        >
-          إضافة خامة جديدة
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Button
+            variant="contained"
+            startIcon={<Science />}
+            onClick={() => setRecipeModalOpen(true)}
+            sx={{ bgcolor: '#4F46E5', borderRadius: '12px', px: 2.5, py: 1, fontWeight: 800, '&:hover': { bgcolor: '#4338CA' } }}
+          >
+            ربط الخامات بالمنتجات والمكسات 🥩
+          </Button>
+
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => setOpenAddDialog(true)}
+            sx={{ bgcolor: '#4285F4', borderRadius: '12px', px: 2.5, py: 1, fontWeight: 800 }}
+          >
+            إضافة خامة جديدة
+          </Button>
+        </Box>
       </Box>
 
       <Paper sx={{ width: '100%', borderRadius: '12px', border: '1px solid #E5E7EB' }}>
@@ -403,6 +418,12 @@ export default function InventoryPage() {
           <Button onClick={handleConfirmDelete} variant="contained" color="error" sx={{ fontWeight: 800 }}>تأكيد الحذف</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Product Recipe & Raw Materials Management Modal */}
+      <ProductRecipeModal
+        open={recipeModalOpen}
+        onClose={() => setRecipeModalOpen(false)}
+      />
     </Box>
   );
 }

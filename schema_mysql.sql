@@ -439,6 +439,18 @@ INSERT IGNORE INTO `inventory_items` (`id`, `name`, `unit`, `current_stock`, `mi
   ('inv11', 'بيبسي 1 لتر', 'عبوة', 48, 12, 18, 'مشروبات'),
   ('inv12', 'مياه معدنية', 'عبوة', 96, 24, 4, 'مشروبات');
 
+-- ==================== PRODUCT INGREDIENTS (ربط خامات المنتجات والمكسات) ====================
+CREATE TABLE IF NOT EXISTS `product_ingredients` (
+  `id` VARCHAR(100) PRIMARY KEY,
+  `product_id` VARCHAR(100) NOT NULL,
+  `inventory_item_id` VARCHAR(100) NOT NULL,
+  `quantity` DECIMAL(10,3) NOT NULL DEFAULT 1.000,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_product_id` (`product_id`),
+  INDEX `idx_inventory_item` (`inventory_item_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
 INSERT IGNORE INTO `app_settings` (`key`, `value`) VALUES
   ('company_name', 'مطعم البرادعي للحواوشي'),
   ('company_phone', '01012345678'),

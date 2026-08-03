@@ -174,12 +174,48 @@ export async function POST(request) {
     if (items && items.length > 0) {
       for (const item of items) {
         const itemId = `item_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+        const prodId = item.product_id || item.id || null;
+        const itemQty = parseInt(item.quantity) || 1;
+
         await query(
           `INSERT INTO order_items (id, order_id, product_id, product_name, price, quantity, size, extras, notes)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-          [itemId, order.id, item.product_id || item.id || null, item.product_name || item.name || 'صنف',
-          parseFloat(item.price) || 0, parseInt(item.quantity) || 1, item.size || null, item.extras || null, item.notes || null]
+          [itemId, order.id, prodId, item.product_name || item.name || 'صنف',
+          parseFloat(item.price) || 0, itemQty, item.size || null, item.extras || null, item.notes || null]
         );
+
+        // 🥩 Automatic Inventory Raw Material Deductions (خصم الخامات والمكونات المربوطة)
+        if (prodId) {
+          try {
+            const ingRes = await query(
+              'SELECT inventory_item_id, quantity FROM product_ingredients WHERE product_id = $1',
+              [prodId]
+            );
+
+            if (ingRes.rows && ingRes.rows.length > 0) {
+              for (const ing of ingRes.rows) {
+                const deductAmount = (parseFloat(ing.quantity) || 0) * itemQty;
+                if (deductAmount > 0) {
+                  // Deduct from inventory_items current_stock
+                  await query(
+                    'UPDATE inventory_items SET current_stock = GREATEST(0, current_stock - $1) WHERE id = $2',
+                    [deductAmount, ing.inventory_item_id]
+                  );
+
+                  // Log transaction
+                  const transId = `trans_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+                  await query(
+                    `INSERT INTO inventory_transactions (id, item_id, type, quantity, notes)
+                     VALUES ($1, $2, 'out', $3, $4)`,
+                    [transId, ing.inventory_item_id, deductAmount, `خصم أوتوماتيكي - طلب #${nextNum}`]
+                  );
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('⚠️ Inventory deduction error for item:', prodId, e.message);
+          }
+        }
       }
     }
 
