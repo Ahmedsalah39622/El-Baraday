@@ -152,9 +152,15 @@ export default function POSPage() {
           }
 
           if (data.shifts && Array.isArray(data.shifts)) {
-            const active = effectiveBranchId && effectiveBranchId !== 'all'
-              ? data.shifts.find(s => s.status === 'active' && (s.branch_id === effectiveBranchId || (!s.branch_id && effectiveBranchId === 'b1')))
-              : null;
+            // Find active shift: for specific branch filter by branch_id, for 'all' find any active shift
+            let active = null;
+            if (effectiveBranchId && effectiveBranchId !== 'all') {
+              active = data.shifts.find(s => s.status === 'active' && (s.branch_id === effectiveBranchId || (!s.branch_id && effectiveBranchId === 'b1')));
+            } else {
+              // Admin viewing 'all' branches → find any active shift (prefer b1)
+              active = data.shifts.find(s => s.status === 'active' && (s.branch_id === 'b1' || !s.branch_id))
+                    || data.shifts.find(s => s.status === 'active');
+            }
             if (active) {
               const rawStart = active.start_time || active.created_at || new Date().toISOString();
               let formattedTime = '08:00 AM';
@@ -174,12 +180,13 @@ export default function POSPage() {
                   branch_id: active.branch_id
                 }
               });
-            } else {
+            } else if (data.shifts.length > 0) {
+              // Only clear activeShift if we actually got shift data back (not empty due to error)
               useShiftStore.setState({ activeShift: null, shifts: data.shifts });
             }
-          } else {
-            useShiftStore.setState({ activeShift: null, shifts: [] });
+            // If data.shifts is empty array, don't touch activeShift (could be DB error)
           }
+          // If data.shifts is missing/not array, don't touch activeShift at all
         }
       } catch (err) {
         console.warn('⚠️ Init load fallback:', err.message);

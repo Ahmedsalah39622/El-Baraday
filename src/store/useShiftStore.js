@@ -33,9 +33,14 @@ export const useShiftStore = create(
           }
           if (Array.isArray(rows)) {
             set({ shifts: rows });
-            const active = branchId && branchId !== 'all'
-              ? rows.find((r) => r.status === 'active' && (r.branch_id === branchId || (!r.branch_id && branchId === 'b1')))
-              : null;
+            let active = null;
+            if (branchId && branchId !== 'all') {
+              active = rows.find((r) => r.status === 'active' && (r.branch_id === branchId || (!r.branch_id && branchId === 'b1')));
+            } else {
+              // 'all' → find any active shift (prefer b1)
+              active = rows.find((r) => r.status === 'active' && (r.branch_id === 'b1' || !r.branch_id))
+                    || rows.find((r) => r.status === 'active');
+            }
             if (active) {
               const rawStart = active.start_time || active.created_at || new Date().toISOString();
               set({
@@ -52,8 +57,11 @@ export const useShiftStore = create(
               return;
             }
           }
-          // No active shift found in DB → always clear local state
-          set({ activeShift: null, shifts: Array.isArray(rows) ? rows : [] });
+          // Only clear if we got real data back with shifts but none are active
+          if (Array.isArray(rows) && rows.length > 0) {
+            set({ activeShift: null, shifts: rows });
+          }
+          // If rows is empty, don't clear activeShift (could be transient DB issue)
         }
       } catch (err) {
         console.warn('⚠️ Fetch shifts network error:', err.message);
