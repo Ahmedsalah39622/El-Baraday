@@ -387,7 +387,7 @@ export default function InvoicesPage() {
             إنشاء وإدارة فواتير التحصيل لأي جهة أو عميل، مع إمكانية عرض الفواتير وطباعتها وتصفيتها.
           </Typography>
         </Box>
-        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
           {isAdmin && (
             <FormControl size="small" sx={{ minWidth: 160 }}>
               <Select
@@ -682,7 +682,7 @@ export default function InvoicesPage() {
                     </TableCell>
                     <TableCell>{getStatusChip(inv.payment_status)}</TableCell>
                     <TableCell align="center">
-                      <Stack direction="row" spacing={1} justifyContent="center">
+                      <Stack direction="row" spacing={1} sx={{ justifyContent: 'center' }}>
                         <Tooltip title="معاينة وطباعة الفاتورة">
                           <IconButton color="primary" size="small" onClick={() => handleViewInvoiceDetails(inv)}>
                             <PrintIcon />

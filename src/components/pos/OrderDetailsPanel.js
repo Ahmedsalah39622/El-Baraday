@@ -927,7 +927,7 @@ export default function OrderDetailsPanel({
           '&:hover': {
             bgcolor: orderType === 'delivery' ? '#E06B1F' : '#2B6FD4',
           },
-        }}
+        }}  
       >
         إتمام الطلب وطباعة الفاتورة
       </Button>

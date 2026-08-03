@@ -35,6 +35,19 @@ export function printThermalReceipt(orderData) {
     hour: '2-digit', minute: '2-digit', hour12: true
   });
 
+  let formattedTimeAndDay = dateStr;
+  try {
+    const rawDate = orderData.createdAt || orderData.created_at;
+    const d = rawDate ? new Date(rawDate) : new Date();
+    if (!isNaN(d.getTime())) {
+      const dayName = d.toLocaleDateString('ar-EG', { weekday: 'long' });
+      const timeStr = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true });
+      formattedTimeAndDay = `${timeStr} - ${dayName}`;
+    }
+  } catch (e) {
+    formattedTimeAndDay = dateStr;
+  }
+
   const orderNoteText = notes || orderNotes || '';
   const cleanPhone = (customerPhone && customerPhone !== 'null' && customerPhone !== 'undefined') ? String(customerPhone).trim() : '';
   const cleanName = (customerName && customerName !== 'null' && customerName !== 'undefined') ? String(customerName).trim() : '';
@@ -87,18 +100,18 @@ export function printThermalReceipt(orderData) {
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&display=swap');
         @page {
-          size: 80mm auto;
+          size: ${isDelivery ? '80mm auto' : '58mm auto'};
           margin: 0mm !important;
         }
         @media print {
           @page {
-            size: 80mm auto;
+            size: ${isDelivery ? '80mm auto' : '58mm auto'};
             margin: 0mm !important;
           }
           html, body {
             width: 100% !important;
             margin: 0 !important;
-            padding: 0 1.5mm !important;
+            padding: 0 ${isDelivery ? '1.5mm' : '0.5mm'} !important;
             background: #FFF !important;
             color: #000 !important;
             -webkit-print-color-adjust: exact !important;
@@ -194,153 +207,233 @@ export function printThermalReceipt(orderData) {
       </style>
     </head>
     <body>
-      <!-- Main Receipt Body -->
-      <div class="print-wrapper">
-        <div class="center">
-          <h1 style="margin: 0; font-size: 32px; font-weight: 900; line-height: 1; color: #000000; direction: ltr; display: block; text-align: center;">#${orderNum}</h1>
-          <h2 style="margin: 1px 0 0 0; font-size: 11.5px; font-weight: 900; color: #000000;">مطعم البرادعي للحواوشي واللحوم</h2>
-          <div style="font-size: 9px; font-weight: 700; color: #333;">فرع: ${branchName ? String(branchName).replace(/^فرع\s+/, '') : 'الرئيسي'}</div>
-          <div class="badge">
-            ${isDelivery ? '🛵 دليفري (توصيل للمنزل)' : (orderTypeVal === 'takeaway' ? '🥡 تيك أوي (Takeaway)' : '🍽️ صالة / طاولات')}
+      ${isDelivery ? `
+        <!-- Main Delivery Receipt Body -->
+        <div class="print-wrapper">
+          <div class="center">
+            <h1 style="margin: 0; font-size: 32px; font-weight: 900; line-height: 1; color: #000000; direction: ltr; display: block; text-align: center;">#${orderNum}</h1>
+            <h2 style="margin: 1px 0 0 0; font-size: 11.5px; font-weight: 900; color: #000000;">مطعم البرادعي للحواوشي واللحوم</h2>
+            <div style="font-size: 9px; font-weight: 700; color: #333;">فرع: ${branchName ? String(branchName).replace(/^فرع\s+/, '') : 'الرئيسي'}</div>
+            <div class="badge">
+              🛵 دليفري (توصيل للمنزل)
+            </div>
           </div>
-        </div>
 
-        <div class="solid-sep"></div>
+          <div class="solid-sep"></div>
 
-        <!-- Meta Details Table (Strict 2 Columns to eliminate right/left clipping) -->
-        <table class="meta-table">
-          <tr>
-            <td style="text-align: right; font-weight: 700; font-size: 11px; width: 35%;">طريقة الدفع:</td>
-            <td style="text-align: left; font-weight: 900; font-size: 11px; width: 65%;">
-              ${(orderData.paymentMethod === 'instapay' || orderData.payment_method === 'instapay') ? '⚡ إنستا باي (InstaPay)' : 
-                (orderData.paymentMethod === 'vodafone_cash' || orderData.payment_method === 'vodafone_cash') ? '📱 فودافون كاش (Vodafone Cash)' :
-                (orderData.paymentMethod === 'card' || orderData.payment_method === 'card') ? '💳 شبكة / فيزا (Card)' : '💵 نقداً (كاش)'}
-            </td>
-          </tr>
-          <tr>
-            <td style="text-align: right; font-weight: 700; font-size: 11px; width: 35%;">الكاشير:</td>
-            <td style="text-align: left; font-weight: 900; font-size: 11px; width: 65%;">${cashierName}</td>
-          </tr>
-          <tr>
-            <td style="text-align: right; font-weight: 700; font-size: 11px; width: 35%;">التاريخ والوقت:</td>
-            <td style="text-align: left; font-weight: 900; font-size: 10px; width: 65%;">${dateStr}</td>
-          </tr>
-          ${cleanDriver ? `
+          <!-- Meta Details Table (Strict 2 Columns to eliminate right/left clipping) -->
+          <table class="meta-table">
             <tr>
-              <td style="text-align: right; font-weight: 700; font-size: 11px;">الطيار المسؤول:</td>
-              <td style="text-align: left; font-weight: 900; font-size: 12px;">🚴 ${cleanDriver}</td>
+              <td style="text-align: right; font-weight: 700; font-size: 11px; width: 35%;">طريقة الدفع:</td>
+              <td style="text-align: left; font-weight: 900; font-size: 11px; width: 65%;">
+                ${(orderData.paymentMethod === 'instapay' || orderData.payment_method === 'instapay') ? '⚡ إنستا باي (InstaPay)' : 
+                  (orderData.paymentMethod === 'vodafone_cash' || orderData.payment_method === 'vodafone_cash') ? '📱 فودافون كاش (Vodafone Cash)' :
+                  (orderData.paymentMethod === 'card' || orderData.payment_method === 'card') ? '💳 شبكة / فيزا (Card)' : '💵 نقداً (كاش)'}
+              </td>
             </tr>
-          ` : ''}
-          ${cleanName ? `
             <tr>
-              <td style="text-align: right; font-weight: 700; font-size: 11px;">اسم العميل:</td>
-              <td style="text-align: left; font-weight: 900; font-size: 11px;">${cleanName}</td>
+              <td style="text-align: right; font-weight: 700; font-size: 11px; width: 35%;">الكاشير:</td>
+              <td style="text-align: left; font-weight: 900; font-size: 11px; width: 65%;">${cashierName}</td>
             </tr>
-          ` : ''}
-          ${cleanPhone ? `
             <tr>
-              <td style="text-align: right; font-weight: 700; font-size: 11px;">رقم الهاتف:</td>
-              <td style="text-align: left; font-weight: 900; font-size: 12px;">📞 ${cleanPhone}</td>
+              <td style="text-align: right; font-weight: 700; font-size: 11px; width: 35%;">التاريخ والوقت:</td>
+              <td style="text-align: left; font-weight: 900; font-size: 10px; width: 65%;">${dateStr}</td>
             </tr>
-          ` : ''}
-          ${cleanAddress ? `
-            <tr>
-              <td style="text-align: right; font-weight: 700; font-size: 11px;">📍 العنوان:</td>
-              <td style="text-align: left; font-weight: 900; font-size: 11px; color: #000; word-break: break-word;">📍 ${cleanAddress}</td>
-            </tr>
-          ` : ''}
-          ${floorApartmentText ? `
-            <tr>
-              <td style="text-align: right; font-weight: 700; font-size: 11px;">الدور / الشقة:</td>
-              <td style="text-align: left; font-weight: 900; font-size: 11px;">🏠 ${floorApartmentText}</td>
-            </tr>
-          ` : ''}
-        </table>
+            ${cleanDriver ? `
+              <tr>
+                <td style="text-align: right; font-weight: 700; font-size: 11px;">الطيار المسؤول:</td>
+                <td style="text-align: left; font-weight: 900; font-size: 12px;">🚴 ${cleanDriver}</td>
+              </tr>
+            ` : ''}
+            ${cleanName ? `
+              <tr>
+                <td style="text-align: right; font-weight: 700; font-size: 11px;">اسم العميل:</td>
+                <td style="text-align: left; font-weight: 900; font-size: 11px;">${cleanName}</td>
+              </tr>
+            ` : ''}
+            ${cleanPhone ? `
+              <tr>
+                <td style="text-align: right; font-weight: 700; font-size: 11px;">رقم الهاتف:</td>
+                <td style="text-align: left; font-weight: 900; font-size: 12px;">📞 ${cleanPhone}</td>
+              </tr>
+            ` : ''}
+            ${cleanAddress ? `
+              <tr>
+                <td style="text-align: right; font-weight: 700; font-size: 11px;">📍 العنوان:</td>
+                <td style="text-align: left; font-weight: 900; font-size: 11px; color: #000; word-break: break-word;">📍 ${cleanAddress}</td>
+              </tr>
+            ` : ''}
+            ${floorApartmentText ? `
+              <tr>
+                <td style="text-align: right; font-weight: 700; font-size: 11px;">الدور / الشقة:</td>
+                <td style="text-align: left; font-weight: 900; font-size: 11px;">🏠 ${floorApartmentText}</td>
+              </tr>
+            ` : ''}
+          </table>
 
-        ${orderNoteText ? `
+          ${orderNoteText ? `
+            <div class="dashed-sep"></div>
+            <div style="background: #F3F4F6; padding: 4px 6px; border-radius: 4px; border: 1px solid #000000; margin: 3px 0; font-size: 10px;">
+              <span style="font-weight: 900;">📝 ملاحظات الطلب:</span>
+              <span class="bold"> ${orderNoteText}</span>
+            </div>
+          ` : ''}
+
+          <div class="solid-sep"></div>
+
+          <!-- Items Table -->
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th style="text-align: right; width: 45%;">المنتج</th>
+                <th style="width: 15%;">الكمية</th>
+                <th style="width: 20%;">السعر</th>
+                <th style="width: 20%;">الإجمالي</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
           <div class="dashed-sep"></div>
-          <div style="background: #F3F4F6; padding: 4px 6px; border-radius: 4px; border: 1px solid #000000; margin: 3px 0; font-size: 10px;">
-            <span style="font-weight: 900;">📝 ملاحظات الطلب:</span>
-            <span class="bold"> ${orderNoteText}</span>
+
+          <!-- Totals Table -->
+          <table class="totals-table">
+            <tr>
+              <td style="text-align: right; font-weight: 700; font-size: 11px; width: 50%;">المجموع الفرعي:</td>
+              <td style="text-align: left; font-weight: 900; font-size: 11px; width: 50%;">${parseFloat(subtotal).toFixed(2)} ج.م</td>
+            </tr>
+            ${parseFloat(deliveryFee) > 0 ? `
+              <tr>
+                <td style="text-align: right; font-weight: 800; font-size: 11px;">🛵 خدمة التوصيل:</td>
+                <td style="text-align: left; font-weight: 900; font-size: 11px;">+${parseFloat(deliveryFee).toFixed(2)} ج.م</td>
+              </tr>
+            ` : ''}
+            ${parseFloat(discount) > 0 ? `
+              <tr>
+                <td style="text-align: right; font-weight: 800; font-size: 11px;">🎁 الخصم:</td>
+                <td style="text-align: left; font-weight: 900; font-size: 11px;">-${parseFloat(discount).toFixed(2)} ج.م</td>
+              </tr>
+            ` : ''}
+          </table>
+          
+          <div class="total-box">
+            <table style="width: 100%; border: none;">
+              <tr>
+                <td style="text-align: right; font-weight: 900; font-size: 12px; width: 60%;">الصافي / الإجمالي النهائي:</td>
+                <td style="text-align: left; font-weight: 900; font-size: 15px; width: 40%; color: #000000;">${parseFloat(total).toFixed(2)} ج.م</td>
+              </tr>
+            </table>
           </div>
-        ` : ''}
 
-        <div class="solid-sep"></div>
-
-        <!-- Items Table -->
-        <table class="items-table">
-          <thead>
+          <table class="totals-table" style="margin-top: 4px;">
             <tr>
-              <th style="text-align: right; width: 45%;">المنتج</th>
-              <th style="width: 15%;">الكمية</th>
-              <th style="width: 20%;">السعر</th>
-              <th style="width: 20%;">الإجمالي</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemsHtml}
-          </tbody>
-        </table>
-
-        <div class="dashed-sep"></div>
-
-        <!-- Totals Table -->
-        <table class="totals-table">
-          <tr>
-            <td style="text-align: right; font-weight: 700; font-size: 11px; width: 50%;">المجموع الفرعي:</td>
-            <td style="text-align: left; font-weight: 900; font-size: 11px; width: 50%;">${parseFloat(subtotal).toFixed(2)} ج.م</td>
-          </tr>
-          ${isDelivery && parseFloat(deliveryFee) > 0 ? `
-            <tr>
-              <td style="text-align: right; font-weight: 800; font-size: 11px;">🛵 خدمة التوصيل:</td>
-              <td style="text-align: left; font-weight: 900; font-size: 11px;">+${parseFloat(deliveryFee).toFixed(2)} ج.م</td>
-            </tr>
-          ` : ''}
-          ${parseFloat(discount) > 0 ? `
-            <tr>
-              <td style="text-align: right; font-weight: 800; font-size: 11px;">🎁 الخصم:</td>
-              <td style="text-align: left; font-weight: 900; font-size: 11px;">-${parseFloat(discount).toFixed(2)} ج.م</td>
-            </tr>
-          ` : ''}
-        </table>
-        
-        <div class="total-box">
-          <table style="width: 100%; border: none;">
-            <tr>
-              <td style="text-align: right; font-weight: 900; font-size: 12px; width: 60%;">الصافي / الإجمالي النهائي:</td>
-              <td style="text-align: left; font-weight: 900; font-size: 15px; width: 40%; color: #000000;">${parseFloat(total).toFixed(2)} ج.م</td>
+              <td style="text-align: right; font-weight: 700; font-size: 11px; width: 50%;">المبلغ المدفوع:</td>
+              <td style="text-align: left; font-weight: 900; font-size: 11px; width: 50%;">${parseFloat(paidAmount || total).toFixed(2)} ج.م</td>
             </tr>
           </table>
+
+          <!-- Remaining Change Box -->
+          <div class="cash-box">
+            <table style="width: 100%; border: none;">
+              <tr>
+                <td style="text-align: right; font-weight: 900; font-size: 11px; color: #FFF; width: 60%;">المتبقي للعميل (الباقي):</td>
+                <td style="text-align: left; font-weight: 900; font-size: 14px; color: #FFF; width: 40%;">${parseFloat(remainingAmount).toFixed(2)} ج.م</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Cash Collection Status Indicator -->
+          <div style="margin-top: 6px; text-align: center; padding: 3px; border: 1.5px solid #000; border-radius: 4px; font-weight: 900; font-size: 10px; background: ${isCashCollected ? '#E5E7EB' : '#FFFFFF'};">
+            ${isCashCollected ? '🟢 تم استلام النقدية وتوريد المبلغ بالشيفت' : '🔴 عهدة دليفري مع الطيار (لم تُورد بعد)'}
+          </div>
+
+          <div class="double-sep"></div>
+          <div class="center" style="font-size: 10px; font-weight: 800; color: #000000;">
+            شكراً لزيارتكم مطعم البرادعي! ❤️<br>
+            نتمنى لكم وجبة شهية ولذيذة 🍔🥩
+          </div>
         </div>
+      ` : `
+        <!-- Compact Takeaway Receipt Body (بون تيك أوي مصغر 58mm) -->
+        <div class="print-wrapper" style="padding: 0.5mm 0 !important; max-width: 58mm; margin: 0 auto;">
+          <!-- 1. Top Center: Big Order Number -->
+          <div style="text-align: center; margin-bottom: 2px;">
+            <h1 style="margin: 0; font-size: 38px; font-weight: 900; line-height: 1; color: #000000; direction: ltr; text-align: center;">#${orderNum}</h1>
+          </div>
 
-        <table class="totals-table" style="margin-top: 4px;">
-          <tr>
-            <td style="text-align: right; font-weight: 700; font-size: 11px; width: 50%;">المبلغ المدفوع:</td>
-            <td style="text-align: left; font-weight: 900; font-size: 11px; width: 50%;">${parseFloat(paidAmount || total).toFixed(2)} ج.م</td>
-          </tr>
-        </table>
+          <!-- 2. Shop Name -->
+          <div style="text-align: center; margin-bottom: 3px;">
+            <h2 style="margin: 0; font-size: 11.5px; font-weight: 900; color: #000000; text-align: center;">مطعم البرادعي للحواوشي واللحوم</h2>
+            ${branchName && branchName !== 'الفرع الرئيسي' ? `<div style="font-size: 8.5px; font-weight: 700; color: #333; text-align: center;">فرع: ${String(branchName).replace(/^فرع\s+/, '')}</div>` : ''}
+          </div>
 
-        <!-- Remaining Change Box -->
-        <div class="cash-box">
-          <table style="width: 100%; border: none;">
+          <div style="border-bottom: 1.5px solid #000000; margin: 2px 0;"></div>
+
+          <!-- 3. Cashier (one side) vs Time & Day (other side) -->
+          <table style="width: 100%; border-collapse: collapse; margin: 2px 0;">
             <tr>
-              <td style="text-align: right; font-weight: 900; font-size: 11px; color: #FFF; width: 60%;">المتبقي للعميل (الباقي):</td>
-              <td style="text-align: left; font-weight: 900; font-size: 14px; color: #FFF; width: 40%;">${parseFloat(remainingAmount).toFixed(2)} ج.م</td>
+              <td style="text-align: right; font-weight: 900; font-size: 9.5px; color: #000000; width: 45%;">
+                الكاشير: ${cashierName}
+              </td>
+              <td style="text-align: left; font-weight: 800; font-size: 8.5px; color: #000000; width: 55%;">
+                ${formattedTimeAndDay}
+              </td>
             </tr>
           </table>
-        </div>
 
-        <!-- Cash Collection Status Indicator -->
-        <div style="margin-top: 6px; text-align: center; padding: 3px; border: 1.5px solid #000; border-radius: 4px; font-weight: 900; font-size: 10px; background: ${isCashCollected ? '#E5E7EB' : '#FFFFFF'};">
-          ${isCashCollected ? '🟢 تم استلام النقدية وتوريد المبلغ بالشيفت' : '🔴 عهدة دليفري مع الطيار (لم تُورد بعد)'}
-        </div>
+          <!-- 4. Requested items inside clean rounded rectangle -->
+          <div style="border: 1.5px solid #000000; border-radius: 8px; padding: 3px; margin: 3px 0; background: #FFFFFF; overflow: hidden;">
+            <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
+              <thead>
+                <tr style="border-bottom: 1px solid #000000; background: #F3F4F6;">
+                  <th style="text-align: right; width: 46%; padding: 2px 1px; font-size: 9px; font-weight: 900; color: #000000;">الصنف</th>
+                  <th style="text-align: center; width: 18%; padding: 2px 1px; font-size: 9px; font-weight: 900; color: #000000;">العدد</th>
+                  <th style="text-align: center; width: 18%; padding: 2px 1px; font-size: 9px; font-weight: 900; color: #000000;">السعر</th>
+                  <th style="text-align: left; width: 18%; padding: 2px 1px; font-size: 9px; font-weight: 900; color: #000000;">الإجمالي</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsHtml}
+              </tbody>
+            </table>
+          </div>
 
-        <div class="double-sep"></div>
-        <div class="center" style="font-size: 10px; font-weight: 800; color: #000000;">
-          شكراً لزيارتكم مطعم البرادعي! ❤️<br>
-          نتمنى لكم وجبة شهية ولذيذة 🍔🥩
+          <!-- 5. Total -->
+          <div style="border: 1.5px solid #000000; border-radius: 6px; padding: 3px 5px; margin-top: 3px; background: #F9FAFB;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="text-align: right; font-weight: 900; font-size: 11px; color: #000000;">الإجمالي:</td>
+                <td style="text-align: left; font-weight: 900; font-size: 15px; color: #000000;">${parseFloat(total).toFixed(2)} ج.م</td>
+              </tr>
+              ${parseFloat(discount) > 0 ? `
+                <tr>
+                  <td style="text-align: right; font-weight: 700; font-size: 8.5px; color: #444;">الخصم:</td>
+                  <td style="text-align: left; font-weight: 900; font-size: 8.5px; color: #444;">-${parseFloat(discount).toFixed(2)} ج.م</td>
+                </tr>
+              ` : ''}
+              ${(paidAmount && paidAmount !== total) || parseFloat(remainingAmount) > 0 ? `
+                <tr>
+                  <td style="text-align: right; font-weight: 700; font-size: 8.5px; color: #444;">المدفوع / المتبقي:</td>
+                  <td style="text-align: left; font-weight: 900; font-size: 8.5px; color: #444;">${parseFloat(paidAmount || total).toFixed(0)} / ${parseFloat(remainingAmount).toFixed(0)} ج.م</td>
+                </tr>
+              ` : ''}
+            </table>
+          </div>
+
+          ${orderNoteText ? `
+            <div style="margin-top: 3px; border: 1px dashed #000000; border-radius: 4px; padding: 2px 4px; font-size: 8.5px; font-weight: 800;">
+              📝 ملاحظات: ${orderNoteText}
+            </div>
+          ` : ''}
+
+          <div style="border-bottom: 1px dashed #000000; margin: 3px 0 2px 0;"></div>
+          <div style="text-align: center; font-size: 8.5px; font-weight: 800; color: #000000;">
+            شكراً لزيارتكم مطعم البرادعي! ❤️
+          </div>
         </div>
-      </div>
+      `}
 
       <!-- Kitchen / Driver Slip for Delivery Orders -->
       ${isDelivery ? `

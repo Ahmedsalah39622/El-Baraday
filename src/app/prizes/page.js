@@ -372,7 +372,7 @@ export default function PrizesPage() {
           </Box>
         </Box>
 
-        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
           {isAdmin && (
             <FormControl size="small" sx={{ minWidth: 160 }}>
               <Select

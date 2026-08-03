@@ -658,7 +658,7 @@ export default function SalariesPage() {
           </Box>
         </Box>
 
-        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+        <Stack direction="row" spacing={1.5} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
           {isAdmin && (
             <FormControl size="small" sx={{ minWidth: 160 }}>
               <Select
