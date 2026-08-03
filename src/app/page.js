@@ -185,12 +185,70 @@ export default function POSPage() {
         console.warn('⚠️ Init load fallback:', err.message);
       }
     }
+    async function pollRealtimeData() {
+      try {
+        const branchParam = isAdmin && selectedBranchId && selectedBranchId !== 'all'
+          ? selectedBranchId
+          : effectiveBranchId;
+          
+        const ordersUrl = `/api/orders?branch_id=${branchParam}`;
+        const attendanceUrl = `/api/attendance?branch_id=${branchParam}`;
+
+        const [ordersRes, attendanceRes] = await Promise.all([
+          fetch(ordersUrl),
+          fetch(attendanceUrl)
+        ]);
+
+        if (ordersRes.ok) {
+          const ordersData = await ordersRes.json();
+          if (ordersData && ordersData.error) {
+            console.warn('⚠️ Realtime orders fetch API error:', ordersData.error);
+            return;
+          }
+          if (Array.isArray(ordersData)) {
+            const mappedOrders = ordersData.map((o) => ({
+              id: o.id,
+              orderNumber: String(o.order_number),
+              invoiceNumber: `INV-${o.order_number}`,
+              orderType: o.order_type,
+              customerName: o.customer_name,
+              customerPhone: o.customer_phone,
+              cashierName: o.cashier_name,
+              subtotal: parseFloat(o.subtotal || 0),
+              total: parseFloat(o.total || 0),
+              paidAmount: parseFloat(o.paid_amount || 0),
+              remainingAmount: parseFloat(o.remaining_amount || 0),
+              deliveryFee: parseFloat(o.delivery_fee || 0),
+              discount: parseFloat(o.discount || 0),
+              status: o.status,
+              createdAt: o.created_at ? (new Date(o.created_at).toISOString ? new Date(o.created_at).toISOString() : String(o.created_at)) : new Date().toISOString(),
+              branchId: o.branch_id,
+              branch_id: o.branch_id,
+            }));
+            useInvoiceStore.setState({ invoices: mappedOrders });
+          }
+        }
+
+        if (attendanceRes.ok) {
+          const attendanceData = await attendanceRes.json();
+          if (attendanceData && attendanceData.error) {
+            console.warn('⚠️ Realtime attendance fetch API error:', attendanceData.error);
+            return;
+          }
+          if (attendanceData && attendanceData.activeQueue) {
+            useCustomerStore.setState({ activeQueue: attendanceData.activeQueue });
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️ Realtime polling error:', err.message);
+      }
+    }
 
     loadSystemData();
 
-    // Fast 3s background sync for live updates (realtime speed)
+    // Fast 3s background sync for orders & attendance (realtime speed without shifts/static overhead)
     const interval = setInterval(() => {
-      loadSystemData();
+      pollRealtimeData();
     }, 3000);
 
     return () => clearInterval(interval);
