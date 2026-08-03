@@ -60,7 +60,6 @@ export function generateDeliveryMessage(orderData = {}, driverPhone = '', compan
   }
 
   // Construct message
-  let msg = `🍟 *${companyName}* 🍔\n`;
   msg += `أهلاً بك يا *${customerName}* 👋\n\n`;
   msg += `تم تنفيذ طلب الدليفري الخاص بك بنجاح! 🎉\n`;
   msg += `📌 *رقم الطلب:* #${orderNum}\n\n`;
