@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography,
   FormControl, InputLabel, Select, MenuItem, TextField, Paper, Table, TableHead,
-  TableRow, TableCell, TableBody, IconButton, Tooltip, Chip, Alert, Grid, Divider, Autocomplete
+  TableRow, TableCell, TableBody, TableContainer, IconButton, Tooltip, Chip, Alert, Grid, Divider, Autocomplete
 } from '@mui/material';
 import { Delete as DeleteIcon, Add as AddIcon, Science, AttachMoney, Inventory, CheckCircle } from '@mui/icons-material';
 
