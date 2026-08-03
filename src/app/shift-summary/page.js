@@ -27,6 +27,8 @@ import {
   FormControl,
   Select,
   MenuItem,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   Print,
@@ -74,7 +76,7 @@ export default function ShiftSummaryPage() {
 
   // New shift form state
   const [newCashierName, setNewCashierName] = useState(user?.name || '');
-  const [newStartAmount, setNewStartAmount] = useState('500');
+  const [newStartAmount, setNewStartAmount] = useState('0');
 
   // Closed shifts history state
   const [shiftsHistory, setShiftsHistory] = useState([]);
@@ -190,7 +192,7 @@ export default function ShiftSummaryPage() {
   const handleConfirmOpenShift = async () => {
     try {
       const amount = parseFloat(newStartAmount) || 0;
-      await openShift(newCashierName, amount, selectedBranchId);
+      await openShift(newCashierName, amount, effectiveBranchId);
       setOpenDialogOpen(false);
       await fetchPastShifts();
       alert('تم فتح وردية جديدة بنجاح!');
@@ -272,18 +274,40 @@ export default function ShiftSummaryPage() {
 
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
           {isAdmin && (
-            <FormControl size="small" sx={{ minWidth: 160 }}>
-              <Select
-                value={selectedBranchId}
-                onChange={(e) => setSelectedBranchId(e.target.value)}
-                sx={{ borderRadius: '12px', bgcolor: '#FFF', fontWeight: 800 }}
+            <Paper elevation={0} sx={{ borderRadius: '14px', p: 0.5, bgcolor: '#F1F5F9', border: '1px solid #E2E8F0' }}>
+              <Tabs
+                value={selectedBranchId === 'all' ? (branches[0]?.id || 'b1') : selectedBranchId}
+                onChange={(e, val) => setSelectedBranchId(val)}
+                variant="scrollable"
+                scrollButtons="auto"
+                sx={{
+                  minHeight: 38,
+                  '& .MuiTab-root': {
+                    minHeight: 38,
+                    fontWeight: 800,
+                    fontSize: '0.9rem',
+                    borderRadius: '10px',
+                    mx: 0.3,
+                    px: 2,
+                    color: '#64748B',
+                    transition: 'all 0.2s ease',
+                    '&.Mui-selected': {
+                      bgcolor: '#FFFFFF',
+                      color: '#0F172A',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
+                    }
+                  },
+                  '& .MuiTabs-indicator': { display: 'none' }
+                }}
               >
-                <MenuItem value="all">🏢 كافـة الفـروع</MenuItem>
-                {branches.map((b) => (
-                  <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
+                {(branches && branches.length > 0 ? branches : [
+                  { id: 'b1', name: 'فرع عزت' },
+                  { id: 'b2', name: 'فرع المسلة' }
+                ]).map((b) => (
+                  <Tab key={b.id} value={b.id} label={`🏢 ${b.name}`} />
                 ))}
-              </Select>
-            </FormControl>
+              </Tabs>
+            </Paper>
           )}
 
           {isShiftActive ? (
@@ -524,7 +548,7 @@ export default function ShiftSummaryPage() {
             fullWidth
             type="number"
             label="مبلغ النقدية الأولى بالخزينة (العهدة ج.م)"
-            placeholder="500"
+            placeholder="0"
             value={newStartAmount}
             onChange={(e) => setNewStartAmount(e.target.value)}
           />
