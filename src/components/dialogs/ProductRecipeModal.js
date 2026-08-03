@@ -128,6 +128,31 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
 
   // Calculate summary stats for the selected product
   const sellingPrice = parseFloat(selectedProduct?.price || 0);
+  const isMultiSizeProduct = Boolean(selectedProduct?.hasMultipleSizes || selectedProduct?.priceSmall);
+  const pPriceSmall = parseFloat(selectedProduct?.priceSmall || 25);
+  const pPriceLarge = parseFloat(selectedProduct?.priceLarge || selectedProduct?.price || 40);
+
+  // Small size cost: ingredients with size === 'صغير' || 'small' || 'all'
+  const smallRecipeCost = ingredients.reduce((sum, ing) => {
+    if (ing.size === 'كبير' || ing.size === 'large') return sum;
+    const qty = parseFloat(ing.quantity || 0);
+    const unitCost = parseFloat(ing.inventory_cost_per_unit || 0);
+    return sum + (qty * unitCost);
+  }, 0);
+
+  // Large size cost: ingredients with size === 'كبير' || 'large' || 'all'
+  const largeRecipeCost = ingredients.reduce((sum, ing) => {
+    if (ing.size === 'صغير' || ing.size === 'small') return sum;
+    const qty = parseFloat(ing.quantity || 0);
+    const unitCost = parseFloat(ing.inventory_cost_per_unit || 0);
+    return sum + (qty * unitCost);
+  }, 0);
+
+  const smallNetProfit = Math.max(0, pPriceSmall - smallRecipeCost);
+  const largeNetProfit = Math.max(0, pPriceLarge - largeRecipeCost);
+  const smallProfitMargin = pPriceSmall > 0 ? Math.round((smallNetProfit / pPriceSmall) * 100) : 0;
+  const largeProfitMargin = pPriceLarge > 0 ? Math.round((largeNetProfit / pPriceLarge) * 100) : 0;
+
   const totalRecipeCost = ingredients.reduce((sum, ing) => {
     const qty = parseFloat(ing.quantity || 0);
     const unitCost = parseFloat(ing.inventory_cost_per_unit || 0);
@@ -144,10 +169,10 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
         </Box>
         <Box>
           <Typography variant="h6" fontWeight={900} color="#1A1A2E">
-            🥩 إدارة خامات ومكونات المنتجات والمكسات
+            🥩 إدارة خامات ومكونات المنتجات والمكسات (حسب الأحجام)
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            ربط المنتج أو المكس بالخامات بالمخزن ليتم الخصم الأوتوماتيكي وحساب التكلفة والربح لكل صنف
+            ربط الحجم الصغير والحجم الكبير بالخامات بالمخزن ليتم الخصم الأوتوماتيكي وحساب الربح لكل حجم
           </Typography>
         </Box>
       </DialogTitle>
@@ -156,19 +181,26 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
         {/* Product Selection Bar */}
         <Paper sx={{ p: 2, borderRadius: '14px', bgcolor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
           <Grid container spacing={2} alignItems="center">
-            <Grid xs={12} sm={7}>
+            <Grid xs={12} sm={6}>
               <Autocomplete
                 options={products}
-                getOptionLabel={(opt) => `${opt.name} (${opt.categoryName || opt.categoryId || 'عام'}) - ${opt.price} ج.م`}
+                getOptionLabel={(opt) => `${opt.name} (${opt.hasMultipleSizes ? `صغير ${opt.priceSmall || 25}ج / كبير ${opt.priceLarge || opt.price}ج` : `${opt.price}ج.م`})`}
                 value={selectedProduct}
                 onChange={(e, val) => setSelectedProduct(val)}
                 renderInput={(params) => <TextField {...params} label="اختر المنتج أو المكس / الوجبة *" size="small" />}
               />
             </Grid>
-            <Grid xs={12} sm={5}>
+            <Grid xs={12} sm={6}>
               {selectedProduct && (
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' } }}>
-                  <Chip label={`السعر: ${sellingPrice} ج.م`} color="primary" sx={{ fontWeight: 800 }} />
+                  {isMultiSizeProduct ? (
+                    <>
+                      <Chip label={`📏 صغير: ${pPriceSmall} ج.م`} color="warning" sx={{ fontWeight: 800 }} />
+                      <Chip label={`📏 كبير: ${pPriceLarge} ج.م`} color="primary" sx={{ fontWeight: 800 }} />
+                    </>
+                  ) : (
+                    <Chip label={`السعر: ${sellingPrice} ج.م`} color="primary" sx={{ fontWeight: 800 }} />
+                  )}
                   <Chip label={`الفئة: ${selectedProduct.categoryName || selectedProduct.categoryId || 'عام'}`} variant="outlined" sx={{ fontWeight: 700 }} />
                 </Box>
               )}
@@ -322,22 +354,60 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
 
             {/* Financial & Profit Margin Summary Box */}
             {ingredients.length > 0 && (
-              <Paper sx={{ p: 2, borderRadius: '14px', bgcolor: '#F0FDF4', border: '1px solid #BBF7D0', display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: 2 }}>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="caption" color="#166534">سعر البيع للعميل</Typography>
-                  <Typography variant="h6" fontWeight={900} color="#15803D">{sellingPrice} ج.م</Typography>
-                </Box>
-                <Divider orientation="vertical" flexItem />
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="caption" color="#991B1B">تكلفة الخامات الإجمالية</Typography>
-                  <Typography variant="h6" fontWeight={900} color="#DC2626">{totalRecipeCost.toFixed(2)} ج.م</Typography>
-                </Box>
-                <Divider orientation="vertical" flexItem />
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="caption" color="#1E40AF">الربح الصافي المتوقع</Typography>
-                  <Typography variant="h6" fontWeight={900} color="#1D4ED8">{netProfit.toFixed(2)} ج.م ({profitMarginPercent}%)</Typography>
-                </Box>
-              </Paper>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                {isMultiSizeProduct ? (
+                  <Grid container spacing={2}>
+                    <Grid xs={12} sm={6}>
+                      <Paper sx={{ p: 2, borderRadius: '14px', bgcolor: '#FFFBEB', border: '1.5px solid #FCD34D', textAlign: 'center' }}>
+                        <Typography variant="subtitle2" fontWeight={800} color="#B45309">📏 حساب الحجم الصغير (السعر: {pPriceSmall} ج.م)</Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-around', mt: 1 }}>
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">تكلفة الخامات</Typography>
+                            <Typography variant="body1" fontWeight={900} color="#DC2626">{smallRecipeCost.toFixed(2)} ج.م</Typography>
+                          </Box>
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">الربح الصافي</Typography>
+                            <Typography variant="body1" fontWeight={900} color="#166534">{smallNetProfit.toFixed(2)} ج.م ({smallProfitMargin}%)</Typography>
+                          </Box>
+                        </Box>
+                      </Paper>
+                    </Grid>
+
+                    <Grid xs={12} sm={6}>
+                      <Paper sx={{ p: 2, borderRadius: '14px', bgcolor: '#EFF6FF', border: '1.5px solid #93C5FD', textAlign: 'center' }}>
+                        <Typography variant="subtitle2" fontWeight={800} color="#1E40AF">📏 حساب الحجم الكبير (السعر: {pPriceLarge} ج.م)</Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-around', mt: 1 }}>
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">تكلفة الخامات</Typography>
+                            <Typography variant="body1" fontWeight={900} color="#DC2626">{largeRecipeCost.toFixed(2)} ج.م</Typography>
+                          </Box>
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">الربح الصافي</Typography>
+                            <Typography variant="body1" fontWeight={900} color="#1D4ED8">{largeNetProfit.toFixed(2)} ج.م ({largeProfitMargin}%)</Typography>
+                          </Box>
+                        </Box>
+                      </Paper>
+                    </Grid>
+                  </Grid>
+                ) : (
+                  <Paper sx={{ p: 2, borderRadius: '14px', bgcolor: '#F0FDF4', border: '1px solid #BBF7D0', display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: 2 }}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="caption" color="#166534">سعر البيع للعميل</Typography>
+                      <Typography variant="h6" fontWeight={900} color="#15803D">{sellingPrice} ج.م</Typography>
+                    </Box>
+                    <Divider orientation="vertical" flexItem />
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="caption" color="#991B1B">تكلفة الخامات الإجمالية</Typography>
+                      <Typography variant="h6" fontWeight={900} color="#DC2626">{totalRecipeCost.toFixed(2)} ج.م</Typography>
+                    </Box>
+                    <Divider orientation="vertical" flexItem />
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="caption" color="#1E40AF">الربح الصافي المتوقع</Typography>
+                      <Typography variant="h6" fontWeight={900} color="#1D4ED8">{netProfit.toFixed(2)} ج.م ({profitMarginPercent}%)</Typography>
+                    </Box>
+                  </Paper>
+                )}
+              </Box>
             )}
           </Box>
         )}
