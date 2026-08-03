@@ -126,6 +126,42 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
     }
   };
 
+  // Generate expanded product options for sizes (Small/Large)
+  const productOptions = [];
+  (products || []).forEach(p => {
+    const hasSizes = Boolean(p.hasMultipleSizes || p.priceSmall || p.has_sizes);
+    if (hasSizes) {
+      const pSmall = p.priceSmall || 25;
+      const pLarge = p.priceLarge || p.price || 40;
+      productOptions.push({
+        ...p,
+        uniqueOptionId: `${p.id}_صغير`,
+        optionLabel: `${p.name} (حجم صغير) - ${pSmall} ج.م`,
+        targetSize: 'صغير',
+        displayPrice: pSmall
+      });
+      productOptions.push({
+        ...p,
+        uniqueOptionId: `${p.id}_كبير`,
+        optionLabel: `${p.name} (حجم كبير) - ${pLarge} ج.م`,
+        targetSize: 'كبير',
+        displayPrice: pLarge
+      });
+    } else {
+      productOptions.push({
+        ...p,
+        uniqueOptionId: p.id,
+        optionLabel: `${p.name} - ${p.price} ج.م`,
+        targetSize: 'all',
+        displayPrice: p.price
+      });
+    }
+  });
+
+  const selectedOptionObj = productOptions.find(
+    opt => opt.id === selectedProduct?.id && (opt.targetSize === selectedSize || opt.targetSize === 'all')
+  ) || (selectedProduct ? { ...selectedProduct, optionLabel: selectedProduct.name } : null);
+
   // Calculate summary stats for the selected product
   const sellingPrice = parseFloat(selectedProduct?.price || 0);
   const isMultiSizeProduct = Boolean(selectedProduct?.hasMultipleSizes || selectedProduct?.priceSmall);
@@ -183,11 +219,18 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
           <Grid container spacing={2} alignItems="center">
             <Grid xs={12} sm={6}>
               <Autocomplete
-                options={products}
-                getOptionLabel={(opt) => `${opt.name} (${opt.hasMultipleSizes ? `صغير ${opt.priceSmall || 25}ج / كبير ${opt.priceLarge || opt.price}ج` : `${opt.price}ج.م`})`}
-                value={selectedProduct}
-                onChange={(e, val) => setSelectedProduct(val)}
-                renderInput={(params) => <TextField {...params} label="اختر المنتج أو المكس / الوجبة *" size="small" />}
+                options={productOptions}
+                getOptionLabel={(opt) => opt.optionLabel || opt.name || ''}
+                value={selectedOptionObj}
+                onChange={(e, val) => {
+                  if (val) {
+                    setSelectedProduct(val);
+                    setSelectedSize(val.targetSize || 'all');
+                  } else {
+                    setSelectedProduct(null);
+                  }
+                }}
+                renderInput={(params) => <TextField {...params} label="اختر المنتج أو الحجم المراد ربطه *" size="small" />}
               />
             </Grid>
             <Grid xs={12} sm={6}>
