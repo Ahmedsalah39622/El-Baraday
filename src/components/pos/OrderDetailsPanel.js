@@ -261,7 +261,7 @@ export default function OrderDetailsPanel({
       sendDeliveryWhatsApp({
         orderData: currentOrderData,
         driverPhone: targetDriverPhone,
-        companySettings: { company_name: activeBranchName },
+        companySettings: { company_name: 'مطعم البرادعي للحواوشي' },
         autoOpenBrowser: true
       })
       .then(res => {
@@ -981,7 +981,7 @@ export default function OrderDetailsPanel({
                 sendDeliveryWhatsApp({
                   orderData: completedOrderData,
                   driverPhone: targetDriverPhone,
-                  companySettings: { company_name: activeBranchName },
+                  companySettings: { company_name: 'مطعم البرادعي للحواوشي' },
                   autoOpenBrowser: true
                 });
               }}

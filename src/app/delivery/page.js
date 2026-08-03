@@ -389,7 +389,7 @@ export default function DeliveryPage() {
           items: order.items || []
         },
         driverPhone,
-        companySettings: { company_name: order.branch_name || 'مطعم البرادعي' },
+        companySettings: { company_name: 'مطعم البرادعي للحواوشي' },
         autoOpenBrowser: false
       });
 
@@ -397,7 +397,7 @@ export default function DeliveryPage() {
         alert('✅ تم إرسال رسالة الواتساب للعميل عبر Green API تلقائياً بنجاح!');
       } else {
         const cleanPhone = formatWhatsAppPhone(order.customer_phone || order.customerName);
-        const msg = generateDeliveryMessage(order, driverPhone, { company_name: order.branch_name });
+        const msg = generateDeliveryMessage(order, driverPhone, { company_name: 'مطعم البرادعي للحواوشي' });
         window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`, '_blank');
       }
     } catch (err) {

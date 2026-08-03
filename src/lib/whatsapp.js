@@ -24,7 +24,11 @@ export function formatWhatsAppPhone(phone) {
  * Generates formatted Arabic delivery notification text for WhatsApp
  */
 export function generateDeliveryMessage(orderData = {}, driverPhone = '', companySettings = {}) {
-  const companyName = companySettings.company_name || companySettings.companyName || 'مطعم البرادعي للحواوشي';
+  let rawName = companySettings.company_name || companySettings.companyName || 'مطعم البرادعي للحواوشي';
+  if (rawName.includes('فرع') || rawName.includes('المسلة')) {
+    rawName = 'مطعم البرادعي للحواوشي';
+  }
+  const companyName = rawName;
   const companyPhone = companySettings.company_phone || companySettings.phone || '';
   
   const orderNum = orderData.orderNumber || orderData.order_number || '---';
@@ -60,6 +64,7 @@ export function generateDeliveryMessage(orderData = {}, driverPhone = '', compan
   }
 
   // Construct message
+  let msg = `🍟 *${companyName}* 🍔\n`;
   msg += `أهلاً بك يا *${customerName}* 👋\n\n`;
   msg += `تم تنفيذ طلب الدليفري الخاص بك بنجاح! 🎉\n`;
   msg += `📌 *رقم الطلب:* #${orderNum}\n\n`;
