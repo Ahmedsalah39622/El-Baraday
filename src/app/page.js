@@ -41,6 +41,74 @@ export default function POSPage() {
   const [qtyLarge, setQtyLarge] = useState(1);
   const [isSystemLoading, setIsSystemLoading] = useState(true);
 
+  // Offer Customization Modal State
+  const [offerModalOpen, setOfferModalOpen] = useState(false);
+  const [selectedOfferProduct, setSelectedOfferProduct] = useState(null);
+  const [offerHawawshiSelections, setOfferHawawshiSelections] = useState({});
+
+  const defaultHawawshiFlavors = [
+    { id: 'hw_1', name: 'حواوشي لحمة سادة', emoji: '🥩' },
+    { id: 'hw_2', name: 'حواوشي ميكس أجبان', emoji: '🧀' },
+    { id: 'hw_3', name: 'حواوشي فراخ', emoji: '🍗' },
+    { id: 'hw_4', name: 'حواوشي سجق', emoji: '🌭' },
+    { id: 'hw_5', name: 'حواوشي حار / حراق', emoji: '🌶️' },
+    { id: 'hw_6', name: 'حواوشي بسطرمة', emoji: '🥓' },
+  ];
+
+  const getOfferMaxHawawshi = (product) => {
+    if (!product) return 2;
+    const text = `${product.name} ${product.description || ''} ${product.offerComponents || ''}`;
+    const match = text.match(/(\d+)\s*(?:حواوشي|حواوشى|رغيف|ساندوتش|قطع|قطعة)/i);
+    if (match && match[1]) {
+      const parsed = parseInt(match[1], 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    if (product.name.includes('كينج') || product.name.includes('بوكس')) return 6;
+    return 2;
+  };
+
+  const totalOfferHawawshisChosen = Object.values(offerHawawshiSelections).reduce((sum, sel) => sum + (sel.small || 0) + (sel.large || 0), 0);
+  const maxOfferHawawshisAllowed = getOfferMaxHawawshi(selectedOfferProduct);
+
+  const handleUpdateOfferHawawshiCount = (key, size, delta) => {
+    const current = offerHawawshiSelections[key]?.[size] || 0;
+    if (delta > 0 && totalOfferHawawshisChosen >= maxOfferHawawshisAllowed) {
+      return; // Reached offer max limit
+    }
+    const nextVal = Math.max(0, current + delta);
+    setOfferHawawshiSelections(prev => ({
+      ...prev,
+      [key]: {
+        ...(prev[key] || { name: key }),
+        [size]: nextVal
+      }
+    }));
+  };
+
+  const handleConfirmAddOffer = () => {
+    if (!selectedOfferProduct) return;
+    
+    const breakdown = [];
+    Object.entries(offerHawawshiSelections).forEach(([key, sel]) => {
+      const flavorName = sel.name || key;
+      if (sel.large > 0) breakdown.push(`${sel.large}x ${flavorName} (كبير)`);
+      if (sel.small > 0) breakdown.push(`${sel.small}x ${flavorName} (صغير)`);
+    });
+
+    const breakdownText = breakdown.length > 0 ? breakdown.join(' | ') : '';
+
+    addItem({
+      id: `${selectedOfferProduct.id}_${Date.now()}`,
+      name: `عرض ${selectedOfferProduct.name}`,
+      price: selectedOfferProduct.price,
+      image: selectedOfferProduct.image,
+      notes: breakdownText ? `التشكيل: ${breakdownText}` : '',
+      quantity: 1,
+    });
+
+    setOfferModalOpen(false);
+  };
+
   const knownOrderIdsRef = useRef(new Set());
   const initialLoadDoneRef = useRef(false);
 
@@ -432,7 +500,20 @@ export default function POSPage() {
   const total = subtotal;
 
   const handleSelectProduct = (product) => {
-    if (product.hasMultipleSizes) {
+    if (product.isOffer || product.categoryId === '5') {
+      setSelectedOfferProduct(product);
+      const initSelections = {};
+      const category1Prods = (products || []).filter(p => p.categoryId === '1');
+      const listToUse = category1Prods.length > 0 ? category1Prods : defaultHawawshiFlavors;
+
+      listToUse.forEach(item => {
+        const itemKey = item.id || item.name;
+        initSelections[itemKey] = { small: 0, large: 0, name: item.name };
+      });
+
+      setOfferHawawshiSelections(initSelections);
+      setOfferModalOpen(true);
+    } else if (product.hasMultipleSizes) {
       setSelectedProductForSize(product);
       setQtySmall(1);
       setQtyLarge(1);
@@ -1002,6 +1083,202 @@ export default function POSPage() {
         <DialogActions sx={{ justifyContent: 'center', pt: 1 }}>
           <Button onClick={() => setSizeModalOpen(false)} sx={{ color: '#6B7280', fontWeight: 800, fontSize: '0.95rem' }}>
             إلغاء
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Offer Customization Dialog Modal */}
+      <Dialog
+        open={offerModalOpen}
+        onClose={() => setOfferModalOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        slotProps={{
+          paper: {
+            sx: { borderRadius: '24px', p: 1.5 }
+          }
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, textAlign: 'center', color: '#1A1A2E', pb: 0.5, fontSize: '1.25rem' }}>
+          🏷️ تخصيص مكونات العرض ({selectedOfferProduct?.name})
+        </DialogTitle>
+        
+        <DialogContent sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {/* Offer Banner Info & Limit Status */}
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2,
+              borderRadius: '16px',
+              bgcolor: totalOfferHawawshisChosen === maxOfferHawawshisAllowed ? '#ECFDF5' : '#FFFBEB',
+              border: '1.5px solid',
+              borderColor: totalOfferHawawshisChosen === maxOfferHawawshisAllowed ? '#10B981' : '#F59E0B',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 1,
+            }}
+          >
+            <Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 900, color: '#1E293B' }}>
+                سعر العرض المميز: {selectedOfferProduct?.price} ج.م
+              </Typography>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: totalOfferHawawshisChosen === maxOfferHawawshisAllowed ? '#047857' : '#B45309', display: 'block', mt: 0.2 }}>
+                {totalOfferHawawshisChosen === maxOfferHawawshisAllowed
+                  ? '✓ تم استيفاء التشكيل المطلوب لهذا العرض بنجاح'
+                  : `اختر الأنواع والأحجام المطلوبة (العدد المكتمل المسموح: ${maxOfferHawawshisAllowed} قطعة)`}
+              </Typography>
+            </Box>
+
+            <Chip
+              label={`${totalOfferHawawshisChosen} من ${maxOfferHawawshisAllowed}`}
+              sx={{
+                bgcolor: totalOfferHawawshisChosen === maxOfferHawawshisAllowed ? '#10B981' : '#F59E0B',
+                color: '#FFF',
+                fontWeight: 900,
+                fontSize: '0.95rem',
+                height: 32,
+              }}
+            />
+          </Paper>
+
+          {/* Flavors List */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, maxHeight: '55vh', overflowY: 'auto', pr: 0.5 }}>
+            {(() => {
+              const category1Prods = (products || []).filter(p => p.categoryId === '1');
+              const listToUse = category1Prods.length > 0 ? category1Prods : defaultHawawshiFlavors;
+
+              return listToUse.map((flavor) => {
+                const key = flavor.id || flavor.name;
+                const sel = offerHawawshiSelections[key] || { small: 0, large: 0 };
+                const isLimitReached = totalOfferHawawshisChosen >= maxOfferHawawshisAllowed;
+
+                return (
+                  <Paper
+                    key={key}
+                    variant="outlined"
+                    sx={{
+                      p: 1.8,
+                      borderRadius: '16px',
+                      borderColor: '#E2E8F0',
+                      bgcolor: '#F8FAFC',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 1.2,
+                    }}
+                  >
+                    <Typography variant="subtitle2" sx={{ fontWeight: 900, color: '#1E293B', fontSize: '1.05rem' }}>
+                      {flavor.emoji || '🍔'} {flavor.name}
+                    </Typography>
+
+                    <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                      {/* Large Size Control */}
+                      <Box
+                        sx={{
+                          flex: 1,
+                          minWidth: 140,
+                          bgcolor: '#FFFFFF',
+                          p: 1.2,
+                          borderRadius: '12px',
+                          border: '1.5px solid #BFDBFE',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                        }}
+                      >
+                        <Typography variant="body2" sx={{ fontWeight: 900, color: '#1D4ED8', fontSize: '0.9rem' }}>
+                          🔵 كبير
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleUpdateOfferHawawshiCount(key, 'large', -1)}
+                            disabled={!sel.large}
+                            sx={{ bgcolor: '#DBEAFE', color: '#1D4ED8', width: 28, height: 28, fontWeight: 900 }}
+                          >
+                            -
+                          </IconButton>
+                          <Typography sx={{ fontWeight: 900, minWidth: 20, textAlign: 'center', fontSize: '0.95rem', color: '#1E40AF' }}>
+                            {sel.large || 0}
+                          </Typography>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleUpdateOfferHawawshiCount(key, 'large', 1)}
+                            disabled={isLimitReached}
+                            sx={{ bgcolor: '#DBEAFE', color: '#1D4ED8', width: 28, height: 28, fontWeight: 900 }}
+                          >
+                            +
+                          </IconButton>
+                        </Box>
+                      </Box>
+
+                      {/* Small Size Control */}
+                      <Box
+                        sx={{
+                          flex: 1,
+                          minWidth: 140,
+                          bgcolor: '#FFFFFF',
+                          p: 1.2,
+                          borderRadius: '12px',
+                          border: '1.5px solid #FCD34D',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                        }}
+                      >
+                        <Typography variant="body2" sx={{ fontWeight: 900, color: '#D97706', fontSize: '0.9rem' }}>
+                          🟡 صغير
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleUpdateOfferHawawshiCount(key, 'small', -1)}
+                            disabled={!sel.small}
+                            sx={{ bgcolor: '#FEF3C7', color: '#D97706', width: 28, height: 28, fontWeight: 900 }}
+                          >
+                            -
+                          </IconButton>
+                          <Typography sx={{ fontWeight: 900, minWidth: 20, textAlign: 'center', fontSize: '0.95rem', color: '#B45309' }}>
+                            {sel.small || 0}
+                          </Typography>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleUpdateOfferHawawshiCount(key, 'small', 1)}
+                            disabled={isLimitReached}
+                            sx={{ bgcolor: '#FEF3C7', color: '#D97706', width: 28, height: 28, fontWeight: 900 }}
+                          >
+                            +
+                          </IconButton>
+                        </Box>
+                      </Box>
+                    </Box>
+                  </Paper>
+                );
+              });
+            })()}
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{ justifyContent: 'space-between', px: 3, py: 1.5 }}>
+          <Button onClick={() => setOfferModalOpen(false)} sx={{ color: '#6B7280', fontWeight: 800 }}>
+            إلغاء
+          </Button>
+
+          <Button
+            variant="contained"
+            onClick={handleConfirmAddOffer}
+            disabled={totalOfferHawawshisChosen !== maxOfferHawawshisAllowed}
+            sx={{
+              bgcolor: totalOfferHawawshisChosen === maxOfferHawawshisAllowed ? '#10B981' : '#9CA3AF',
+              '&:hover': { bgcolor: '#059669' },
+              borderRadius: '12px',
+              fontWeight: 800,
+              px: 3,
+              py: 1,
+            }}
+          >
+            إضافة العرض للطلب 🚀
           </Button>
         </DialogActions>
       </Dialog>
