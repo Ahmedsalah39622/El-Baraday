@@ -27,7 +27,7 @@ export default function SettingsPage() {
   const [localSettings, setLocalSettings] = useState({
     companyName: '', address: '', phone: '', taxRate: 0, minTableCharge: 0, delivery_timer_minutes: 30,
     whatsapp_enabled: 'true',
-    whatsapp_mode: 'browser',
+    whatsapp_mode: 'api',
     whatsapp_provider: 'greenapi',
     whatsapp_instance_id: '',
     whatsapp_token: '',
@@ -41,6 +41,11 @@ export default function SettingsPage() {
   const [newBranchName, setNewBranchName] = useState('');
   const [newBranchPhone, setNewBranchPhone] = useState('');
   const [newBranchAddress, setNewBranchAddress] = useState('');
+
+  // WhatsApp Test State
+  const [testPhone, setTestPhone] = useState('');
+  const [testLoading, setTestLoading] = useState(false);
+  const [testResult, setTestResult] = useState(null);
 
   useEffect(() => {
     async function loadAllSettings() {
@@ -77,6 +82,34 @@ export default function SettingsPage() {
       }
     } catch (err) {
       console.error('Save settings error:', err);
+    }
+  };
+
+  const handleTestWhatsApp = async () => {
+    if (!testPhone || !testPhone.trim()) {
+      alert('برجاء كتابة رقم هاتف للتجربة (مثال: 01012345678)');
+      return;
+    }
+    setTestLoading(true);
+    setTestResult(null);
+    try {
+      await handleSaveSettings();
+
+      const res = await fetch('/api/notifications/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: testPhone.trim(),
+          message: '🧪 رسالة تجريبية من نظام مطعم البرادعي للحواوشي لاختبار الربط برمجياً عبر Green API',
+          isTest: true
+        })
+      });
+      const data = await res.json();
+      setTestResult(data);
+    } catch (err) {
+      setTestResult({ sentViaApi: false, error: err.message });
+    } finally {
+      setTestLoading(false);
     }
   };
 
@@ -301,13 +334,13 @@ export default function SettingsPage() {
                 <FormControl fullWidth size="small">
                   <InputLabel>مزود خدمة الواتساب (API Provider)</InputLabel>
                   <Select
-                    value={localSettings.whatsapp_provider || 'ultramsg'}
+                    value={localSettings.whatsapp_provider || 'greenapi'}
                     label="مزود خدمة الواتساب (API Provider)"
                     onChange={e => setLocalSettings({ ...localSettings, whatsapp_provider: e.target.value })}
                     sx={{ borderRadius: '10px' }}
                   >
+                    <MenuItem value="greenapi">Green API (بوابة الواتساب - green-api.com)</MenuItem>
                     <MenuItem value="ultramsg">UltraMsg API (ربط واتساب مباشر)</MenuItem>
-                    <MenuItem value="greenapi">Green API (بوابة الواتساب)</MenuItem>
                     <MenuItem value="webhook">Custom Webhook (رابط سيرفر خاص)</MenuItem>
                   </Select>
                 </FormControl>
@@ -324,7 +357,7 @@ export default function SettingsPage() {
                     size="small"
                     value={localSettings.whatsapp_instance_id || ''}
                     onChange={e => setLocalSettings({ ...localSettings, whatsapp_instance_id: e.target.value })}
-                    placeholder="مثال: instance123456"
+                    placeholder="مثال: 7103131720"
                   />
                 </Grid>
                 <Grid xs={12} sm={6}>
@@ -353,6 +386,56 @@ export default function SettingsPage() {
                 />
               </Grid>
             )}
+
+            {/* Test Connection Box */}
+            <Grid xs={12}>
+              <Paper sx={{ p: 3, borderRadius: '14px', bgcolor: '#F0FDF4', border: '1.5px solid #86EFAC' }}>
+                <Typography variant="subtitle1" fontWeight={800} sx={{ color: '#166534', mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  🧪 تجربة واختبار اتصال Green API والواتساب:
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#15803D', mb: 2 }}>
+                  أدخل رقم هاتفك واضغط على زر التجربة للتأكد من وصول الرسائل وتفعيل الخدمة بنجاح قبل العمل الفعلي.
+                </Typography>
+                <Grid container spacing={2} alignItems="center">
+                  <Grid xs={12} sm={7}>
+                    <TextField
+                      label="رقم الهاتف للتجربة"
+                      size="small"
+                      fullWidth
+                      value={testPhone}
+                      onChange={e => setTestPhone(e.target.value)}
+                      placeholder="010XXXXXXXX"
+                      sx={{ bgcolor: '#FFF' }}
+                    />
+                  </Grid>
+                  <Grid xs={12} sm={5}>
+                    <Button
+                      variant="contained"
+                      fullWidth
+                      disabled={testLoading}
+                      onClick={handleTestWhatsApp}
+                      sx={{ bgcolor: '#15803D', color: '#FFF', fontWeight: 800, py: 1, '&:hover': { bgcolor: '#166534' } }}
+                    >
+                      {testLoading ? '⏳ جاري الاختبار...' : '🚀 تجربة إرسال رسالة الآن'}
+                    </Button>
+                  </Grid>
+                </Grid>
+
+                {testResult && (
+                  <Box sx={{ mt: 2 }}>
+                    {testResult.sentViaApi ? (
+                      <Alert severity="success" sx={{ borderRadius: '10px', fontWeight: 700 }}>
+                        ✅ تم إرسال الرسالة التجريبية بنجاح عبر Green API!
+                      </Alert>
+                    ) : (
+                      <Alert severity="error" sx={{ borderRadius: '10px', fontWeight: 700 }}>
+                        ❌ فشل الإرسال: {testResult.error || testResult.reason || 'تأكد من إدخال Instance ID و Token صحيحين في حساب Green API'}
+                      </Alert>
+                    )}
+                  </Box>
+                )}
+              </Paper>
+            </Grid>
 
             {/* Template Info Alert */}
             <Grid xs={12}>

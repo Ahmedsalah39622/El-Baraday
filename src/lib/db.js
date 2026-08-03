@@ -65,8 +65,9 @@ export async function query(text, params = []) {
     // 5. Convert ON CONFLICT ... DO UPDATE to MySQL ON DUPLICATE KEY UPDATE
     if (/ON CONFLICT/i.test(sql)) {
       if (/ON CONFLICT\s*\([^)]+\)\s*DO\s+NOTHING/i.test(sql)) {
-        sql = sql.replace(/ON CONFLICT\s*\([^)]+\)\s*DO\s+NOTHING/gi, 'ON DUPLICATE KEY UPDATE id=id');
+        sql = sql.replace(/ON CONFLICT\s*\([^)]+\)\s*DO\s+NOTHING/gi, 'ON DUPLICATE KEY UPDATE `key`=`key`');
       } else {
+        sql = sql.replace(/ON CONFLICT\s*\([^)]+\)\s*DO\s+UPDATE\s+SET\s+`?value`?\s*=\s*\$2/gi, 'ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)');
         sql = sql.replace(/ON CONFLICT\s*\([^)]+\)\s*DO\s+UPDATE\s+SET/gi, 'ON DUPLICATE KEY UPDATE');
         sql = sql.replace(/EXCLUDED\.(\w+)/gi, 'VALUES($1)');
       }
@@ -81,8 +82,9 @@ export async function query(text, params = []) {
     let injectedId = null;
     const insertMatch = sql.match(/INSERT\s+INTO\s+`?(\w+)`?\s*\(([^)]+)\)/i);
     if (insertMatch) {
+      const tableName = insertMatch[1].toLowerCase();
       const cols = insertMatch[2].split(',').map(c => c.trim().replace(/`/g, ''));
-      if (!cols.includes('id')) {
+      if (!cols.includes('id') && tableName !== 'app_settings') {
         injectedId = randomUUID();
         // Inject id into column list and values
         sql = sql.replace(

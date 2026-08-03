@@ -55,6 +55,46 @@ export default function POSPage() {
     { id: 'hw_6', name: 'حواوشي بسطرمة', emoji: '🥓' },
   ];
 
+  const getOfferFlavorsAndQuantities = (offerProduct, allCategory1Products, defaultFlavors) => {
+    if (!offerProduct) return defaultFlavors;
+    const text = `${offerProduct.name || ''} ${offerProduct.description || ''} ${offerProduct.offerComponents || ''}`.toLowerCase();
+
+    const availableFlavors = (allCategory1Products && allCategory1Products.length > 0) 
+      ? allCategory1Products 
+      : defaultFlavors;
+
+    const flavorRules = [
+      { keywords: ['فراخ', 'دجاج', 'chick'], matchName: 'فراخ' },
+      { keywords: ['أجبان', 'جبن', 'ميكس أجبان', 'جبنه', 'cheese'], matchName: 'أجبان' },
+      { keywords: ['سجق', 'سوسيس'], matchName: 'سجق' },
+      { keywords: ['بسطرمة', 'بسطرمه'], matchName: 'بسطرمة' },
+      { keywords: ['مشروم', 'فطر'], matchName: 'مشروم' },
+      { keywords: ['حراق', 'حار', 'spicy'], matchName: 'حار' },
+      { keywords: ['سادة', 'لحمة', 'ساده', 'عادي'], matchName: 'سادة' },
+    ];
+
+    const matchedFlavors = availableFlavors.filter(flavor => {
+      const fname = flavor.name.toLowerCase();
+      for (const rule of flavorRules) {
+        const textMatchesRule = rule.keywords.some(kw => text.includes(kw));
+        const flavorMatchesRule = rule.keywords.some(kw => fname.includes(kw));
+        if (textMatchesRule && flavorMatchesRule) return true;
+      }
+      return false;
+    });
+
+    if (matchedFlavors.length > 0) {
+      return matchedFlavors;
+    }
+
+    if (text.includes('حواوشي') || text.includes('حواوشى')) {
+      const plain = availableFlavors.filter(f => f.name.includes('سادة') || f.name.includes('لحمة'));
+      if (plain.length > 0) return plain;
+    }
+
+    return availableFlavors;
+  };
+
   const getOfferMaxHawawshi = (product) => {
     if (!product) return 2;
     const text = `${product.name} ${product.description || ''} ${product.offerComponents || ''}`;
@@ -504,7 +544,7 @@ export default function POSPage() {
       setSelectedOfferProduct(product);
       const initSelections = {};
       const category1Prods = (products || []).filter(p => p.categoryId === '1');
-      const listToUse = category1Prods.length > 0 ? category1Prods : defaultHawawshiFlavors;
+      const listToUse = getOfferFlavorsAndQuantities(product, category1Prods, defaultHawawshiFlavors);
 
       listToUse.forEach(item => {
         const itemKey = item.id || item.name;
