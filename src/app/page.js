@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Box, Typography, Button, Drawer, Badge, Dialog, DialogTitle, DialogContent, DialogActions, Chip, Paper, IconButton, FormControl, Select, MenuItem, CircularProgress } from '@mui/material';
 import { ShoppingBagOutlined, AccountBalanceWallet, Store } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
@@ -16,6 +16,7 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { useShiftStore } from '@/store/useShiftStore';
 import { useBranchStore } from '@/store/useBranchStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import { printThermalReceipt } from '@/lib/printReceipt';
 
 export default function POSPage() {
   const { products, fetchProducts } = useProductStore();
@@ -39,6 +40,9 @@ export default function POSPage() {
   const [qtySmall, setQtySmall] = useState(1);
   const [qtyLarge, setQtyLarge] = useState(1);
   const [isSystemLoading, setIsSystemLoading] = useState(true);
+
+  const knownOrderIdsRef = useRef(new Set());
+  const initialLoadDoneRef = useRef(false);
 
   useEffect(() => {
     // Clear old shift localStorage cache (we no longer use persist for shifts)
@@ -131,6 +135,8 @@ export default function POSPage() {
           if (data.nextOrderNumber) useInvoiceStore.setState({ nextOrderNumber: data.nextOrderNumber });
           
           if (data.orders && data.orders.length > 0) {
+            data.orders.forEach(o => knownOrderIdsRef.current.add(o.id));
+            initialLoadDoneRef.current = true;
             const mappedOrders = data.orders.map((o) => ({
               id: o.id,
               orderNumber: String(o.order_number),
@@ -215,6 +221,19 @@ export default function POSPage() {
         if (ordersRes.ok) {
           const ordersData = await ordersRes.json();
           if (ordersData && !ordersData.error && Array.isArray(ordersData)) {
+            const newOrdersToPrint = [];
+
+            ordersData.forEach((o) => {
+              if (initialLoadDoneRef.current && !knownOrderIdsRef.current.has(o.id)) {
+                const matchBranch = !effectiveBranchId || effectiveBranchId === 'all' || o.branch_id === effectiveBranchId || o.branchId === effectiveBranchId;
+                const isRemote = o.cashier_name !== user?.name && o.cashier_name !== user?.username;
+                if (matchBranch && isRemote) {
+                  newOrdersToPrint.push(o);
+                }
+              }
+              knownOrderIdsRef.current.add(o.id);
+            });
+
             const mappedOrders = ordersData.map((o) => ({
               id: o.id,
               orderNumber: String(o.order_number),
@@ -235,6 +254,37 @@ export default function POSPage() {
               branch_id: o.branch_id,
             }));
             useInvoiceStore.setState({ invoices: mappedOrders });
+
+            // Automatically print incoming remote orders for this branch
+            newOrdersToPrint.forEach((ord) => {
+              try {
+                const printObj = {
+                  id: ord.id,
+                  orderNumber: String(ord.order_number || ord.orderNumber || '1'),
+                  orderType: ord.order_type || ord.orderType || 'takeaway',
+                  customerName: ord.customer_name || ord.customerName || '',
+                  customerPhone: ord.customer_phone || ord.customerPhone || '',
+                  customerAddress: ord.customer_address || ord.customerAddress || ord.address || '',
+                  customerFloor: ord.customer_floor || ord.customerFloor || ord.floor || '',
+                  customerApartment: ord.customer_apartment || ord.customerApartment || ord.apartment || '',
+                  cashierName: ord.cashier_name || ord.cashierName || 'الكاشير',
+                  driverName: ord.driver_name || ord.driverName || '',
+                  items: ord.items || [],
+                  subtotal: parseFloat(ord.subtotal || 0),
+                  total: parseFloat(ord.total || 0),
+                  paidAmount: parseFloat(ord.paid_amount || ord.paidAmount || 0),
+                  remainingAmount: parseFloat(ord.remaining_amount || ord.remainingAmount || 0),
+                  deliveryFee: parseFloat(ord.delivery_fee || ord.deliveryFee || 0),
+                  discount: parseFloat(ord.discount || 0),
+                  notes: ord.notes || ord.orderNotes || '',
+                  createdAt: ord.created_at || ord.createdAt,
+                  branch_id: ord.branch_id || ord.branchId
+                };
+                printThermalReceipt(printObj);
+              } catch (err) {
+                console.error('❌ Remote order thermal print failed:', err);
+              }
+            });
           }
         }
 
