@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Box, Typography, Button, Drawer, Badge, Dialog, DialogTitle, DialogContent, DialogActions, Chip, Paper, IconButton, FormControl, Select, MenuItem } from '@mui/material';
+import { Box, Typography, Button, Drawer, Badge, Dialog, DialogTitle, DialogContent, DialogActions, Chip, Paper, IconButton, FormControl, Select, MenuItem, CircularProgress } from '@mui/material';
 import { ShoppingBagOutlined, AccountBalanceWallet, Store } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
 import CategoryTabs from '@/components/pos/CategoryTabs';
@@ -38,6 +38,7 @@ export default function POSPage() {
   const [selectedProductForSize, setSelectedProductForSize] = useState(null);
   const [qtySmall, setQtySmall] = useState(1);
   const [qtyLarge, setQtyLarge] = useState(1);
+  const [isSystemLoading, setIsSystemLoading] = useState(true);
 
   useEffect(() => {
     // Clear old shift localStorage cache (we no longer use persist for shifts)
@@ -46,6 +47,7 @@ export default function POSPage() {
     // Ultra-Fast Combined Single Init Request (Populates all stores in ~30ms)
     async function loadSystemData() {
       try {
+        setIsSystemLoading(true);
         const url = isAdmin && selectedBranchId && selectedBranchId !== 'all'
           ? `/api/init?branch_id=${selectedBranchId}`
           : `/api/init?branch_id=${effectiveBranchId}`;
@@ -190,6 +192,8 @@ export default function POSPage() {
         }
       } catch (err) {
         console.warn('⚠️ Init load fallback:', err.message);
+      } finally {
+        setIsSystemLoading(false);
       }
     }
     async function pollRealtimeData() {
@@ -488,24 +492,31 @@ export default function POSPage() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  bgcolor: b1ActiveShift ? '#ECFDF5' : '#F9FAFB',
+                  bgcolor: isSystemLoading ? '#F8FAFC' : (b1ActiveShift ? '#ECFDF5' : '#F9FAFB'),
                   border: '1.5px solid',
-                  borderColor: b1ActiveShift ? '#10B981' : '#CBD5E1',
+                  borderColor: isSystemLoading ? '#E2E8F0' : (b1ActiveShift ? '#10B981' : '#CBD5E1'),
                   px: 1.2,
                   py: 0.6,
                   borderRadius: '12px',
-                  boxShadow: b1ActiveShift ? '0 2px 4px rgba(16, 185, 129, 0.1)' : 'none',
+                  boxShadow: isSystemLoading ? 'none' : (b1ActiveShift ? '0 2px 4px rgba(16, 185, 129, 0.1)' : 'none'),
                 }}
               >
                 <Box sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <Typography variant="caption" sx={{ color: b1ActiveShift ? '#047857' : '#64748B', fontWeight: 800, fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>
+                  <Typography variant="caption" sx={{ color: isSystemLoading ? '#64748B' : (b1ActiveShift ? '#047857' : '#64748B'), fontWeight: 800, fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>
                     فرع عزت
                   </Typography>
-                  <Typography variant="caption" sx={{ color: b1ActiveShift ? '#065F46' : '#64748B', fontWeight: 900, fontSize: '0.82rem', lineHeight: 1.1 }}>
-                    {b1ActiveShift ? `${b1CashSales.toFixed(0)} ج.م` : '🔒 مغلق'}
-                  </Typography>
+                  {isSystemLoading ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.3 }}>
+                      <CircularProgress size={11} sx={{ color: '#64748B' }} />
+                      <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 800, fontSize: '0.7rem' }}>جاري التحقق...</Typography>
+                    </Box>
+                  ) : (
+                    <Typography variant="caption" sx={{ color: b1ActiveShift ? '#065F46' : '#64748B', fontWeight: 900, fontSize: '0.82rem', lineHeight: 1.1 }}>
+                      {b1ActiveShift ? `${b1CashSales.toFixed(0)} ج.م` : '🔒 مغلق'}
+                    </Typography>
+                  )}
                 </Box>
-                <Store sx={{ fontSize: 18, color: b1ActiveShift ? '#10B981' : '#94A3B8' }} />
+                <Store sx={{ fontSize: 18, color: isSystemLoading ? '#94A3B8' : (b1ActiveShift ? '#10B981' : '#94A3B8') }} />
               </Box>
 
               {/* Branch 2 Mobile Cash Pill */}
@@ -515,24 +526,31 @@ export default function POSPage() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  bgcolor: b2ActiveShift ? '#EFF6FF' : '#F9FAFB',
+                  bgcolor: isSystemLoading ? '#F8FAFC' : (b2ActiveShift ? '#EFF6FF' : '#F9FAFB'),
                   border: '1.5px solid',
-                  borderColor: b2ActiveShift ? '#3B82F6' : '#CBD5E1',
+                  borderColor: isSystemLoading ? '#E2E8F0' : (b2ActiveShift ? '#3B82F6' : '#CBD5E1'),
                   px: 1.2,
                   py: 0.6,
                   borderRadius: '12px',
-                  boxShadow: b2ActiveShift ? '0 2px 4px rgba(59, 130, 246, 0.1)' : 'none',
+                  boxShadow: isSystemLoading ? 'none' : (b2ActiveShift ? '0 2px 4px rgba(59, 130, 246, 0.1)' : 'none'),
                 }}
               >
                 <Box sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <Typography variant="caption" sx={{ color: b2ActiveShift ? '#1E40AF' : '#64748B', fontWeight: 800, fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>
+                  <Typography variant="caption" sx={{ color: isSystemLoading ? '#64748B' : (b2ActiveShift ? '#1E40AF' : '#64748B'), fontWeight: 800, fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>
                     فرع المسلة
                   </Typography>
-                  <Typography variant="caption" sx={{ color: b2ActiveShift ? '#1D4ED8' : '#64748B', fontWeight: 900, fontSize: '0.82rem', lineHeight: 1.1 }}>
-                    {b2ActiveShift ? `${b2CashSales.toFixed(0)} ج.م` : '🔒 مغلق'}
-                  </Typography>
+                  {isSystemLoading ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.3 }}>
+                      <CircularProgress size={11} sx={{ color: '#64748B' }} />
+                      <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 800, fontSize: '0.7rem' }}>جاري التحقق...</Typography>
+                    </Box>
+                  ) : (
+                    <Typography variant="caption" sx={{ color: b2ActiveShift ? '#1D4ED8' : '#64748B', fontWeight: 900, fontSize: '0.82rem', lineHeight: 1.1 }}>
+                      {b2ActiveShift ? `${b2CashSales.toFixed(0)} ج.م` : '🔒 مغلق'}
+                    </Typography>
+                  )}
                 </Box>
-                <Store sx={{ fontSize: 18, color: b2ActiveShift ? '#3B82F6' : '#94A3B8' }} />
+                <Store sx={{ fontSize: 18, color: isSystemLoading ? '#94A3B8' : (b2ActiveShift ? '#3B82F6' : '#94A3B8') }} />
               </Box>
             </Box>
           )}
@@ -580,23 +598,30 @@ export default function POSPage() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 1,
-                  bgcolor: b1ActiveShift ? '#ECFDF5' : '#F9FAFB',
+                  bgcolor: isSystemLoading ? '#F8FAFC' : (b1ActiveShift ? '#ECFDF5' : '#F9FAFB'),
                   border: '1.5px solid',
-                  borderColor: b1ActiveShift ? '#10B981' : '#CBD5E1',
+                  borderColor: isSystemLoading ? '#E2E8F0' : (b1ActiveShift ? '#10B981' : '#CBD5E1'),
                   px: 1.8,
                   py: 0.6,
                   borderRadius: '12px',
-                  boxShadow: b1ActiveShift ? '0 2px 6px rgba(16, 185, 129, 0.12)' : 'none',
+                  boxShadow: isSystemLoading ? 'none' : (b1ActiveShift ? '0 2px 6px rgba(16, 185, 129, 0.12)' : 'none'),
                 }}
               >
-                <Store sx={{ color: b1ActiveShift ? '#10B981' : '#64748B', fontSize: 20 }} />
+                <Store sx={{ color: isSystemLoading ? '#94A3B8' : (b1ActiveShift ? '#10B981' : '#64748B'), fontSize: 20 }} />
                 <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="caption" sx={{ color: b1ActiveShift ? '#047857' : '#64748B', fontWeight: 800, display: 'block', lineHeight: 1.1, fontSize: '0.72rem' }}>
+                  <Typography variant="caption" sx={{ color: isSystemLoading ? '#64748B' : (b1ActiveShift ? '#047857' : '#64748B'), fontWeight: 800, display: 'block', lineHeight: 1.1, fontSize: '0.72rem' }}>
                     خزنة فرع عزت
                   </Typography>
-                  <Typography variant="subtitle2" sx={{ color: b1ActiveShift ? '#065F46' : '#64748B', fontWeight: 900, fontSize: '0.95rem', lineHeight: 1.2 }}>
-                    {b1ActiveShift ? `${b1CashSales.toFixed(2)} ج.م` : '🔒 الشيفت مغلق'}
-                  </Typography>
+                  {isSystemLoading ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.2 }}>
+                      <CircularProgress size={12} sx={{ color: '#64748B' }} />
+                      <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 800, fontSize: '0.78rem' }}>جاري التحقق...</Typography>
+                    </Box>
+                  ) : (
+                    <Typography variant="subtitle2" sx={{ color: b1ActiveShift ? '#065F46' : '#64748B', fontWeight: 900, fontSize: '0.95rem', lineHeight: 1.2 }}>
+                      {b1ActiveShift ? `${b1CashSales.toFixed(2)} ج.م` : '🔒 الشيفت مغلق'}
+                    </Typography>
+                  )}
                 </Box>
               </Box>
 
@@ -606,23 +631,30 @@ export default function POSPage() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 1,
-                  bgcolor: b2ActiveShift ? '#EFF6FF' : '#F9FAFB',
+                  bgcolor: isSystemLoading ? '#F8FAFC' : (b2ActiveShift ? '#EFF6FF' : '#F9FAFB'),
                   border: '1.5px solid',
-                  borderColor: b2ActiveShift ? '#3B82F6' : '#CBD5E1',
+                  borderColor: isSystemLoading ? '#E2E8F0' : (b2ActiveShift ? '#3B82F6' : '#CBD5E1'),
                   px: 1.8,
                   py: 0.6,
                   borderRadius: '12px',
-                  boxShadow: b2ActiveShift ? '0 2px 6px rgba(59, 130, 246, 0.12)' : 'none',
+                  boxShadow: isSystemLoading ? 'none' : (b2ActiveShift ? '0 2px 6px rgba(59, 130, 246, 0.12)' : 'none'),
                 }}
               >
-                <Store sx={{ color: b2ActiveShift ? '#3B82F6' : '#64748B', fontSize: 20 }} />
+                <Store sx={{ color: isSystemLoading ? '#94A3B8' : (b2ActiveShift ? '#3B82F6' : '#64748B'), fontSize: 20 }} />
                 <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="caption" sx={{ color: b2ActiveShift ? '#1E40AF' : '#64748B', fontWeight: 800, display: 'block', lineHeight: 1.1, fontSize: '0.72rem' }}>
+                  <Typography variant="caption" sx={{ color: isSystemLoading ? '#64748B' : (b2ActiveShift ? '#1E40AF' : '#64748B'), fontWeight: 800, display: 'block', lineHeight: 1.1, fontSize: '0.72rem' }}>
                     خزنة فرع المسلة
                   </Typography>
-                  <Typography variant="subtitle2" sx={{ color: b2ActiveShift ? '#1D4ED8' : '#64748B', fontWeight: 900, fontSize: '0.95rem', lineHeight: 1.2 }}>
-                    {b2ActiveShift ? `${b2CashSales.toFixed(2)} ج.م` : '🔒 الشيفت مغلق'}
-                  </Typography>
+                  {isSystemLoading ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.2 }}>
+                      <CircularProgress size={12} sx={{ color: '#64748B' }} />
+                      <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 800, fontSize: '0.78rem' }}>جاري التحقق...</Typography>
+                    </Box>
+                  ) : (
+                    <Typography variant="subtitle2" sx={{ color: b2ActiveShift ? '#1D4ED8' : '#64748B', fontWeight: 900, fontSize: '0.95rem', lineHeight: 1.2 }}>
+                      {b2ActiveShift ? `${b2CashSales.toFixed(2)} ج.م` : '🔒 الشيفت مغلق'}
+                    </Typography>
+                  )}
                 </Box>
               </Box>
             </Box>
@@ -632,13 +664,13 @@ export default function POSPage() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 1.5,
-                bgcolor: isShiftActive ? '#ECFDF5' : '#FEF2F2',
+                bgcolor: isSystemLoading ? '#F8FAFC' : (isShiftActive ? '#ECFDF5' : '#FEF2F2'),
                 border: '1.5px solid',
-                borderColor: isShiftActive ? '#10B981' : '#EF4444',
+                borderColor: isSystemLoading ? '#E2E8F0' : (isShiftActive ? '#10B981' : '#EF4444'),
                 px: 2.5,
                 py: 0.8,
                 borderRadius: '12px',
-                boxShadow: isShiftActive ? '0 2px 8px rgba(16, 185, 129, 0.15)' : 'none',
+                boxShadow: isSystemLoading ? 'none' : (isShiftActive ? '0 2px 8px rgba(16, 185, 129, 0.15)' : 'none'),
               }}
             >
               <Box
@@ -646,21 +678,21 @@ export default function POSPage() {
                   width: 34,
                   height: 34,
                   borderRadius: '8px',
-                  bgcolor: isShiftActive ? '#10B981' : '#EF4444',
+                  bgcolor: isSystemLoading ? '#94A3B8' : (isShiftActive ? '#10B981' : '#EF4444'),
                   color: '#FFF',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <AccountBalanceWallet sx={{ fontSize: 20 }} />
+                {isSystemLoading ? <CircularProgress size={16} sx={{ color: '#FFF' }} /> : <AccountBalanceWallet sx={{ fontSize: 20 }} />}
               </Box>
               <Box sx={{ textAlign: 'right' }}>
-                <Typography variant="caption" sx={{ color: isShiftActive ? '#047857' : '#991B1B', fontWeight: 800, display: 'block', lineHeight: 1.1 }}>
-                  {isShiftActive ? 'المبلغ في الخزنة حالياً' : 'حالة الوردية'}
+                <Typography variant="caption" sx={{ color: isSystemLoading ? '#64748B' : (isShiftActive ? '#047857' : '#991B1B'), fontWeight: 800, display: 'block', lineHeight: 1.1 }}>
+                  {isSystemLoading ? 'جاري التحقق من حالة الوردية' : (isShiftActive ? 'المبلغ في الخزنة حالياً' : 'حالة الوردية')}
                 </Typography>
-                <Typography variant="subtitle1" sx={{ color: isShiftActive ? '#065F46' : '#991B1B', fontWeight: 900, fontSize: '1.15rem', lineHeight: 1.2 }}>
-                  {isShiftActive ? `${currentTillCash.toFixed(2)} ج.م` : 'شيفت مغلق'}
+                <Typography variant="subtitle1" sx={{ color: isSystemLoading ? '#64748B' : (isShiftActive ? '#065F46' : '#991B1B'), fontWeight: 900, fontSize: '1.15rem', lineHeight: 1.2 }}>
+                  {isSystemLoading ? 'جاري التحميل...' : (isShiftActive ? `${currentTillCash.toFixed(2)} ج.م` : 'شيفت مغلق')}
                 </Typography>
               </Box>
             </Box>
