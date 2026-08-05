@@ -7,7 +7,7 @@ import SearchBar from '@/components/pos/SearchBar';
 import CategoryTabs from '@/components/pos/CategoryTabs';
 import ProductGrid from '@/components/pos/ProductGrid';
 import OrderDetailsPanel from '@/components/pos/OrderDetailsPanel';
-import { useProductStore } from '@/store/useProductStore';
+import { useProductStore, mapProduct } from '@/store/useProductStore';
 import { useOrderStore } from '@/store/useOrderStore';
 import { useCustomerStore } from '@/store/useCustomerStore';
 import { useTableStore } from '@/store/useTableStore';
@@ -171,30 +171,10 @@ export default function POSPage() {
             return;
           }
           
-          if (data.products && data.products.length > 0) {
-            const mappedDB = data.products.map((r) => ({
-              id: r.id,
-              categoryId: r.category_id,
-              name: r.name,
-              price: parseFloat(r.price),
-              size: r.size,
-              image: r.image_url,
-              description: r.description,
-              is_available: r.is_available,
-              sortOrder: parseInt(r.sort_order) || 0,
-            }));
-
-            const currentProds = useProductStore.getState().products || [];
-            const dbMap = new Map(mappedDB.map(i => [i.id, i]));
-            const merged = currentProds.map(p => dbMap.has(p.id) ? { ...p, ...dbMap.get(p.id) } : p);
-            dbMap.forEach((val, key) => {
-              if (!currentProds.some(cp => cp.id === key)) {
-                merged.push(val);
-              }
-            });
-
+          if (data.products && Array.isArray(data.products)) {
+            const mappedDB = data.products.map(mapProduct);
             useProductStore.setState({
-              products: merged.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+              products: mappedDB.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
             });
           }
 

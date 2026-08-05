@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-function mapProduct(row) {
+export function mapProduct(row) {
   let parsedSizes = null;
   if (row.sizes) {
     try {
@@ -245,7 +245,7 @@ export const useProductStore = create(
       },
     }),
     {
-      name: 'el-baraday-products-v9',
+      name: 'el-baraday-products-v10',
     }
   )
 );
