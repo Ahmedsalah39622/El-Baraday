@@ -71,8 +71,14 @@ export default function OrdersPage() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [orderToEdit, setOrderToEdit] = useState(null);
 
-  const effectiveBranch = (user && user.role !== 'admin' && user.branch_id) ? user.branch_id : selectedBranchId;
-  const targetBranch = effectiveBranch || 'all';
+  const effectiveBranch = (user && user.role !== 'admin' && user.branch_id) ? user.branch_id : (selectedBranchId === 'all' ? 'b1' : selectedBranchId);
+  const targetBranch = effectiveBranch || 'b1';
+
+  useEffect(() => {
+    if (selectedBranchId === 'all') {
+      setSelectedBranchId('b1');
+    }
+  }, [selectedBranchId]);
 
   useEffect(() => {
     fetchInvoices(500, targetBranch);

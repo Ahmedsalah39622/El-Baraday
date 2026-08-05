@@ -71,7 +71,13 @@ export default function DeliveryPage() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [orderToEdit, setOrderToEdit] = useState(null);
 
-  const effectiveBranch = (user && user.role !== 'admin' && user.branch_id) ? user.branch_id : selectedBranchId;
+  const effectiveBranch = (user && user.role !== 'admin' && user.branch_id) ? user.branch_id : (selectedBranchId === 'all' ? 'b1' : selectedBranchId);
+
+  useEffect(() => {
+    if (selectedBranchId === 'all') {
+      setSelectedBranchId('b1');
+    }
+  }, [selectedBranchId]);
 
   const autoPrintedOrderIds = useRef(new Set());
   const isInitialFetch = useRef(true);
