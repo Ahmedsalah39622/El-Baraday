@@ -388,20 +388,35 @@ export default function InvoicesPage() {
           </Typography>
         </Box>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-          {isAdmin && (
-            <FormControl size="small" sx={{ minWidth: 160 }}>
-              <Select
-                value={selectedBranchId}
-                onChange={(e) => setSelectedBranchId(e.target.value)}
-                sx={{ borderRadius: '12px', bgcolor: '#FFF', fontWeight: 800, height: 42 }}
-              >
-                <MenuItem value="all">🏢 كافـة الفـروع</MenuItem>
-                {branches.map((b) => (
-                  <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
+          {/* Branch Switch Control (فرع عزت / فرع المسلة) */}
+          <Paper elevation={0} sx={{ borderRadius: '14px', p: 0.5, bgcolor: '#F1F5F9', border: '1px solid #E2E8F0' }}>
+            <Tabs
+              value={selectedBranchId === 'b2' ? 'b2' : 'b1'}
+              onChange={(e, val) => setSelectedBranchId(val)}
+              sx={{
+                minHeight: 38,
+                '& .MuiTab-root': {
+                  minHeight: 38,
+                  fontWeight: 800,
+                  fontSize: '0.88rem',
+                  borderRadius: '10px',
+                  mx: 0.2,
+                  px: 2,
+                  color: '#64748B',
+                  transition: 'all 0.2s ease',
+                  '&.Mui-selected': {
+                    bgcolor: '#FFFFFF',
+                    color: '#0F172A',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.08)'
+                  }
+                },
+                '& .MuiTabs-indicator': { display: 'none' }
+              }}
+            >
+              <Tab value="b1" label="🏢 فرع عزت" />
+              <Tab value="b2" label="🏢 فرع المسلة" />
+            </Tabs>
+          </Paper>
 
           <Button
             variant="outlined"

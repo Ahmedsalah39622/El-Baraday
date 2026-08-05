@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { Box, Typography, Button, Drawer, Badge, Dialog, DialogTitle, DialogContent, DialogActions, Chip, Paper, IconButton, FormControl, Select, MenuItem, CircularProgress } from '@mui/material';
+import { Box, Typography, Button, Drawer, Badge, Dialog, DialogTitle, DialogContent, DialogActions, Chip, Paper, IconButton, FormControl, Select, MenuItem, CircularProgress, Tabs, Tab } from '@mui/material';
 import { ShoppingBagOutlined, AccountBalanceWallet, Store } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
 import CategoryTabs from '@/components/pos/CategoryTabs';
@@ -572,20 +572,35 @@ export default function POSPage() {
                 الرئيسية
               </Typography>
 
-              {isAdmin && (
-                <FormControl size="small" sx={{ minWidth: { xs: 130, sm: 160 } }}>
-                  <Select
-                    value={selectedBranchId}
-                    onChange={(e) => setSelectedBranchId(e.target.value)}
-                    sx={{ borderRadius: '12px', bgcolor: '#FFF', fontWeight: 800, height: 36, fontSize: '0.82rem' }}
-                  >
-                    <MenuItem value="all">🏢 كافـة الفـروع</MenuItem>
-                    {(branches || []).map((b) => (
-                      <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              )}
+              {/* Branch Switch Control (فرع عزت / فرع المسلة) */}
+              <Paper elevation={0} sx={{ borderRadius: '14px', p: 0.5, bgcolor: '#F1F5F9', border: '1px solid #E2E8F0' }}>
+                <Tabs
+                  value={selectedBranchId === 'b2' ? 'b2' : 'b1'}
+                  onChange={(e, val) => setSelectedBranchId(val)}
+                  sx={{
+                    minHeight: 34,
+                    '& .MuiTab-root': {
+                      minHeight: 34,
+                      fontWeight: 800,
+                      fontSize: '0.8rem',
+                      borderRadius: '10px',
+                      mx: 0.2,
+                      px: 1.5,
+                      color: '#64748B',
+                      transition: 'all 0.2s ease',
+                      '&.Mui-selected': {
+                        bgcolor: '#FFFFFF',
+                        color: '#0F172A',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.08)'
+                      }
+                    },
+                    '& .MuiTabs-indicator': { display: 'none' }
+                  }}
+                >
+                  <Tab value="b1" label="🏢 فرع عزت" />
+                  <Tab value="b2" label="🏢 فرع المسلة" />
+                </Tabs>
+              </Paper>
             </Box>
           </Box>
 
