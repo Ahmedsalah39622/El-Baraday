@@ -56,7 +56,17 @@ export default function ShiftSummaryPage() {
   const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin' || !user?.role;
-  const effectiveBranchId = isAdmin ? selectedBranchId : (user?.branch_id || user?.branchId || 'b1');
+
+  // Shift summary is strictly per-branch (never aggregated 'all')
+  const effectiveBranchId = isAdmin 
+    ? (selectedBranchId === 'all' ? 'b1' : selectedBranchId)
+    : (user?.branch_id || user?.branchId || 'b1');
+
+  useEffect(() => {
+    if (isAdmin && selectedBranchId === 'all') {
+      setSelectedBranchId('b1');
+    }
+  }, [isAdmin, selectedBranchId]);
 
   const getBranchNameById = (branchId) => {
     const found = (branches || []).find((b) => b.id === branchId);
@@ -85,9 +95,7 @@ export default function ShiftSummaryPage() {
   const fetchPastShifts = async () => {
     setLoadingHistory(true);
     try {
-      const url = effectiveBranchId && effectiveBranchId !== 'all'
-        ? `/api/shifts?branch_id=${effectiveBranchId}`
-        : '/api/shifts';
+      const url = `/api/shifts?branch_id=${effectiveBranchId}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -125,16 +133,14 @@ export default function ShiftSummaryPage() {
   }, [user]);
 
   // Filter invoices to only include those created SINCE activeShift.rawStartTime
-  // AND match current branch AND exclude cancelled orders
+  // AND strictly match current effectiveBranchId AND exclude cancelled orders
   const activeShiftInvoices = (invoices || []).filter((inv) => {
     // Skip cancelled orders
     if (inv.status === 'cancelled') return false;
     
-    // Skip invoices from other branches if branch is specified
-    if (effectiveBranchId && effectiveBranchId !== 'all') {
-      const invBranch = inv.branch_id || inv.branchId || 'b1';
-      if (invBranch !== effectiveBranchId) return false;
-    }
+    // Strictly match current branch (default to 'b1' if unassigned)
+    const invBranch = inv.branch_id || inv.branchId || 'b1';
+    if (invBranch !== effectiveBranchId) return false;
 
     if (!activeShift?.rawStartTime || !inv.createdAt) return true;
     const invTime = new Date(inv.createdAt).getTime();
@@ -151,11 +157,8 @@ export default function ShiftSummaryPage() {
     const shiftStartTime = new Date(activeShift.rawStartTime).getTime();
     if (isNaN(retTime) || isNaN(shiftStartTime) || retTime < shiftStartTime) return false;
 
-    const matchBranch = !effectiveBranchId || effectiveBranchId === 'all'
-      ? true
-      : ret.branch_id === effectiveBranchId;
-
-    return matchBranch;
+    const retBranch = ret.branch_id || ret.branchId || 'b1';
+    return retBranch === effectiveBranchId;
   });
 
   const returnDeduction = activeShiftReturns.reduce((sum, ret) => {
