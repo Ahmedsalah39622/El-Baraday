@@ -39,7 +39,7 @@ export default function DeliveryPage() {
   const { customers, fetchCustomers, saveOrUpdateCustomer, updateCustomerAddresses, deleteCustomer, areas, fetchAreas, addArea, deleteArea, drivers, fetchDrivers, activeQueue, fetchAttendanceQueue } = useCustomerStore();
   const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
   const { user } = useAuthStore();
-  const { activeShift, fetchShifts } = useShiftStore();
+  const { activeShift, fetchShifts, shifts: allShiftsList } = useShiftStore();
   const isShiftActive = activeShift && activeShift.status === 'active';
   const [showPreviousShifts, setShowPreviousShifts] = useState(false);
   const isAdmin = user?.role === 'admin';
@@ -126,17 +126,39 @@ export default function DeliveryPage() {
     return () => clearInterval(interval);
   }, [effectiveBranch, selectedBranchId, user]);
 
-  // Filter delivery orders based on active shift boundaries and showPreviousShifts toggle
+  // Filter delivery orders based on active shift boundaries, uncollected status, & showPreviousShifts toggle
   const visibleDeliveryOrders = (deliveryOrders || []).filter(o => {
+    // 1. Always show uncollected / pending delivery orders (so active deliveries & cash pending settlement are NEVER hidden)
+    const isCollected = o.is_cash_collected || o.isCashCollected || o.status === 'cash_collected';
+    const isCompletedOrCancelled = o.status === 'completed' || o.status === 'cancelled';
+    const isPendingOrUncollectedDelivery = !isCollected || !isCompletedOrCancelled;
+    
+    if (isPendingOrUncollectedDelivery) return true;
+
+    // 2. If user toggles "عرض كافة الشيفتات السابقة", show all
     if (showPreviousShifts) return true;
-    if (!isShiftActive) return false;
-    if (activeShift?.rawStartTime && (o.created_at || o.createdAt)) {
-      const orderTime = new Date(o.created_at || o.createdAt).getTime();
-      const shiftStart = new Date(activeShift.rawStartTime).getTime();
-      if (!isNaN(orderTime) && !isNaN(shiftStart) && orderTime < shiftStart) {
-        return false;
-      }
+
+    // 3. For completed & cash-collected orders, check against the active shift of the order's branch
+    const oBranch = o.branch_id || o.branchId || 'b1';
+
+    const branchActiveShift = (allShiftsList && allShiftsList.length > 0)
+      ? allShiftsList.find(s => s.status === 'active' && (s.branch_id === oBranch || (!s.branch_id && oBranch === 'b1')))
+      : (activeShift && (activeShift.branch_id === oBranch || (!activeShift.branch_id && oBranch === 'b1')) ? activeShift : null);
+
+    if (!branchActiveShift) {
+      // Branch has no active shift -> hide completed & collected past orders unless showPreviousShifts is true
+      return false;
     }
+
+    const rawShiftStart = branchActiveShift.start_time || branchActiveShift.rawStartTime || branchActiveShift.created_at;
+    const shiftStart = new Date(rawShiftStart).getTime();
+    const orderTime = new Date(o.created_at || o.createdAt).getTime();
+
+    if (!isNaN(shiftStart) && !isNaN(orderTime)) {
+      // 5-minute clock buffer
+      return orderTime >= (shiftStart - 300000);
+    }
+
     return true;
   });
 

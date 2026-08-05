@@ -56,7 +56,7 @@ import EditOrderModal from '@/components/dialogs/EditOrderModal';
 export default function OrdersPage() {
   const { invoices, fetchInvoices, cancelOrder } = useInvoiceStore();
   const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
-  const { activeShift, fetchShifts } = useShiftStore();
+  const { activeShift, fetchShifts, shifts: allShiftsList } = useShiftStore();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin';
 
@@ -89,21 +89,23 @@ export default function OrdersPage() {
   }, [targetBranch, user]);
 
   // Filter orders strictly by selected branch, shift time, & search query
-  const isShiftActive = activeShift && activeShift.status === 'active';
-
   const filteredOrders = (invoices || []).filter((inv) => {
     const matchBranch = !targetBranch || targetBranch === 'all' || inv.branchId === targetBranch || inv.branch_id === targetBranch;
     if (!matchBranch) return false;
 
     // When NOT showing previous shifts: hide old orders
     if (!showPreviousShifts) {
-      // Shift is closed → hide ALL orders (they're still in DB, just hidden)
-      if (!isShiftActive) return false;
+      const invBranch = inv.branchId || inv.branch_id || 'b1';
+      const branchActiveShift = (allShiftsList && allShiftsList.length > 0)
+        ? allShiftsList.find(s => s.status === 'active' && (s.branch_id === invBranch || (!s.branch_id && invBranch === 'b1')))
+        : (activeShift && (activeShift.branch_id === invBranch || (!activeShift.branch_id && invBranch === 'b1')) ? activeShift : null);
 
-      // Shift is active → only show orders from current shift (with 5-minute buffer for clock sync)
-      if (activeShift?.rawStartTime && inv.createdAt) {
-        const invTime = new Date(inv.createdAt).getTime();
-        const shiftStartTime = new Date(activeShift.rawStartTime).getTime();
+      if (!branchActiveShift) return false;
+
+      const rawShiftStart = branchActiveShift.start_time || branchActiveShift.rawStartTime || branchActiveShift.created_at;
+      if (rawShiftStart && (inv.createdAt || inv.created_at)) {
+        const invTime = new Date(inv.createdAt || inv.created_at).getTime();
+        const shiftStartTime = new Date(rawShiftStart).getTime();
         if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 300000)) {
           return false;
         }
@@ -127,9 +129,17 @@ export default function OrdersPage() {
       if (!matchBranch || inv.status === 'cancelled') return false;
 
       // When a shift is active, keep the KPI cards aligned with the current shift window.
-      if (isShiftActive && activeShift?.rawStartTime && inv.createdAt) {
-        const invTime = new Date(inv.createdAt).getTime();
-        const shiftStartTime = new Date(activeShift.rawStartTime).getTime();
+      const invBranch = inv.branchId || inv.branch_id || 'b1';
+      const branchActiveShift = (allShiftsList && allShiftsList.length > 0)
+        ? allShiftsList.find(s => s.status === 'active' && (s.branch_id === invBranch || (!s.branch_id && invBranch === 'b1')))
+        : (activeShift && (activeShift.branch_id === invBranch || (!activeShift.branch_id && invBranch === 'b1')) ? activeShift : null);
+
+      if (!branchActiveShift) return false;
+
+      const rawShiftStart = branchActiveShift.start_time || branchActiveShift.rawStartTime || branchActiveShift.created_at;
+      if (rawShiftStart && (inv.createdAt || inv.created_at)) {
+        const invTime = new Date(inv.createdAt || inv.created_at).getTime();
+        const shiftStartTime = new Date(rawShiftStart).getTime();
         if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < shiftStartTime) {
           return false;
         }
@@ -137,7 +147,7 @@ export default function OrdersPage() {
 
       return true;
     });
-  }, [invoices, targetBranch, isShiftActive, activeShift]);
+  }, [invoices, targetBranch, activeShift, allShiftsList]);
 
   // 1. Total Cash in Drawer (إجمالي النقدية في الخزنة) - Exactly aligned with POS till logic
   const totalCashInDrawer = useMemo(() => {
