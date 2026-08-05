@@ -100,28 +100,6 @@ export default function DeliveryPage() {
         });
 
         // Mark existing orders as seen on initial load
-        if (isInitialFetch.current) {
-          delOrders.forEach(o => { if (o.id) autoPrintedOrderIds.current.add(o.id); });
-          isInitialFetch.current = false;
-        } else {
-          // Auto-print only newly arrived orders created in the last 60 seconds
-          const now = Date.now();
-          delOrders.forEach(o => {
-            if (o.id && !autoPrintedOrderIds.current.has(o.id)) {
-              autoPrintedOrderIds.current.add(o.id);
-              const orderCreatedAt = o.created_at || o.createdAt;
-              const orderTime = orderCreatedAt ? new Date(orderCreatedAt).getTime() : 0;
-              const isVeryRecent = !isNaN(orderTime) && (now - orderTime) < 60000;
-
-              if (isVeryRecent && o.status !== 'cancelled') {
-                setTimeout(() => {
-                  try { handlePrintDelivery(o); } catch (e) {}
-                }, 300);
-              }
-            }
-          });
-        }
-
         setDeliveryOrders(delOrders);
       }
     } catch (e) {
