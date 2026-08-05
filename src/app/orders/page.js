@@ -40,6 +40,7 @@ import {
   LocalShipping,
   History,
   CheckCircle,
+  EditOutlined,
 } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
@@ -48,6 +49,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useShiftStore } from '@/store/useShiftStore';
 import { printThermalReceipt } from '@/lib/printReceipt';
 import DeliveryTimerBadge from '@/components/delivery/DeliveryTimerBadge';
+import EditOrderModal from '@/components/dialogs/EditOrderModal';
 
 export default function OrdersPage() {
   const { invoices, fetchInvoices, cancelOrder } = useInvoiceStore();
@@ -62,6 +64,10 @@ export default function OrdersPage() {
   // View Order Details Modal State
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+
+  // Edit Order Modal State
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [orderToEdit, setOrderToEdit] = useState(null);
 
   const effectiveBranch = (user && user.role !== 'admin' && user.branch_id) ? user.branch_id : selectedBranchId;
   const targetBranch = effectiveBranch || 'all';
@@ -548,7 +554,7 @@ export default function OrdersPage() {
                         ? 'الشيفت مقفول — مفيش طلبات للعرض'
                         : isShiftActive && !showPreviousShifts
                         ? 'لا توجد طلبات في الشيفت الحالي بعد'
-                        : 'لا توجد طلبات مسجلة لهذا الفرع حالياً.'}
+                        : 'لا توجد نتائج بحث مطابقة'}
                     </Typography>
                     {!showPreviousShifts && (
                       <Typography variant="body2" sx={{ color: '#9CA3AF', fontWeight: 600 }}>
@@ -574,8 +580,7 @@ export default function OrdersPage() {
         slotProps={{
           paper: {
             sx: {
-              borderRadius: '24px',
-              p: 1,
+              borderRadius: '20px',
             }
           }
         }}
@@ -583,70 +588,30 @@ export default function OrdersPage() {
         {selectedOrder && (
           <>
             <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1, borderBottom: '1px solid #E5E7EB' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <Box sx={{ width: 42, height: 42, borderRadius: '12px', bgcolor: 'rgba(66, 133, 244, 0.1)', color: '#4285F4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <ReceiptLong />
-                </Box>
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 900, color: '#1A1A2E' }}>
-                    تفاصيل الطلب رقم #{selectedOrder.orderNumber || selectedOrder.id?.slice(0, 8)}
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: '#6B7280' }}>
-                    تاريخ الطلب: {selectedOrder.createdAt ? new Date(selectedOrder.createdAt).toLocaleString('ar-EG') : 'اليوم'}
-                  </Typography>
-                </Box>
-              </Box>
-
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Chip
-                  label={selectedOrder.orderType === 'delivery' ? 'دليفري 🛵' : selectedOrder.orderType === 'takeaway' ? 'تيك أوي 🛍️' : 'صالة 🍽️'}
-                  sx={{ bgcolor: '#FEF3C7', color: '#92400E', fontWeight: 800 }}
-                />
-                <IconButton onClick={() => setDetailsOpen(false)}>
-                  <Close />
-                </IconButton>
-              </Box>
+              <Typography variant="h6" sx={{ fontWeight: 900 }}>
+                تفاصيل الفاتورة رقم #{selectedOrder.orderNumber || selectedOrder.id?.slice(0, 8)}
+              </Typography>
+              <IconButton onClick={() => setDetailsOpen(false)}>
+                <Close />
+              </IconButton>
             </DialogTitle>
 
             <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 2.5 }}>
-              {/* Customer & Order Metadata Row */}
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-                {/* Customer Details Box */}
-                <Paper sx={{ p: 2, borderRadius: '16px', bgcolor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#334155', mb: 1, display: 'flex', alignItems: 'center', gap: 0.8 }}>
-                    <Person fontSize="small" sx={{ color: '#4285F4' }} /> بيانات العميل:
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#1E293B' }}>
-                    الاسم: {selectedOrder.customerName || 'عميل كاشير مباشر'}
-                  </Typography>
-                  {selectedOrder.customerPhone && (
-                    <Typography variant="body2" sx={{ color: '#475569', mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <Phone fontSize="inherit" /> الهاتف: {selectedOrder.customerPhone}
-                    </Typography>
-                  )}
-                  {selectedOrder.customerAddress && (
-                    <Typography variant="body2" sx={{ color: '#475569', mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <LocationOn fontSize="inherit" /> العنوان: {selectedOrder.customerAddress}
-                    </Typography>
-                  )}
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: '14px', bgcolor: '#F8FAFC' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#2563EB', mb: 1 }}>بيانات العميل والإشغال:</Typography>
+                  <Typography variant="body2"><strong>الاسم:</strong> {selectedOrder.customerName || 'غير مسجل'}</Typography>
+                  <Typography variant="body2"><strong>التليفون:</strong> {selectedOrder.customerPhone || 'غير مسجل'}</Typography>
+                  <Typography variant="body2"><strong>العنوان:</strong> {selectedOrder.customerAddress || 'غير مسجل'}</Typography>
                 </Paper>
-
-                {/* Cashier & Status Box */}
-                <Paper sx={{ p: 2, borderRadius: '16px', bgcolor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#334155', mb: 1 }}>
-                    ℹ️ معلومات الفاتورة:
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: '14px', bgcolor: '#F8FAFC' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#2563EB', mb: 1 }}>تفاصيل الطلب والدفع:</Typography>
+                  <Typography variant="body2">
+                    <strong>تاريخ الطلب:</strong> {new Date(selectedOrder.createdAt || Date.now()).toLocaleString('ar-EG')}
                   </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#1E293B' }}>
-                    الكاشير المنفذ: {selectedOrder.cashierName || 'أحمد محمود'}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: '#475569', mt: 0.5 }}>
-                    حالة الفاتورة: <Chip label={selectedOrder.status || 'مكتمل'} size="small" color="success" sx={{ fontWeight: 800 }} />
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: '#475569', mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.8 }}>
-                    طريقة الدفع:
-                    {(selectedOrder.paymentMethod === 'instapay' || selectedOrder.payment_method === 'instapay') ? (
-                      <Chip label="⚡ إنستا باي (InstaPay)" size="small" sx={{ bgcolor: '#F3E8FF', color: '#7E22CE', fontWeight: 800 }} />
-                    ) : (selectedOrder.paymentMethod === 'vodafone_cash' || selectedOrder.payment_method === 'vodafone_cash') ? (
+                  <Typography variant="body2" sx={{ mt: 0.5 }}>
+                    <strong>طريقة الدفع:</strong>{' '}
+                    {(selectedOrder.paymentMethod === 'vodafone_cash' || selectedOrder.payment_method === 'vodafone_cash') ? (
                       <Chip label="📱 فودافون كاش (Vodafone)" size="small" sx={{ bgcolor: '#FEF2F2', color: '#DC2626', fontWeight: 800 }} />
                     ) : (selectedOrder.paymentMethod === 'card' || selectedOrder.payment_method === 'card') ? (
                       <Chip label="💳 شبكة / فيزا (Card)" size="small" sx={{ bgcolor: '#EFF6FF', color: '#2563EB', fontWeight: 800 }} />
@@ -654,98 +619,50 @@ export default function OrdersPage() {
                       <Chip label="💵 نقداً (كاش)" size="small" sx={{ bgcolor: '#ECFDF5', color: '#047857', fontWeight: 800 }} />
                     )}
                   </Typography>
-                  {selectedOrder.driverName && (
-                    <Typography variant="body2" sx={{ color: '#475569', mt: 0.5 }}>
-                      طيار التوصيل: {selectedOrder.driverName}
-                    </Typography>
-                  )}
                 </Paper>
               </Box>
 
-              {/* Items Breakdown Table */}
-              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#1A1A2E', mt: 1 }}>
-                📦 الأصناف والمحتويات المطلوبة:
-              </Typography>
-
+              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#1A1A2E', mt: 1 }}>📦 الأصناف:</Typography>
               <TableContainer component={Paper} sx={{ borderRadius: '14px', border: '1px solid #E2E8F0' }}>
                 <Table size="small">
                   <TableHead sx={{ bgcolor: '#F1F5F9' }}>
                     <TableRow>
                       <TableCell sx={{ fontWeight: 800 }}>الصنف</TableCell>
-                      <TableCell sx={{ fontWeight: 800 }}>الحجم</TableCell>
                       <TableCell align="center" sx={{ fontWeight: 800 }}>الكمية</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 800 }}>سعر الوحدة</TableCell>
-                      <TableCell align="left" sx={{ fontWeight: 800 }}>الإجمالي الفرعي</TableCell>
+                      <TableCell align="left" sx={{ fontWeight: 800 }}>الإجمالي</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {Array.isArray(selectedOrder.items) && selectedOrder.items.length > 0 ? (
-                      selectedOrder.items.map((it, idx) => {
-                        const qty = it.quantity || 1;
-                        const price = parseFloat(it.price || 0);
-                        const lineTotal = qty * price;
-
-                        return (
-                          <TableRow key={idx}>
-                            <TableCell sx={{ fontWeight: 700, color: '#1E293B' }}>
-                              {it.name || it.product_name || 'صنف'}
-                              {it.notes && (
-                                <Typography variant="caption" sx={{ color: '#F59E0B', display: 'block' }}>
-                                  📝 {it.notes}
-                                </Typography>
-                              )}
-                            </TableCell>
-                            <TableCell sx={{ color: '#64748B' }}>{it.size || 'عادي'}</TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 800 }}>{qty}</TableCell>
-                            <TableCell align="center">{price.toFixed(2)} ج.م</TableCell>
-                            <TableCell align="left" sx={{ fontWeight: 900, color: '#10B981' }}>
-                              {lineTotal.toFixed(2)} ج.م
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={5} align="center" sx={{ py: 3, color: '#94A3B8' }}>
-                          لا توجد تفاصيل تفصيلية أصناف مخزنة لهذا الأوردر القديم
-                        </TableCell>
+                    {Array.isArray(selectedOrder.items) && selectedOrder.items.map((it, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>{it.name || it.product_name || 'صنف'}</TableCell>
+                        <TableCell align="center">{it.quantity || 1}</TableCell>
+                        <TableCell align="left">{(parseFloat(it.price || 0) * (it.quantity || 1)).toFixed(2)} ج.م</TableCell>
                       </TableRow>
-                    )}
+                    ))}
                   </TableBody>
                 </Table>
               </TableContainer>
-
-              {/* Financial Totals Breakdown Box */}
-              <Paper sx={{ p: 2, borderRadius: '16px', bgcolor: '#FFFDF5', border: '1.5px solid #F59E0B', display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2" sx={{ color: '#78350F', fontWeight: 700 }}>المجموع الفرعي:</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 800 }}>{(parseFloat(selectedOrder.subtotal || selectedOrder.total) || 0).toFixed(2)} ج.م</Typography>
-                </Box>
-                {selectedOrder.deliveryFee > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography variant="body2" sx={{ color: '#78350F', fontWeight: 700 }}>رسوم التوصيل الدليفري:</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 800 }}>+{parseFloat(selectedOrder.deliveryFee).toFixed(2)} ج.م</Typography>
-                  </Box>
-                )}
-                {selectedOrder.discount > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography variant="body2" sx={{ color: '#EF4444', fontWeight: 700 }}>الخصم:</Typography>
-                    <Typography variant="body2" sx={{ color: '#EF4444', fontWeight: 800 }}>-{parseFloat(selectedOrder.discount).toFixed(2)} ج.م</Typography>
-                  </Box>
-                )}
-                <Divider sx={{ my: 0.5 }} />
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="h6" sx={{ fontWeight: 900, color: '#B45309' }}>المبلغ الإجمالي الكلي:</Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 900, color: '#D97706' }}>{(parseFloat(selectedOrder.total) || 0).toFixed(2)} ج.م</Typography>
-                </Box>
-              </Paper>
             </DialogContent>
 
             <DialogActions sx={{ p: 2, bgcolor: '#FAFBFC', borderTop: '1px solid #E5E7EB', justifyContent: 'space-between' }}>
-              <Button onClick={() => setDetailsOpen(false)} sx={{ color: '#64748B', fontWeight: 700 }}>
-                إغلاق
-              </Button>
+              <Button onClick={() => setDetailsOpen(false)} sx={{ color: '#64748B', fontWeight: 700 }}>إغلاق</Button>
               <Box sx={{ display: 'flex', gap: 1 }}>
+                {selectedOrder.status !== 'cancelled' && (
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    startIcon={<EditOutlined />}
+                    onClick={() => {
+                      setOrderToEdit(selectedOrder);
+                      setDetailsOpen(false);
+                      setEditModalOpen(true);
+                    }}
+                    sx={{ borderRadius: '10px', fontWeight: 800 }}
+                  >
+                    تعديل الطلب ✏️
+                  </Button>
+                )}
                 {selectedOrder.status !== 'cancelled' && (
                   <Button
                     variant="outlined"
@@ -783,6 +700,14 @@ export default function OrdersPage() {
           </>
         )}
       </Dialog>
+
+      {/* EDIT ORDER MODAL */}
+      <EditOrderModal
+        open={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        order={orderToEdit}
+        onSaveSuccess={() => fetchInvoices(500, targetBranch)}
+      />
     </Box>
   );
 }

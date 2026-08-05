@@ -12,7 +12,7 @@ import {
   DeliveryDining, AccessTime, LocationOn, Person, Phone, Home, Print, CheckCircle,
   Warning, Add as AddIcon, Search as SearchIcon, Edit as EditIcon, Delete as DeleteIcon,
   Refresh, HowToReg, Store, CheckCircleOutlined, PlayArrow, WhatsApp,
-  AccountBalanceWallet, AttachMoney, MonetizationOn, FilterList, PictureAsPdf, History
+  AccountBalanceWallet, AttachMoney, MonetizationOn, FilterList, PictureAsPdf, History, EditOutlined
 } from '@mui/icons-material';
 import { useCustomerStore } from '@/store/useCustomerStore';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
@@ -23,6 +23,7 @@ import DeliveryTimerBadge from '@/components/delivery/DeliveryTimerBadge';
 import { printThermalReceipt } from '@/lib/printReceipt';
 import { sendDeliveryWhatsApp } from '@/lib/whatsapp';
 import { generateReportPDF } from '@/lib/reportPdfExport';
+import EditOrderModal from '@/components/dialogs/EditOrderModal';
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -66,6 +67,10 @@ export default function DeliveryPage() {
   const [areaDialogOpen, setAreaDialogOpen] = useState(false);
   const [newAreaName, setNewAreaName] = useState('');
 
+  // Edit Order Modal State
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [orderToEdit, setOrderToEdit] = useState(null);
+
   const effectiveBranch = (user && user.role !== 'admin' && user.branch_id) ? user.branch_id : selectedBranchId;
 
   const autoPrintedOrderIds = useRef(new Set());
@@ -99,13 +104,20 @@ export default function DeliveryPage() {
           delOrders.forEach(o => { if (o.id) autoPrintedOrderIds.current.add(o.id); });
           isInitialFetch.current = false;
         } else {
-          // Auto-print only newly arrived orders on background updates
+          // Auto-print only newly arrived orders created in the last 60 seconds
+          const now = Date.now();
           delOrders.forEach(o => {
             if (o.id && !autoPrintedOrderIds.current.has(o.id)) {
               autoPrintedOrderIds.current.add(o.id);
-              setTimeout(() => {
-                try { handlePrintDelivery(o); } catch (e) {}
-              }, 300);
+              const orderCreatedAt = o.created_at || o.createdAt;
+              const orderTime = orderCreatedAt ? new Date(orderCreatedAt).getTime() : 0;
+              const isVeryRecent = !isNaN(orderTime) && (now - orderTime) < 60000;
+
+              if (isVeryRecent && o.status !== 'cancelled') {
+                setTimeout(() => {
+                  try { handlePrintDelivery(o); } catch (e) {}
+                }, 300);
+              }
             }
           });
         }
@@ -586,13 +598,27 @@ export default function DeliveryPage() {
         }}
       >
         <CardContent sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-          {/* Top Header: Order #, Branch & Live Timer */}
+          {/* Top Header: Order #, Branch, Edit Button & Live Timer */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="h6" fontWeight={900} color="#1A1A2E">
                 أوردر #{order.order_number || order.orderNumber}
               </Typography>
               <Chip label={order.branch_name || 'الفرع الرئيسي'} size="small" sx={{ bgcolor: '#F3F4F6', fontWeight: 800, fontSize: '0.7rem' }} />
+              {order.status !== 'cancelled' && (
+                <Tooltip title="تعديل هذا الأوردر (إضافة/حذف أصناف أو خصم/زيادة)" arrow>
+                  <IconButton
+                    size="small"
+                    onClick={() => {
+                      setOrderToEdit(order);
+                      setEditModalOpen(true);
+                    }}
+                    sx={{ color: '#2563EB', bgcolor: '#EFF6FF', '&:hover': { bgcolor: '#DBEAFE' }, p: 0.5 }}
+                  >
+                    <EditOutlined fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
             </Box>
 
             <DeliveryTimerBadge
@@ -1911,6 +1937,14 @@ export default function DeliveryPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* EDIT ORDER MODAL */}
+      <EditOrderModal
+        open={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        order={orderToEdit}
+        onSaveSuccess={() => fetchDeliveryData()}
+      />
     </Box>
   );
 }

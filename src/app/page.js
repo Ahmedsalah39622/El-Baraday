@@ -331,11 +331,16 @@ export default function POSPage() {
           if (ordersData && !ordersData.error && Array.isArray(ordersData)) {
             const newOrdersToPrint = [];
 
+            const now = Date.now();
             ordersData.forEach((o) => {
               if (initialLoadDoneRef.current && !knownOrderIdsRef.current.has(o.id)) {
                 const matchBranch = !effectiveBranchId || effectiveBranchId === 'all' || o.branch_id === effectiveBranchId || o.branchId === effectiveBranchId;
                 const isRemote = o.cashier_name !== user?.name && o.cashier_name !== user?.username;
-                if (matchBranch && isRemote && !isAdmin) {
+                const orderCreatedAt = o.created_at || o.createdAt;
+                const orderTime = orderCreatedAt ? new Date(orderCreatedAt).getTime() : 0;
+                const isVeryRecent = !isNaN(orderTime) && (now - orderTime) < 60000; // Only orders created within the last 60 seconds
+
+                if (matchBranch && isRemote && !isAdmin && isVeryRecent && o.status !== 'cancelled') {
                   newOrdersToPrint.push(o);
                 }
               }

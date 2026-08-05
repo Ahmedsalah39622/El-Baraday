@@ -160,7 +160,8 @@ export async function GET(req) {
         FROM orders o
         LEFT JOIN branches b ON o.branch_id = b.id
         ${ordersWhere}
-        LIMIT 50
+        ORDER BY o.created_at DESC
+        LIMIT 500
       `, params),
       safeQuery('SELECT * FROM app_settings'),
       safeQuery(`SELECT * FROM shifts ${shiftsWhere} LIMIT 20`, params),

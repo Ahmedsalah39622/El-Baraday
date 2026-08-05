@@ -147,6 +147,53 @@ export const useInvoiceStore = create((set, get) => ({
     }
   },
 
+  // Update full POS order (modify items, quantities, totals, customer info, delivery fee, etc.)
+  updateOrder: async (orderId, updatedFields) => {
+    set({ loading: true });
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedFields),
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        set((state) => ({
+          invoices: state.invoices.map((inv) =>
+            inv.id === orderId
+              ? {
+                  ...inv,
+                  customerName: updated.customer_name !== undefined ? updated.customer_name : inv.customerName,
+                  customerPhone: updated.customer_phone !== undefined ? updated.customer_phone : inv.customerPhone,
+                  customerAddress: updated.customer_address !== undefined ? updated.customer_address : inv.customerAddress,
+                  subtotal: parseFloat(updated.subtotal !== undefined ? updated.subtotal : inv.subtotal),
+                  total: parseFloat(updated.total !== undefined ? updated.total : inv.total),
+                  deliveryFee: parseFloat(updated.delivery_fee !== undefined ? updated.delivery_fee : inv.deliveryFee),
+                  discount: parseFloat(updated.discount !== undefined ? updated.discount : inv.discount),
+                  paidAmount: parseFloat(updated.paid_amount !== undefined ? updated.paid_amount : inv.paidAmount),
+                  remainingAmount: parseFloat(updated.remaining_amount !== undefined ? updated.remaining_amount : inv.remainingAmount),
+                  orderType: updated.order_type !== undefined ? updated.order_type : inv.orderType,
+                  paymentMethod: updated.payment_method !== undefined ? updated.payment_method : inv.paymentMethod,
+                  items: Array.isArray(updated.items) ? updated.items : inv.items,
+                  status: updated.status !== undefined ? updated.status : inv.status,
+                }
+              : inv
+          ),
+          loading: false,
+        }));
+        return { success: true, data: updated };
+      } else {
+        const errData = await res.json();
+        set({ loading: false });
+        return { success: false, error: errData.error || 'فشل تحديث الطلب' };
+      }
+    } catch (err) {
+      set({ loading: false });
+      return { success: false, error: err.message };
+    }
+  },
+
   // Cancel POS order (sets status='cancelled', total=0, subtotal=0, delivery_fee=0)
   cancelOrder: async (orderId) => {
     try {

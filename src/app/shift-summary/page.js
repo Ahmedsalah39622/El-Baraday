@@ -101,7 +101,7 @@ export default function ShiftSummaryPage() {
   };
 
   useEffect(() => {
-    fetchInvoices();
+    fetchInvoices(500, effectiveBranchId);
     fetchShifts(effectiveBranchId);
     fetchPastShifts();
     fetchReturns(effectiveBranchId);
@@ -109,7 +109,7 @@ export default function ShiftSummaryPage() {
     // Auto-refresh every 10 seconds for real-time data (only when tab is visible)
     const refreshInterval = setInterval(() => {
       if (document.visibilityState === 'visible') {
-        fetchInvoices();
+        fetchInvoices(500, effectiveBranchId);
         fetchShifts(effectiveBranchId);
         fetchReturns(effectiveBranchId);
       }
@@ -125,10 +125,17 @@ export default function ShiftSummaryPage() {
   }, [user]);
 
   // Filter invoices to only include those created SINCE activeShift.rawStartTime
-  // AND exclude cancelled orders
+  // AND match current branch AND exclude cancelled orders
   const activeShiftInvoices = (invoices || []).filter((inv) => {
     // Skip cancelled orders
     if (inv.status === 'cancelled') return false;
+    
+    // Skip invoices from other branches if branch is specified
+    if (effectiveBranchId && effectiveBranchId !== 'all') {
+      const invBranch = inv.branch_id || inv.branchId || 'b1';
+      if (invBranch !== effectiveBranchId) return false;
+    }
+
     if (!activeShift?.rawStartTime || !inv.createdAt) return true;
     const invTime = new Date(inv.createdAt).getTime();
     const shiftStartTime = new Date(activeShift.rawStartTime).getTime();
