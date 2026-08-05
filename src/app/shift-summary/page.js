@@ -171,6 +171,23 @@ export default function ShiftSummaryPage() {
   const startCash = activeShift?.startAmount || 0;
   const expectedDrawerCash = activeShift ? (startCash + totalSales) : 0;
 
+  // Active shift delivery metrics (صافي أوردرات الدليفري وإجمالي خدمة الدليفري)
+  const activeShiftDeliveryInvoices = activeShiftInvoices.filter(
+    (inv) => inv.orderType === 'delivery' || inv.order_type === 'delivery'
+  );
+
+  const activeShiftDeliveryFeesSum = activeShiftDeliveryInvoices.reduce(
+    (sum, inv) => sum + (parseFloat(inv.deliveryFee || inv.delivery_fee) || 0),
+    0
+  );
+
+  const activeShiftDeliverySalesTotal = activeShiftDeliveryInvoices.reduce(
+    (sum, inv) => sum + (parseFloat(inv.total) || 0),
+    0
+  );
+
+  const activeShiftNetDeliverySales = Math.max(0, activeShiftDeliverySalesTotal - activeShiftDeliveryFeesSum);
+
   // Live Deficit / Surplus Calculations in Close Dialog
   const parsedActualCash = actualDrawerCash !== '' ? parseFloat(actualDrawerCash) : expectedDrawerCash;
   const cashDifference = parsedActualCash - expectedDrawerCash;
@@ -399,7 +416,7 @@ export default function ShiftSummaryPage() {
       </Box>
 
       {/* Stats Cards Grid */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(5, 1fr)' }, gap: 2 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)', lg: 'repeat(7, 1fr)' }, gap: 2 }}>
         <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E5E7EB', bgcolor: '#F0F7FF' }}>
           <Typography variant="caption" sx={{ color: '#4285F4', fontWeight: 800 }}>بداية العهدة (النقدية الأولى)</Typography>
           <Typography variant="h5" sx={{ fontWeight: 900, color: '#1E40AF', mt: 0.5 }}>
@@ -411,6 +428,20 @@ export default function ShiftSummaryPage() {
           <Typography variant="caption" sx={{ color: '#10B981', fontWeight: 800 }}>مبيعات الوردية الحالية</Typography>
           <Typography variant="h5" sx={{ fontWeight: 900, color: '#065F46', mt: 0.5 }}>
             {isShiftActive ? `${totalSales.toFixed(2)} ج.م` : '0.00 ج.م'}
+          </Typography>
+        </Paper>
+
+        <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E5E7EB', bgcolor: '#F5F3FF' }}>
+          <Typography variant="caption" sx={{ color: '#7C3AED', fontWeight: 800 }}>صافي أوردرات الدليفري</Typography>
+          <Typography variant="h5" sx={{ fontWeight: 900, color: '#5B21B6', mt: 0.5 }}>
+            {isShiftActive ? `${activeShiftNetDeliverySales.toFixed(2)} ج.م` : '0.00 ج.م'}
+          </Typography>
+        </Paper>
+
+        <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E5E7EB', bgcolor: '#FFF7ED' }}>
+          <Typography variant="caption" sx={{ color: '#EA580C', fontWeight: 800 }}>إجمالي خدمة الدليفري</Typography>
+          <Typography variant="h5" sx={{ fontWeight: 900, color: '#9A3412', mt: 0.5 }}>
+            {isShiftActive ? `${activeShiftDeliveryFeesSum.toFixed(2)} ج.م` : '0.00 ج.م'}
           </Typography>
         </Paper>
 
