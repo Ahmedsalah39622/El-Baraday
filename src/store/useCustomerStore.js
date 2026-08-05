@@ -126,7 +126,8 @@ export const useCustomerStore = create(
         const currentCustomers = get().customers;
         const existingIdx = currentCustomers.findIndex(c => c.phone === cleanPhone);
 
-        const feeNum = parseFloat(deliveryFee) || 15;
+        const parsedFeeVal = parseFloat(deliveryFee);
+        const feeNum = isNaN(parsedFeeVal) ? 15 : parsedFeeVal;
         const newAddrObj = { address: address || '', floor: floor || '', apartment: apartment || '', deliveryFee: feeNum };
 
         if (existingIdx !== -1) {

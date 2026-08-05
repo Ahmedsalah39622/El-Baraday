@@ -15,8 +15,9 @@ export async function POST(request) {
   try {
     const body = await request.json();
     const { name, phone, address, floor, apartment, deliveryFee, delivery_fee, addresses, id } = body;
-    const customerId = id || `cust_${Date.now()}`;
-    const fee = parseFloat(deliveryFee ?? delivery_fee) || 15;
+    const rawFee = deliveryFee ?? delivery_fee;
+    const parsedFee = parseFloat(rawFee);
+    const fee = isNaN(parsedFee) ? 15 : parsedFee;
 
     let addressesVal = null;
     if (addresses) {

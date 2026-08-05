@@ -122,7 +122,8 @@ export default function OrderDetailsPanel({
     ? ((subtotal * numDiscountVal) / 100)
     : numDiscountVal;
 
-  const currentDeliveryFee = orderType === 'delivery' ? (parseFloat(deliveryFee) || 15) : 0;
+  const parsedFeeVal = parseFloat(deliveryFee);
+  const currentDeliveryFee = orderType === 'delivery' ? (isNaN(parsedFeeVal) ? 0 : parsedFeeVal) : 0;
   const finalTotal = Math.max(0, subtotal + currentDeliveryFee - calculatedDiscount);
   const numericPaid = parseFloat(paidAmount) || finalTotal;
   const remainingChange = Math.max(0, numericPaid - finalTotal);
@@ -148,10 +149,12 @@ export default function OrderDetailsPanel({
       setCustomerAddress(firstAddr.address || '');
       setCustomerFloor(firstAddr.floor || '');
       setCustomerApartment(firstAddr.apartment || '');
-      const savedFee = firstAddr.deliveryFee !== undefined ? parseFloat(firstAddr.deliveryFee) : (firstAddr.delivery_fee !== undefined ? parseFloat(firstAddr.delivery_fee) : (selectedCust.deliveryFee !== undefined ? parseFloat(selectedCust.deliveryFee) : (selectedCust.delivery_fee !== undefined ? parseFloat(selectedCust.delivery_fee) : 15)));
+      const rawFee = firstAddr.deliveryFee ?? firstAddr.delivery_fee ?? selectedCust.deliveryFee ?? selectedCust.delivery_fee;
+      const savedFee = (rawFee !== undefined && rawFee !== null && !isNaN(parseFloat(rawFee))) ? parseFloat(rawFee) : 15;
       setDeliveryFee(savedFee);
     } else if (selectedCust.deliveryFee !== undefined || selectedCust.delivery_fee !== undefined) {
-      const savedFee = parseFloat(selectedCust.deliveryFee ?? selectedCust.delivery_fee) || 15;
+      const rawFee = selectedCust.deliveryFee ?? selectedCust.delivery_fee;
+      const savedFee = (rawFee !== undefined && rawFee !== null && !isNaN(parseFloat(rawFee))) ? parseFloat(rawFee) : 15;
       setDeliveryFee(savedFee);
     }
   };
@@ -194,7 +197,7 @@ export default function OrderDetailsPanel({
         address: customerAddress,
         floor: customerFloor,
         apartment: customerApartment,
-        deliveryFee: parseFloat(deliveryFee) || 15,
+        deliveryFee: isNaN(parseFloat(deliveryFee)) ? 15 : parseFloat(deliveryFee),
       });
     }
 
@@ -525,10 +528,12 @@ export default function OrderDetailsPanel({
                           setCustomerAddress(firstAddr.address || '');
                           setCustomerFloor(firstAddr.floor || '');
                           setCustomerApartment(firstAddr.apartment || '');
-                          const savedFee = firstAddr.deliveryFee !== undefined ? parseFloat(firstAddr.deliveryFee) : (firstAddr.delivery_fee !== undefined ? parseFloat(firstAddr.delivery_fee) : (match.deliveryFee !== undefined ? parseFloat(match.deliveryFee) : (match.delivery_fee !== undefined ? parseFloat(match.delivery_fee) : 15)));
+                          const rawFee = firstAddr.deliveryFee ?? firstAddr.delivery_fee ?? match.deliveryFee ?? match.delivery_fee;
+                          const savedFee = (rawFee !== undefined && rawFee !== null && !isNaN(parseFloat(rawFee))) ? parseFloat(rawFee) : 15;
                           setDeliveryFee(savedFee);
                         } else if (match.deliveryFee !== undefined || match.delivery_fee !== undefined) {
-                          const savedFee = parseFloat(match.deliveryFee ?? match.delivery_fee) || 15;
+                          const rawFee = match.deliveryFee ?? match.delivery_fee;
+                          const savedFee = (rawFee !== undefined && rawFee !== null && !isNaN(parseFloat(rawFee))) ? parseFloat(rawFee) : 15;
                           setDeliveryFee(savedFee);
                         }
                       } else {

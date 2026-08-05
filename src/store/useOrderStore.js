@@ -94,7 +94,9 @@ export const useOrderStore = create(
       },
 
       getDeliveryFee: () => {
-        return get().orderType === 'delivery' ? (get().deliveryFee || 15) : 0;
+        if (get().orderType !== 'delivery') return 0;
+        const fee = parseFloat(get().deliveryFee);
+        return isNaN(fee) ? 15 : fee;
       },
 
       getTotal: () => {

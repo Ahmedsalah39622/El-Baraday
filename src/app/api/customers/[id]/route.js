@@ -16,8 +16,9 @@ export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, phone, address, floor, apartment, deliveryFee, delivery_fee, addresses } = body;
-    const fee = (deliveryFee !== undefined || delivery_fee !== undefined) ? (parseFloat(deliveryFee ?? delivery_fee) || 15) : null;
+    const rawFee = deliveryFee ?? delivery_fee;
+    const parsedFee = parseFloat(rawFee);
+    const fee = (rawFee !== undefined && rawFee !== null && !isNaN(parsedFee)) ? parsedFee : null;
 
     try { await query('ALTER TABLE customers ADD COLUMN delivery_fee DECIMAL(10, 2) DEFAULT 15'); } catch(e) {}
 
