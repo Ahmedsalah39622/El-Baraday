@@ -307,6 +307,8 @@ export default function POSPage() {
         ]);
 
         if (ordersRes.ok) {
+          const ordersData = await ordersRes.json();
+          if (ordersData && Array.isArray(ordersData)) {
             const mappedOrders = ordersData.map((o) => ({
               id: o.id,
               orderNumber: String(o.order_number),
