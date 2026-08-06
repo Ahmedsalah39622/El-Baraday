@@ -115,6 +115,51 @@ export const useFinancesStore = create(
 
       setSelectedBranchId: (branchId) => set({ selectedBranchId: branchId }),
 
+      fetchFinances: async () => {
+        try {
+          const [purchRes, expRes] = await Promise.all([
+            fetch('/api/finances/purchases'),
+            fetch('/api/finances/expenses'),
+          ]);
+          if (purchRes.ok) {
+            const pData = await purchRes.json();
+            if (Array.isArray(pData) && pData.length > 0) {
+              set({ purchases: pData });
+            }
+          }
+          if (expRes.ok) {
+            const eData = await expRes.json();
+            if (Array.isArray(eData) && eData.length > 0) {
+              set({ expenses: eData });
+            }
+          }
+        } catch (err) {
+          console.warn('⚠️ Error fetching finances from API:', err);
+        }
+      },
+
+      deletePurchase: async (id) => {
+        set((state) => ({
+          purchases: state.purchases.filter((p) => p.id !== id),
+        }));
+        try {
+          await fetch(`/api/finances/purchases?id=${id}`, { method: 'DELETE' });
+        } catch (e) {
+          console.warn('API DELETE purchase failed:', e);
+        }
+      },
+
+      deleteExpense: async (id) => {
+        set((state) => ({
+          expenses: state.expenses.filter((e) => e.id !== id),
+        }));
+        try {
+          await fetch(`/api/finances/expenses?id=${id}`, { method: 'DELETE' });
+        } catch (e) {
+          console.warn('API DELETE expense failed:', e);
+        }
+      },
+
       addPurchase: async (purchaseData) => {
         const total = parseFloat(purchaseData.total_amount) || 0;
         const paid = parseFloat(purchaseData.paid_amount) || 0;

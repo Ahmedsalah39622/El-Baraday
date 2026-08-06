@@ -149,3 +149,19 @@ export async function PUT(request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export async function DELETE(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) {
+      return NextResponse.json({ error: 'معرف الفاتورة مطلوب' }, { status: 400 });
+    }
+
+    await query('DELETE FROM raw_material_purchases WHERE id = $1', [id]);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting purchase:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

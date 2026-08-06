@@ -46,9 +46,11 @@ import {
   PictureAsPdf,
   FileDownload,
   Assessment,
+  Delete,
 } from '@mui/icons-material';
 import { useFinancesStore } from '@/store/useFinancesStore';
 import { useBranchStore } from '@/store/useBranchStore';
+import { useInvoiceStore } from '@/store/useInvoiceStore';
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -60,9 +62,10 @@ function TabPanel(props) {
 }
 
 export default function FinancesPage() {
-  const { purchases, expenses, selectedBranchId, setSelectedBranchId, addPurchase, recordPayment, addExpense } =
+  const { purchases, expenses, selectedBranchId, setSelectedBranchId, fetchFinances, addPurchase, recordPayment, addExpense, deletePurchase, deleteExpense } =
     useFinancesStore();
   const { branches, fetchBranches } = useBranchStore();
+  const { invoices, fetchInvoices } = useInvoiceStore();
 
   const [tabValue, setTabValue] = useState(0); // 0 = الإيرادات والمصروفات الكلية (الملخص الشامل)
   const [searchTerm, setSearchTerm] = useState('');
@@ -77,6 +80,8 @@ export default function FinancesPage() {
 
   useEffect(() => {
     fetchBranches();
+    fetchFinances();
+    fetchInvoices();
   }, []);
 
   // System Registered Branches Dynamic Options
@@ -159,7 +164,13 @@ export default function FinancesPage() {
       const purchasesOwed = bPurchases.reduce((acc, i) => acc + (parseFloat(i.remaining_amount) || 0), 0);
       const opExpenses = bExpenses.reduce((acc, i) => acc + (parseFloat(i.amount) || 0), 0);
 
-      const revenue = b.id === 'b2' ? 78500 : 142000;
+      // Calculate REAL revenue from actual invoices in DB/Store
+      const bInvoices = (invoices || []).filter((inv) => {
+        const invBranch = inv.branchId || inv.branch_id || 'b1';
+        return invBranch === b.id && inv.status !== 'cancelled';
+      });
+      const revenue = bInvoices.reduce((acc, inv) => acc + (parseFloat(inv.paidAmount || inv.total || 0)), 0);
+
       const totalOutflows = purchasesPaid + opExpenses;
       const netProfit = revenue - totalOutflows;
 
@@ -175,7 +186,7 @@ export default function FinancesPage() {
         netProfit,
       };
     });
-  }, [availableBranches, purchases, expenses]);
+  }, [availableBranches, purchases, expenses, invoices]);
 
   // Filtered branch summary list according to branch filter
   const displayedBranchSummary = useMemo(() => {
@@ -190,7 +201,13 @@ export default function FinancesPage() {
     const totalPurchasesOwed = filteredPurchases.reduce((acc, i) => acc + (parseFloat(i.remaining_amount) || 0), 0);
     const totalOpExpenses = filteredExpenses.reduce((acc, i) => acc + (parseFloat(i.amount) || 0), 0);
 
-    const estimatedRevenue = selectedBranchId === 'b2' ? 78500 : selectedBranchId === 'b1' ? 142000 : 220500;
+    const relevantInvoices = (invoices || []).filter((inv) => {
+      if (inv.status === 'cancelled') return false;
+      const invBranch = inv.branchId || inv.branch_id || 'b1';
+      return selectedBranchId === 'all' || invBranch === selectedBranchId;
+    });
+
+    const estimatedRevenue = relevantInvoices.reduce((acc, inv) => acc + (parseFloat(inv.paidAmount || inv.total || 0)), 0);
     const totalOutflowPaid = totalPurchasesPaid + totalOpExpenses;
     const netProfit = estimatedRevenue - totalOutflowPaid;
 
@@ -202,7 +219,7 @@ export default function FinancesPage() {
       estimatedRevenue,
       netProfit,
     };
-  }, [filteredPurchases, filteredExpenses, selectedBranchId]);
+  }, [filteredPurchases, filteredExpenses, selectedBranchId, invoices]);
 
   // Supplier balances summary
   const supplierBalances = useMemo(() => {
@@ -861,21 +878,26 @@ export default function FinancesPage() {
                       </TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{getStatusChip(row.payment_status, remaining)}</TableCell>
                       <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
-                        {remaining > 0 ? (
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<Payment sx={{ fontSize: 16 }} />}
-                            onClick={() => handleOpenPayDialog(row)}
-                            sx={{ borderRadius: '8px', color: '#EF4444', borderColor: '#FCA5A5', fontWeight: 800, fontSize: '0.75rem', py: 0.4, '&:hover': { bgcolor: '#FEE2E2' } }}
-                          >
-                            سداد دفعة
-                          </Button>
-                        ) : (
-                          <Typography variant="caption" sx={{ color: '#10B981', fontWeight: 800 }}>
-                            مكتملة ✓
-                          </Typography>
-                        )}
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                          {remaining > 0 ? (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<Payment sx={{ fontSize: 16 }} />}
+                              onClick={() => handleOpenPayDialog(row)}
+                              sx={{ borderRadius: '8px', color: '#EF4444', borderColor: '#FCA5A5', fontWeight: 800, fontSize: '0.75rem', py: 0.4, '&:hover': { bgcolor: '#FEE2E2' } }}
+                            >
+                              سداد دفعة
+                            </Button>
+                          ) : (
+                            <Typography variant="caption" sx={{ color: '#10B981', fontWeight: 800 }}>
+                              مكتملة ✓
+                            </Typography>
+                          )}
+                          <IconButton size="small" color="error" onClick={() => deletePurchase(row.id)} title="حذف الفاتورة">
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </Box>
                       </TableCell>
                     </TableRow>
                   );
@@ -923,6 +945,7 @@ export default function FinancesPage() {
                   <TableCell sx={{ fontWeight: 800, whiteSpace: 'nowrap' }}>طريقة الدفع</TableCell>
                   <TableCell sx={{ fontWeight: 800, whiteSpace: 'nowrap' }}>التاريخ</TableCell>
                   <TableCell sx={{ fontWeight: 800, whiteSpace: 'nowrap' }}>ملاحظات</TableCell>
+                  <TableCell sx={{ fontWeight: 800, whiteSpace: 'nowrap' }} align="center">الإجراءات</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -935,6 +958,11 @@ export default function FinancesPage() {
                     <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{exp.payment_method}</TableCell>
                     <TableCell sx={{ color: '#6B7280', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>{exp.expense_date}</TableCell>
                     <TableCell sx={{ color: '#6B7280', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>{exp.notes || '—'}</TableCell>
+                    <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
+                      <IconButton size="small" color="error" onClick={() => deleteExpense(exp.id)} title="حذف المصروف">
+                        <Delete fontSize="small" />
+                      </IconButton>
+                    </TableCell>
                   </TableRow>
                 ))}
 

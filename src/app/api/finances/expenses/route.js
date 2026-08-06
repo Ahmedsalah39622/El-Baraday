@@ -85,3 +85,19 @@ export async function POST(request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export async function DELETE(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) {
+      return NextResponse.json({ error: 'معرف المصروف مطلوب' }, { status: 400 });
+    }
+
+    await query('DELETE FROM operational_expenses WHERE id = $1', [id]);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting expense:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
