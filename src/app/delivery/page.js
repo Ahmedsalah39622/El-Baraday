@@ -187,7 +187,7 @@ export default function DeliveryPage() {
   const handleTabChange = (event, newValue) => setTabValue(newValue);
 
   // Build clean, deduplicated driver options for dispatch selector
-  const checkedInDrivers = (activeQueue || []).filter(q => !selectedBranchId || selectedBranchId === 'all' || q.branch_id === selectedBranchId);
+  const checkedInDrivers = (activeQueue || []).filter(q => !selectedBranchId || selectedBranchId === 'all' || !q.branch_id || q.branch_id === 'all' || q.branch_id === selectedBranchId);
   const readyDrivers = checkedInDrivers.filter(q => q.status === 'ready');
   const onDeliveryDrivers = checkedInDrivers.filter(q => q.status === 'on_delivery');
 
@@ -213,7 +213,7 @@ export default function DeliveryPage() {
     }
   });
 
-  (drivers || []).filter(d => !selectedBranchId || selectedBranchId === 'all' || d.branch_id === selectedBranchId).forEach(d => {
+  (drivers || []).filter(d => !selectedBranchId || selectedBranchId === 'all' || !d.branch_id || d.branch_id === 'all' || d.branch_id === selectedBranchId).forEach(d => {
     if (d.name && !dispatchDriverOptions.some(opt => opt.name === d.name)) {
       dispatchDriverOptions.push({
         id: d.id || d.name,

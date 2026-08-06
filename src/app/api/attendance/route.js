@@ -60,6 +60,33 @@ export async function GET(req) {
       console.error('Error syncing delivery employees to drivers:', err);
     }
 
+    // AUTO-ENROLLMENT: Ensure all registered drivers for each branch are in driver_attendance ready queue
+    try {
+      const allRegisteredDrivers = await query(`SELECT id, name, branch_id FROM drivers`);
+      for (const d of (allRegisteredDrivers.rows || [])) {
+        const attCheck = await query(
+          `SELECT id FROM driver_attendance 
+           WHERE (driver_id = $1 OR driver_name = $2)
+           AND (check_out_time IS NULL OR DATE(check_out_time) = CURRENT_DATE())`,
+          [d.id, d.name]
+        );
+        if (!attCheck.rows || attCheck.rows.length === 0) {
+          const posRes = await query(
+            `SELECT COUNT(*) as pos FROM driver_attendance WHERE check_out_time IS NULL AND branch_id = $1`,
+            [d.branch_id || 'b1']
+          );
+          const nextPos = (parseInt(posRes.rows[0]?.pos || 0)) + 1;
+          await query(
+            `INSERT INTO driver_attendance (id, driver_id, driver_name, branch_id, status, queue_position, check_in_time)
+             VALUES (gen_random_uuid()::TEXT, $1, $2, $3, 'ready', $4, CURRENT_TIMESTAMP)`,
+            [d.id, d.name, d.branch_id || 'b1', nextPos]
+          );
+        }
+      }
+    } catch (err) {
+      console.error('Error auto-enrolling drivers into attendance queue:', err);
+    }
+
     // SELF-HEALING: Release any drivers marked 'on_delivery' whose assigned order is completed/deleted
     try {
       await query(`
@@ -94,7 +121,7 @@ export async function GET(req) {
 
     if (branchId && branchId !== 'all') {
       params.push(branchId);
-      sql += ` AND da.branch_id = $${params.length}`;
+      sql += ` AND (da.branch_id = $${params.length} OR da.branch_id IS NULL OR da.branch_id = '' OR da.branch_id = 'all')`;
     }
 
     sql += ` ORDER BY da.check_in_time ASC`;
@@ -113,7 +140,7 @@ export async function GET(req) {
     const driversParams = [];
     if (branchId && branchId !== 'all') {
       driversParams.push(branchId);
-      driversSql += ` WHERE d.branch_id = $${driversParams.length}`;
+      driversSql += ` WHERE (d.branch_id = $${driversParams.length} OR d.branch_id IS NULL OR d.branch_id = '' OR d.branch_id = 'all')`;
     }
     driversSql += ` ORDER BY d.name ASC`;
 

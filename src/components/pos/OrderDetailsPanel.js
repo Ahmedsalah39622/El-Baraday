@@ -60,12 +60,12 @@ export default function OrderDetailsPanel({
   const activeBranchName = currentBranch ? currentBranch.name : (orderBranchId === 'all' ? 'جميع الفروع' : 'الفرع الرئيسي');
 
   // Filter drivers checked-in for current active shift & branch
-  const checkedInDrivers = (activeQueue || []).filter(q => !orderBranchId || orderBranchId === 'all' || q.branch_id === orderBranchId);
+  const checkedInDrivers = (activeQueue || []).filter(q => !orderBranchId || orderBranchId === 'all' || !q.branch_id || q.branch_id === 'all' || q.branch_id === orderBranchId);
   const readyDrivers = checkedInDrivers.filter(q => q.status === 'ready');
   const onDeliveryDrivers = checkedInDrivers.filter(q => q.status === 'on_delivery');
 
   // Filter all registered drivers for THIS BRANCH ONLY
-  const branchRegisteredDrivers = (drivers || []).filter(d => !orderBranchId || orderBranchId === 'all' || d.branch_id === orderBranchId);
+  const branchRegisteredDrivers = (drivers || []).filter(d => !orderBranchId || orderBranchId === 'all' || !d.branch_id || d.branch_id === 'all' || d.branch_id === orderBranchId);
 
   const availableDriverOptions = [];
 
