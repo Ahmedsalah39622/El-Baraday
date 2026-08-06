@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { useCustomerStore } from '@/store/useCustomerStore';
+import { markOrderAsPrinted } from '@/lib/printReceipt';
 
 export const useInvoiceStore = create((set, get) => ({
   invoices: [],
@@ -309,6 +310,8 @@ export const useInvoiceStore = create((set, get) => ({
       });
       if (res.ok) {
         const created = await res.json();
+        markOrderAsPrinted(created.id, created.order_number);
+        markOrderAsPrinted(newInvoice.id, newInvoice.orderNumber);
         set((state) => ({
           invoices: state.invoices.map((inv) =>
             inv.id === newInvoice.id

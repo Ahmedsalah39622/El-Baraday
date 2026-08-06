@@ -125,6 +125,7 @@ export default function OrderDetailsPanel({
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [completedOrderData, setCompletedOrderData] = useState(null);
   const [whatsAppStatus, setWhatsAppStatus] = useState(null);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
 
   const numDiscountVal = parseFloat(discountValue) || 0;
   const calculatedDiscount = discountType === 'percent'
@@ -189,12 +190,15 @@ export default function OrderDetailsPanel({
   };
 
   const handleCompleteOrder = async () => {
-    if (items.length === 0) return;
+    if (items.length === 0 || isSubmittingOrder) return;
 
     if (!isShiftActive) {
       setShiftClosedDialogOpen(true);
       return;
     }
+
+    setIsSubmittingOrder(true);
+    try {
 
     const currentOrderNum = nextOrderNumber ? nextOrderNumber.toString() : '35';
 
@@ -300,6 +304,9 @@ export default function OrderDetailsPanel({
 
     // Clear order cart, form fields, and return to takeaway after delivery completion.
     resetOrderFormAfterCompletion();
+    } finally {
+      setIsSubmittingOrder(false);
+    }
   };
 
   const handleCloseDialog = () => {
@@ -993,7 +1000,7 @@ export default function OrderDetailsPanel({
         variant="contained"
         fullWidth
         suppressHydrationWarning
-        disabled={items.length === 0}
+        disabled={items.length === 0 || isSubmittingOrder}
         onClick={handleCompleteOrder}
         sx={{
           py: 1.2,
@@ -1006,7 +1013,7 @@ export default function OrderDetailsPanel({
           },
         }}  
       >
-        إتمام الطلب وطباعة الفاتورة
+        {isSubmittingOrder ? '⏳ جاري إتمام الطلب والطباعة...' : 'إتمام الطلب وطباعة الفاتورة'}
       </Button>
 
       {/* Shift Closed Warning Dialog Popup */}
