@@ -74,6 +74,14 @@ export default function OrdersPage() {
   const effectiveBranch = (user && user.role !== 'admin' && user.branch_id) ? user.branch_id : selectedBranchId;
   const targetBranch = effectiveBranch || 'all';
 
+  const activeShiftsList = (allShiftsList && allShiftsList.length > 0)
+    ? allShiftsList.filter(s => s.status === 'active')
+    : (activeShift && activeShift.status === 'active' ? [activeShift] : []);
+
+  const isShiftActive = targetBranch === 'all'
+    ? activeShiftsList.length > 0
+    : activeShiftsList.some(s => s.branch_id === targetBranch || (!s.branch_id && targetBranch === 'b1'));
+
   useEffect(() => {
     fetchInvoices(500, targetBranch);
     fetchShifts(targetBranch);
@@ -151,10 +159,6 @@ export default function OrdersPage() {
 
   // 1. Total Cash in Drawer (إجمالي النقدية في الخزنة) - Exactly aligned with POS till logic
   const totalCashInDrawer = useMemo(() => {
-    const activeShiftsList = (allShiftsList && allShiftsList.length > 0)
-      ? allShiftsList.filter(s => s.status === 'active')
-      : (activeShift && activeShift.status === 'active' ? [activeShift] : []);
-
     const relevantShifts = targetBranch === 'all'
       ? activeShiftsList
       : activeShiftsList.filter(s => s.branch_id === targetBranch || (!s.branch_id && targetBranch === 'b1'));
