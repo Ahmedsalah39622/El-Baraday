@@ -52,7 +52,7 @@ import { generateReportPDF } from '@/lib/reportPdfExport';
 export default function ShiftSummaryPage() {
   const { invoices, fetchInvoices } = useInvoiceStore();
   const { returns, fetchReturns } = useReturnsStore();
-  const { activeShift, fetchShifts, openShift, closeShift } = useShiftStore();
+  const { activeShift, fetchShifts, openShift, closeShift, shifts: allShiftsList } = useShiftStore();
   const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin' || !user?.role;
