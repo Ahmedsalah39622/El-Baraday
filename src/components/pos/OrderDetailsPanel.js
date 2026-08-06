@@ -97,14 +97,17 @@ export default function OrderDetailsPanel({
   });
 
   const [driverName, setDriverName] = useState(availableDriverOptions[0]?.name || '');
+  const [driverId, setDriverId] = useState(availableDriverOptions[0]?.id || '');
 
   useEffect(() => {
     if (availableDriverOptions.length > 0) {
       const topReady = availableDriverOptions.find(d => d.isReady);
       if (topReady) {
         setDriverName(topReady.name);
+        setDriverId(topReady.id);
       } else {
         setDriverName(availableDriverOptions[0].name);
+        setDriverId(availableDriverOptions[0].id);
       }
     }
   }, [activeQueue, drivers, orderBranchId]);
@@ -249,6 +252,8 @@ export default function OrderDetailsPanel({
       customerAddress,
       driverName,
       driver_name: driverName,
+      driverId,
+      driver_id: driverId,
       cashierName: activeCashierName,
       subtotal,
       discount: calculatedDiscount,
@@ -516,7 +521,12 @@ export default function OrderDetailsPanel({
                   <Select
                     value={driverName}
                     label="الطيار"
-                    onChange={(e) => setDriverName(e.target.value)}
+                    onChange={(e) => {
+                      const selectedVal = e.target.value;
+                      setDriverName(selectedVal);
+                      const found = availableDriverOptions.find(d => d.name === selectedVal || d.id === selectedVal);
+                      if (found) setDriverId(found.id);
+                    }}
                     sx={{ borderRadius: '8px', bgcolor: '#FFF', fontSize: '0.813rem' }}
                   >
                     {availableDriverOptions.map((d) => (

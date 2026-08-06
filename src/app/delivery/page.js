@@ -235,6 +235,7 @@ export default function DeliveryPage() {
   // Action 1: Driver Picked Up Order (الطيار استلم)
   const handleDriverPickedUp = async (order) => {
     const assignedDriver = order.driver_name || order.driverName;
+    const assignedDriverId = order.driver_id || order.driverId;
     if (!assignedDriver || assignedDriver === 'لم يحدد طيار بعد') {
       handleOpenDispatch(order);
       return;
@@ -247,7 +248,8 @@ export default function DeliveryPage() {
         body: JSON.stringify({
           status: 'dispatched',
           dispatched_at: new Date().toISOString(),
-          driver_name: assignedDriver
+          driver_name: assignedDriver,
+          driver_id: assignedDriverId || null
         })
       });
       fetchDeliveryData();
@@ -265,12 +267,15 @@ export default function DeliveryPage() {
       return;
     }
 
+    const matchedDriverOpt = dispatchDriverOptions.find(d => d.name === selectedDriverForOrder.trim());
+
     try {
       await fetch(`/api/orders/${selectedOrderForDispatch.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           driver_name: selectedDriverForOrder.trim(),
+          driver_id: matchedDriverOpt?.id || null,
           dispatched_at: new Date().toISOString(),
           status: 'dispatched'
         })

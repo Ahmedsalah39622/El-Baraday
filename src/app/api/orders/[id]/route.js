@@ -149,36 +149,55 @@ export async function PUT(request, { params }) {
     if (targetDriverName || targetDriverId) {
       const cleanName = (targetDriverName || '').trim();
       const cleanId = (targetDriverId || '').trim();
+      const firstName = cleanName.split(' ')[0] || cleanName;
 
       if (targetStatus === 'dispatched' || targetStatus === 'out_for_delivery' || targetStatus === 'preparing' || targetStatus === 'ready_for_pickup') {
         await query(
           `UPDATE driver_attendance SET status = 'on_delivery', current_order_id = $1
-           WHERE (TRIM(driver_name) = $2 OR driver_name LIKE $2 OR (driver_id = $3 AND $3 != '')) AND check_out_time IS NULL`,
-          [id, cleanName, cleanId]
+           WHERE check_out_time IS NULL
+           AND (
+             (driver_id = $2 AND $2 != '')
+             OR (TRIM(driver_name) = $3 AND $3 != '')
+             OR (driver_name LIKE $4 AND $4 != '%%')
+             OR (driver_name LIKE $5 AND $5 != '%%')
+           )`,
+          [id, cleanId, cleanName, `%${cleanName}%`, `%${firstName}%`]
         );
       } else if (targetStatus === 'delivered' || targetStatus === 'completed' || targetStatus === 'cancelled' || targetStatus === 'refunded') {
         // Check if driver has any other active delivery orders remaining
         const activeOrdersCheck = await query(
           `SELECT id FROM orders
-           WHERE (TRIM(driver_name) = $1 OR (driver_id = $2 AND $2 != ''))
+           WHERE ((driver_id = $1 AND $1 != '') OR (TRIM(driver_name) = $2 AND $2 != '') OR driver_name LIKE $3)
            AND status IN ('preparing', 'dispatched', 'out_for_delivery', 'ready_for_pickup')
-           AND id != $3 LIMIT 1`,
-          [cleanName, cleanId, id]
+           AND id != $4 LIMIT 1`,
+          [cleanId, cleanName, `%${firstName}%`, id]
         );
 
         if (!activeOrdersCheck.rows || activeOrdersCheck.rows.length === 0) {
           // No other active orders -> Put driver back at the end of the ready queue
           await query(
             `UPDATE driver_attendance SET status = 'ready', current_order_id = NULL, check_in_time = CURRENT_TIMESTAMP
-             WHERE (TRIM(driver_name) = $1 OR driver_name LIKE $1 OR (driver_id = $2 AND $2 != '')) AND check_out_time IS NULL`,
-            [cleanName, cleanId]
+             WHERE check_out_time IS NULL
+             AND (
+               (driver_id = $1 AND $1 != '')
+               OR (TRIM(driver_name) = $2 AND $2 != '')
+               OR (driver_name LIKE $3 AND $3 != '%%')
+               OR (driver_name LIKE $4 AND $4 != '%%')
+             )`,
+            [cleanId, cleanName, `%${cleanName}%`, `%${firstName}%`]
           );
         } else {
           // Still has active orders -> Update current_order_id to remaining order
           await query(
             `UPDATE driver_attendance SET current_order_id = $1
-             WHERE (TRIM(driver_name) = $2 OR driver_name LIKE $2 OR (driver_id = $3 AND $3 != '')) AND check_out_time IS NULL`,
-            [activeOrdersCheck.rows[0].id, cleanName, cleanId]
+             WHERE check_out_time IS NULL
+             AND (
+               (driver_id = $2 AND $2 != '')
+               OR (TRIM(driver_name) = $3 AND $3 != '')
+               OR (driver_name LIKE $4 AND $4 != '%%')
+               OR (driver_name LIKE $5 AND $5 != '%%')
+             )`,
+            [activeOrdersCheck.rows[0].id, cleanId, cleanName, `%${cleanName}%`, `%${firstName}%`]
           );
         }
       }

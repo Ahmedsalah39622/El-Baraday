@@ -241,12 +241,19 @@ export async function POST(request) {
     if ((initialStatus === 'preparing' || isDispatched) && (driver_name || driver_id)) {
       const cleanName = (driver_name || '').trim();
       const cleanId = (driver_id || '').trim();
+      const firstName = cleanName.split(' ')[0] || cleanName;
+
       await query(
         `UPDATE driver_attendance
          SET status = 'on_delivery', current_order_id = $1
-         WHERE (TRIM(driver_name) = $2 OR driver_name LIKE $2 OR (driver_id = $3 AND $3 != ''))
-         AND check_out_time IS NULL`,
-        [order.id, cleanName, cleanId]
+         WHERE check_out_time IS NULL
+         AND (
+           (driver_id = $2 AND $2 != '')
+           OR (TRIM(driver_name) = $3 AND $3 != '')
+           OR (driver_name LIKE $4 AND $4 != '%%')
+           OR (driver_name LIKE $5 AND $5 != '%%')
+         )`,
+        [order.id, cleanId, cleanName, `%${cleanName}%`, `%${firstName}%`]
       );
     }
 

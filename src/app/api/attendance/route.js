@@ -60,6 +60,26 @@ export async function GET(req) {
       console.error('Error syncing delivery employees to drivers:', err);
     }
 
+    // SELF-HEALING: Release any drivers marked 'on_delivery' whose assigned order is completed/deleted
+    try {
+      await query(`
+        UPDATE driver_attendance da
+        SET status = 'ready', current_order_id = NULL, check_in_time = CURRENT_TIMESTAMP
+        WHERE da.check_out_time IS NULL
+        AND da.status = 'on_delivery'
+        AND (
+          da.current_order_id IS NULL
+          OR NOT EXISTS (
+            SELECT 1 FROM orders o
+            WHERE o.id = da.current_order_id
+            AND o.status IN ('preparing', 'dispatched', 'out_for_delivery', 'ready_for_pickup')
+          )
+        )
+      `);
+    } catch (e) {
+      console.warn('⚠️ Attendance self-healing check error:', e.message);
+    }
+
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get('branch_id');
 
