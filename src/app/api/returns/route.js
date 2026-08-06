@@ -117,6 +117,16 @@ export async function POST(request) {
       // Update item quantities to 0 or delete
       await query('DELETE FROM order_items WHERE order_id = $1', [order_id]);
 
+      if (order.driver_name || order.driver_id) {
+        const cleanName = (order.driver_name || '').trim();
+        const cleanId = (order.driver_id || '').trim();
+        await query(
+          `UPDATE driver_attendance SET status = 'ready', current_order_id = NULL, check_in_time = CURRENT_TIMESTAMP
+           WHERE (TRIM(driver_name) = $1 OR (driver_id = $2 AND $2 != '')) AND check_out_time IS NULL`,
+          [cleanName, cleanId]
+        );
+      }
+
     } else {
       // PARTIAL RETURN
       for (const retItem of returned_items) {

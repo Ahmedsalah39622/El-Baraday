@@ -150,18 +150,37 @@ export async function PUT(request, { params }) {
       const cleanName = (targetDriverName || '').trim();
       const cleanId = (targetDriverId || '').trim();
 
-      if (targetStatus === 'dispatched' || targetStatus === 'out_for_delivery' || targetStatus === 'preparing') {
+      if (targetStatus === 'dispatched' || targetStatus === 'out_for_delivery' || targetStatus === 'preparing' || targetStatus === 'ready_for_pickup') {
         await query(
           `UPDATE driver_attendance SET status = 'on_delivery', current_order_id = $1
            WHERE (TRIM(driver_name) = $2 OR driver_name LIKE $2 OR (driver_id = $3 AND $3 != '')) AND check_out_time IS NULL`,
           [id, cleanName, cleanId]
         );
-      } else if (targetStatus === 'delivered' || targetStatus === 'completed' || targetStatus === 'cancelled') {
-        await query(
-          `UPDATE driver_attendance SET status = 'ready', current_order_id = NULL, check_in_time = CURRENT_TIMESTAMP
-           WHERE (TRIM(driver_name) = $1 OR driver_name LIKE $1 OR (driver_id = $2 AND $2 != '')) AND check_out_time IS NULL`,
-          [cleanName, cleanId]
+      } else if (targetStatus === 'delivered' || targetStatus === 'completed' || targetStatus === 'cancelled' || targetStatus === 'refunded') {
+        // Check if driver has any other active delivery orders remaining
+        const activeOrdersCheck = await query(
+          `SELECT id FROM orders
+           WHERE (TRIM(driver_name) = $1 OR (driver_id = $2 AND $2 != ''))
+           AND status IN ('preparing', 'dispatched', 'out_for_delivery', 'ready_for_pickup')
+           AND id != $3 LIMIT 1`,
+          [cleanName, cleanId, id]
         );
+
+        if (!activeOrdersCheck.rows || activeOrdersCheck.rows.length === 0) {
+          // No other active orders -> Put driver back at the end of the ready queue
+          await query(
+            `UPDATE driver_attendance SET status = 'ready', current_order_id = NULL, check_in_time = CURRENT_TIMESTAMP
+             WHERE (TRIM(driver_name) = $1 OR driver_name LIKE $1 OR (driver_id = $2 AND $2 != '')) AND check_out_time IS NULL`,
+            [cleanName, cleanId]
+          );
+        } else {
+          // Still has active orders -> Update current_order_id to remaining order
+          await query(
+            `UPDATE driver_attendance SET current_order_id = $1
+             WHERE (TRIM(driver_name) = $2 OR driver_name LIKE $2 OR (driver_id = $3 AND $3 != '')) AND check_out_time IS NULL`,
+            [activeOrdersCheck.rows[0].id, cleanName, cleanId]
+          );
+        }
       }
     }
 
@@ -175,6 +194,19 @@ export async function PUT(request, { params }) {
 export async function DELETE(request, { params }) {
   try {
     const { id } = await params;
+    const orderRes = await query('SELECT driver_name, driver_id FROM orders WHERE id = $1', [id]);
+    if (orderRes.rows && orderRes.rows.length > 0) {
+      const cleanName = (orderRes.rows[0].driver_name || '').trim();
+      const cleanId = (orderRes.rows[0].driver_id || '').trim();
+      if (cleanName || cleanId) {
+        await query(
+          `UPDATE driver_attendance SET status = 'ready', current_order_id = NULL, check_in_time = CURRENT_TIMESTAMP
+           WHERE (TRIM(driver_name) = $1 OR (driver_id = $2 AND $2 != '')) AND check_out_time IS NULL`,
+          [cleanName, cleanId]
+        );
+      }
+    }
+
     await query('DELETE FROM order_items WHERE order_id = $1', [id]);
     await query('DELETE FROM orders WHERE id = $1', [id]);
     return NextResponse.json({ success: true, message: 'Order deleted successfully' });
