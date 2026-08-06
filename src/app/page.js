@@ -557,7 +557,7 @@ export default function POSPage() {
               {/* Branch Switch Control (كل الفروع / فرع عزت / فرع المسلة) */}
               <Paper elevation={0} sx={{ borderRadius: '14px', p: 0.5, bgcolor: '#F1F5F9', border: '1px solid #E2E8F0' }}>
                 <Tabs
-                  value={selectedBranchId || 'all'}
+                  value={isAdmin ? (selectedBranchId || 'all') : (selectedBranchId === 'all' ? (user?.branch_id || 'b1') : selectedBranchId)}
                   onChange={(e, val) => setSelectedBranchId(val)}
                   sx={{
                     minHeight: 34,
@@ -579,7 +579,7 @@ export default function POSPage() {
                     '& .MuiTabs-indicator': { display: 'none' }
                   }}
                 >
-                  <Tab value="all" label="🌐 كل الفروع" />
+                  {isAdmin && <Tab value="all" label="🌐 كل الفروع" />}
                   <Tab value="b1" label="🏢 فرع عزت" />
                   <Tab value="b2" label="🏢 فرع المسلة" />
                 </Tabs>
