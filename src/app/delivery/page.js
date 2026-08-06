@@ -109,9 +109,11 @@ export default function DeliveryPage() {
             const orderKey = String(o.id);
             if (!autoPrintedOrderIds.current.has(orderKey)) {
               autoPrintedOrderIds.current.add(orderKey);
-              playOrderNotificationSound();
-              setIncomingOrderNotification(o);
-              handlePrintDelivery(o);
+              if (!isAdmin) {
+                playOrderNotificationSound();
+                setIncomingOrderNotification(o);
+                handlePrintDelivery(o);
+              }
             }
           });
         }

@@ -346,27 +346,29 @@ export default function POSPage() {
                   autoPrintedPosOrders.current.add(orderKey);
                   const oBranch = o.branch_id || o.branchId || 'b1';
                   if (!effectiveBranchId || effectiveBranchId === 'all' || oBranch === effectiveBranchId) {
-                    playOrderNotificationSound();
-                    setIncomingOrderNotification(o);
-                    printThermalReceipt({
-                      orderNumber: o.orderNumber || '1',
-                      dateStr: new Date(o.createdAt || Date.now()).toLocaleString('ar-EG'),
-                      cashierName: o.cashierName || 'كاشير',
-                      driverName: o.driverName || '',
-                      customerName: o.customerName || '',
-                      customerPhone: o.customerPhone || '',
-                      customerAddress: o.customerAddress || '',
-                      items: o.items || [],
-                      subtotal: o.subtotal || o.total,
-                      deliveryFee: o.deliveryFee || 0,
-                      discount: o.discount || 0,
-                      total: o.total,
-                      paidAmount: o.paidAmount || o.total,
-                      remainingAmount: o.remainingAmount || 0,
-                      paymentMethod: o.paymentMethod || 'cash',
-                      orderType: o.orderType || 'takeaway',
-                      branch_id: oBranch
-                    });
+                    if (!isAdmin) {
+                      playOrderNotificationSound();
+                      setIncomingOrderNotification(o);
+                      printThermalReceipt({
+                        orderNumber: o.orderNumber || '1',
+                        dateStr: new Date(o.createdAt || Date.now()).toLocaleString('ar-EG'),
+                        cashierName: o.cashierName || 'كاشير',
+                        driverName: o.driverName || '',
+                        customerName: o.customerName || '',
+                        customerPhone: o.customerPhone || '',
+                        customerAddress: o.customerAddress || '',
+                        items: o.items || [],
+                        subtotal: o.subtotal || o.total,
+                        deliveryFee: o.deliveryFee || 0,
+                        discount: o.discount || 0,
+                        total: o.total,
+                        paidAmount: o.paidAmount || o.total,
+                        remainingAmount: o.remainingAmount || 0,
+                        paymentMethod: o.paymentMethod || 'cash',
+                        orderType: o.orderType || 'takeaway',
+                        branch_id: oBranch
+                      });
+                    }
                   }
                 }
               });
