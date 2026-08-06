@@ -57,18 +57,15 @@ export default function ShiftSummaryPage() {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin' || !user?.role;
 
-  // Shift summary is strictly per-branch (never aggregated 'all')
+  // Shift summary can show specific branch or aggregated 'all' branches
   const effectiveBranchId = isAdmin 
-    ? (selectedBranchId === 'all' ? 'b1' : selectedBranchId)
-    : (user?.branch_id || user?.branchId || 'b1');
+    ? (selectedBranchId || 'all')
+    : (user?.branch_id || user?.branchId || 'all');
 
-  useEffect(() => {
-    if (isAdmin && selectedBranchId === 'all') {
-      setSelectedBranchId('b1');
-    }
-  }, [isAdmin, selectedBranchId]);
+  const [targetOpenBranch, setTargetOpenBranch] = useState('b1');
 
   const getBranchNameById = (branchId) => {
+    if (branchId === 'all') return 'كل الفروع (مجمع)';
     const found = (branches || []).find((b) => b.id === branchId);
     if (found?.name) return found.name;
     if (branchId === 'b2') return 'فرع المسلة';
@@ -95,7 +92,9 @@ export default function ShiftSummaryPage() {
   const fetchPastShifts = async () => {
     setLoadingHistory(true);
     try {
-      const url = `/api/shifts?branch_id=${effectiveBranchId}`;
+      const url = effectiveBranchId && effectiveBranchId !== 'all' 
+        ? `/api/shifts?branch_id=${effectiveBranchId}`
+        : '/api/shifts';
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -132,33 +131,48 @@ export default function ShiftSummaryPage() {
     }
   }, [user]);
 
-  // Filter invoices to only include those created SINCE activeShift.rawStartTime
-  // AND strictly match current effectiveBranchId AND exclude cancelled orders
+  const activeShiftsList = (allShiftsList && allShiftsList.length > 0)
+    ? allShiftsList.filter(s => s.status === 'active')
+    : (activeShift && activeShift.status === 'active' ? [activeShift] : []);
+
+  const relevantActiveShifts = effectiveBranchId === 'all'
+    ? activeShiftsList
+    : activeShiftsList.filter(s => s.branch_id === effectiveBranchId || (!s.branch_id && effectiveBranchId === 'b1'));
+
+  const isShiftActive = relevantActiveShifts.length > 0;
+
+  // Filter invoices to only include those created SINCE relevant active shift
+  // AND match current effectiveBranchId AND exclude cancelled orders
   const activeShiftInvoices = (invoices || []).filter((inv) => {
-    // Skip cancelled orders
     if (inv.status === 'cancelled') return false;
     
-    // Strictly match current branch (default to 'b1' if unassigned)
     const invBranch = inv.branch_id || inv.branchId || 'b1';
-    if (invBranch !== effectiveBranchId) return false;
+    if (effectiveBranchId !== 'all' && invBranch !== effectiveBranchId) return false;
 
-    if (!activeShift?.rawStartTime || !inv.createdAt) return true;
+    const invActiveShift = relevantActiveShifts.find(s => s.branch_id === invBranch || (!s.branch_id && invBranch === 'b1'));
+    if (!invActiveShift?.rawStartTime || !inv.createdAt) return true;
+
     const invTime = new Date(inv.createdAt).getTime();
-    const shiftStartTime = new Date(activeShift.rawStartTime).getTime();
+    const shiftStartTime = new Date(invActiveShift.rawStartTime).getTime();
     if (isNaN(invTime) || isNaN(shiftStartTime)) return true;
     return invTime >= shiftStartTime;
   });
 
   const activeShiftInvoiceMap = new Map(activeShiftInvoices.map((inv) => [inv.id, inv]));
   const activeShiftReturns = (returns || []).filter((ret) => {
-    if (!ret?.created_at || !activeShift?.rawStartTime) return false;
-
-    const retTime = new Date(ret.created_at).getTime();
-    const shiftStartTime = new Date(activeShift.rawStartTime).getTime();
-    if (isNaN(retTime) || isNaN(shiftStartTime) || retTime < shiftStartTime) return false;
+    if (!ret?.created_at) return false;
 
     const retBranch = ret.branch_id || ret.branchId || 'b1';
-    return retBranch === effectiveBranchId;
+    if (effectiveBranchId !== 'all' && retBranch !== effectiveBranchId) return false;
+
+    const retActiveShift = relevantActiveShifts.find(s => s.branch_id === retBranch || (!s.branch_id && retBranch === 'b1'));
+    if (!retActiveShift?.rawStartTime) return false;
+
+    const retTime = new Date(ret.created_at).getTime();
+    const shiftStartTime = new Date(retActiveShift.rawStartTime).getTime();
+    if (isNaN(retTime) || isNaN(shiftStartTime) || retTime < shiftStartTime) return false;
+
+    return true;
   });
 
   const returnDeduction = activeShiftReturns.reduce((sum, ret) => {
@@ -171,8 +185,8 @@ export default function ShiftSummaryPage() {
   }, 0);
 
   const totalSales = activeShiftInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0) - returnDeduction;
-  const startCash = activeShift?.startAmount || 0;
-  const expectedDrawerCash = activeShift ? (startCash + totalSales) : 0;
+  const startCash = relevantActiveShifts.reduce((sum, s) => sum + (parseFloat(s.start_amount || s.startAmount || 0)), 0);
+  const expectedDrawerCash = isShiftActive ? (startCash + totalSales) : 0;
 
   // Active shift delivery metrics (صافي أوردرات الدليفري وإجمالي خدمة الدليفري)
   const activeShiftDeliveryInvoices = activeShiftInvoices.filter(
@@ -206,7 +220,17 @@ export default function ShiftSummaryPage() {
 
   const handleConfirmCloseShift = async () => {
     if (isDeficit && !deficitNotes.trim()) return;
-    await closeShift(parsedActualCash, expectedDrawerCash, totalSales, activeShiftInvoices.length, deficitNotes.trim());
+    if (effectiveBranchId === 'all' && relevantActiveShifts.length > 1) {
+      for (const s of relevantActiveShifts) {
+        const sStart = parseFloat(s.start_amount || s.startAmount || 0);
+        const sInvoices = activeShiftInvoices.filter(i => (i.branch_id || i.branchId || 'b1') === (s.branch_id || 'b1'));
+        const sSales = sInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0);
+        const sExp = sStart + sSales;
+        await closeShift(sExp, sExp, sSales, sInvoices.length, deficitNotes.trim());
+      }
+    } else {
+      await closeShift(parsedActualCash, expectedDrawerCash, totalSales, activeShiftInvoices.length, deficitNotes.trim());
+    }
     setCloseDialogOpen(false);
     setActualDrawerCash('');
     setDeficitNotes('');
@@ -219,7 +243,8 @@ export default function ShiftSummaryPage() {
   const handleConfirmOpenShift = async () => {
     try {
       const amount = parseFloat(newStartAmount) || 0;
-      await openShift(newCashierName, amount, effectiveBranchId);
+      const targetBranchId = effectiveBranchId === 'all' ? targetOpenBranch : effectiveBranchId;
+      await openShift(newCashierName, amount, targetBranchId);
       setOpenDialogOpen(false);
       await fetchPastShifts();
       alert('تم فتح وردية جديدة بنجاح!');
@@ -230,9 +255,10 @@ export default function ShiftSummaryPage() {
     }
   };
 
-  const cashierDisplayName = user?.name || activeShift?.cashierName || '';
+  const cashierDisplayName = effectiveBranchId === 'all'
+    ? (relevantActiveShifts.map(s => s.cashier_name || s.cashierName).filter(Boolean).join(' + ') || user?.name || 'مجمع الفروع')
+    : (relevantActiveShifts[0]?.cashier_name || relevantActiveShifts[0]?.cashierName || user?.name || '');
   const roleTitle = user?.role === 'admin' ? 'مدير النظام' : user?.role === 'cashier' ? 'كاشير' : user?.role === 'driver' ? 'طيار دليفري' : 'شيف مطبخ';
-  const isShiftActive = activeShift && activeShift.status === 'active';
 
   // Total deficits sum from past closed shifts
   const totalDeficitsSum = shiftsHistory.reduce((sum, s) => {
@@ -245,7 +271,7 @@ export default function ShiftSummaryPage() {
     const targetShift = shiftObj || activeShift;
     const isLive = !shiftObj;
 
-    const startAmt = parseFloat(targetShift?.start_amount || targetShift?.startAmount || 0);
+    const startAmt = parseFloat(targetShift?.start_amount || targetShift?.startAmount || startCash);
     const salesAmt = isLive ? totalSales : parseFloat(targetShift?.cash_sales || 0);
     const expAmt = isLive ? expectedDrawerCash : parseFloat(targetShift?.expected_amount || (startAmt + salesAmt));
     const actAmt = isLive ? (actualDrawerCash !== '' ? parseFloat(actualDrawerCash) : expAmt) : parseFloat(targetShift?.end_amount || 0);
@@ -303,7 +329,7 @@ export default function ShiftSummaryPage() {
           {isAdmin && (
             <Paper elevation={0} sx={{ borderRadius: '14px', p: 0.5, bgcolor: '#F1F5F9', border: '1px solid #E2E8F0' }}>
               <Tabs
-                value={selectedBranchId === 'all' ? (branches[0]?.id || 'b1') : selectedBranchId}
+                value={selectedBranchId || 'all'}
                 onChange={(e, val) => setSelectedBranchId(val)}
                 variant="scrollable"
                 scrollButtons="auto"
@@ -327,12 +353,9 @@ export default function ShiftSummaryPage() {
                   '& .MuiTabs-indicator': { display: 'none' }
                 }}
               >
-                {(branches && branches.length > 0 ? branches : [
-                  { id: 'b1', name: 'فرع عزت' },
-                  { id: 'b2', name: 'فرع المسلة' }
-                ]).map((b) => (
-                  <Tab key={b.id} value={b.id} label={`🏢 ${b.name}`} />
-                ))}
+                <Tab value="all" label="🌐 كل الفروع" />
+                <Tab value="b1" label="🏢 فرع عزت" />
+                <Tab value="b2" label="🏢 فرع المسلة" />
               </Tabs>
             </Paper>
           )}
@@ -577,8 +600,22 @@ export default function ShiftSummaryPage() {
         <DialogTitle sx={{ fontWeight: 800, textAlign: 'center' }}>فتح وردية جديدة 🔓</DialogTitle>
         <DialogContent sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           <Typography variant="body2" sx={{ color: '#4B5563', mt: 1 }}>
-            أدخل مبلغ النقدية الأولى (العهدة) الموجودة في خزنة {branchShortName} لبدء الوردية وتسجيل المبيعات:
+            أدخل مبلغ النقدية الأولى (العهدة) لبدء الوردية وتسجيل المبيعات:
           </Typography>
+          {effectiveBranchId === 'all' && (
+            <FormControl fullWidth>
+              <Typography variant="caption" sx={{ fontWeight: 800, mb: 0.5, color: '#374151' }}>اختر الفرع لفتح الوردية</Typography>
+              <Select
+                value={targetOpenBranch}
+                onChange={(e) => setTargetOpenBranch(e.target.value)}
+                size="small"
+                sx={{ borderRadius: '10px', fontWeight: 800 }}
+              >
+                <MenuItem value="b1">🏢 فرع عزت</MenuItem>
+                <MenuItem value="b2">🏢 فرع المسلة</MenuItem>
+              </Select>
+            </FormControl>
+          )}
           <TextField
             fullWidth
             label="اسم الكاشير"

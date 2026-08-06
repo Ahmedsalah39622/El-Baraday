@@ -71,13 +71,7 @@ export default function DeliveryPage() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [orderToEdit, setOrderToEdit] = useState(null);
 
-  const effectiveBranch = (user && user.role !== 'admin' && user.branch_id) ? user.branch_id : (selectedBranchId === 'all' ? 'b1' : selectedBranchId);
-
-  useEffect(() => {
-    if (selectedBranchId === 'all') {
-      setSelectedBranchId('b1');
-    }
-  }, [selectedBranchId]);
+  const effectiveBranch = (user && user.role !== 'admin' && user.branch_id) ? user.branch_id : selectedBranchId;
 
   const autoPrintedOrderIds = useRef(new Set());
   const isInitialFetch = useRef(true);
@@ -875,10 +869,10 @@ export default function DeliveryPage() {
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          {/* Branch Switch Control (فرع عزت / فرع المسلة) */}
+          {/* Branch Switch Control (كل الفروع / فرع عزت / فرع المسلة) */}
           <Paper elevation={0} sx={{ borderRadius: '14px', p: 0.5, bgcolor: '#F1F5F9', border: '1px solid #E2E8F0' }}>
             <Tabs
-              value={selectedBranchId === 'b2' ? 'b2' : 'b1'}
+              value={selectedBranchId || 'all'}
               onChange={(e, val) => setSelectedBranchId(val)}
               sx={{
                 minHeight: 38,
@@ -900,6 +894,7 @@ export default function DeliveryPage() {
                 '& .MuiTabs-indicator': { display: 'none' }
               }}
             >
+              <Tab value="all" label="🌐 كل الفروع" />
               <Tab value="b1" label="🏢 فرع عزت" />
               <Tab value="b2" label="🏢 فرع المسلة" />
             </Tabs>

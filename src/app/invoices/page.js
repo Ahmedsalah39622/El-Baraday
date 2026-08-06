@@ -388,10 +388,10 @@ export default function InvoicesPage() {
           </Typography>
         </Box>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Branch Switch Control (فرع عزت / فرع المسلة) */}
+          {/* Branch Switch Control (كل الفروع / فرع عزت / فرع المسلة) */}
           <Paper elevation={0} sx={{ borderRadius: '14px', p: 0.5, bgcolor: '#F1F5F9', border: '1px solid #E2E8F0' }}>
             <Tabs
-              value={selectedBranchId === 'b2' ? 'b2' : 'b1'}
+              value={selectedBranchId || 'all'}
               onChange={(e, val) => setSelectedBranchId(val)}
               sx={{
                 minHeight: 38,
@@ -413,6 +413,7 @@ export default function InvoicesPage() {
                 '& .MuiTabs-indicator': { display: 'none' }
               }}
             >
+              <Tab value="all" label="🌐 كل الفروع" />
               <Tab value="b1" label="🏢 فرع عزت" />
               <Tab value="b2" label="🏢 فرع المسلة" />
             </Tabs>
