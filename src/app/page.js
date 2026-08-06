@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { Box, Typography, Button, Drawer, Badge, Dialog, DialogTitle, DialogContent, DialogActions, Chip, Paper, IconButton, FormControl, Select, MenuItem, CircularProgress, Tabs, Tab } from '@mui/material';
+import { Box, Typography, Button, Drawer, Badge, Dialog, DialogTitle, DialogContent, DialogActions, Chip, Paper, IconButton, FormControl, Select, MenuItem, CircularProgress, Tabs, Tab, Snackbar, Alert } from '@mui/material';
 import { ShoppingBagOutlined, AccountBalanceWallet, Store } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
 import CategoryTabs from '@/components/pos/CategoryTabs';
@@ -16,7 +16,7 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { useShiftStore } from '@/store/useShiftStore';
 import { useBranchStore } from '@/store/useBranchStore';
 import { useAuthStore } from '@/store/useAuthStore';
-import { printThermalReceipt } from '@/lib/printReceipt';
+import { printThermalReceipt, playOrderNotificationSound } from '@/lib/printReceipt';
 
 export default function POSPage() {
   const { products, fetchProducts } = useProductStore();
@@ -42,6 +42,7 @@ export default function POSPage() {
 
   const autoPrintedPosOrders = useRef(new Set());
   const isInitialPosFetch = useRef(true);
+  const [incomingOrderNotification, setIncomingOrderNotification] = useState(null);
 
   // Offer Customization Modal State
   const [offerModalOpen, setOfferModalOpen] = useState(false);
@@ -335,14 +336,17 @@ export default function POSPage() {
             }));
 
             if (isInitialPosFetch.current) {
-              mappedOrders.forEach(o => autoPrintedPosOrders.current.add(o.id));
+              mappedOrders.forEach(o => autoPrintedPosOrders.current.add(String(o.id)));
               isInitialPosFetch.current = false;
             } else {
               mappedOrders.forEach(o => {
-                if (!autoPrintedPosOrders.current.has(o.id)) {
-                  autoPrintedPosOrders.current.add(o.id);
+                const orderKey = String(o.id);
+                if (!autoPrintedPosOrders.current.has(orderKey)) {
+                  autoPrintedPosOrders.current.add(orderKey);
                   const oBranch = o.branch_id || o.branchId || 'b1';
                   if (!effectiveBranchId || effectiveBranchId === 'all' || oBranch === effectiveBranchId) {
+                    playOrderNotificationSound();
+                    setIncomingOrderNotification(o);
                     printThermalReceipt({
                       orderNumber: o.orderNumber || '1',
                       dateStr: new Date(o.createdAt || Date.now()).toLocaleString('ar-EG'),
@@ -1108,7 +1112,7 @@ export default function POSPage() {
         </DialogActions>
       </Dialog>
 
-      {/* Offer Customization Dialog Modal */}
+      {/* Offer Customization Dialog */}
       <Dialog
         open={offerModalOpen}
         onClose={() => setOfferModalOpen(false)}
@@ -1123,7 +1127,7 @@ export default function POSPage() {
         <DialogTitle sx={{ fontWeight: 900, textAlign: 'center', color: '#1A1A2E', pb: 0.5, fontSize: '1.25rem' }}>
           🏷️ تخصيص مكونات العرض ({selectedOfferProduct?.name})
         </DialogTitle>
-        
+
         <DialogContent sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
           {/* Offer Banner Info & Limit Status */}
           <Paper
@@ -1303,6 +1307,37 @@ export default function POSPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Incoming Order Realtime Notification Toast */}
+      {incomingOrderNotification && (
+        <Snackbar
+          open={Boolean(incomingOrderNotification)}
+          autoHideDuration={10000}
+          onClose={() => setIncomingOrderNotification(null)}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert
+            severity="success"
+            variant="filled"
+            onClose={() => setIncomingOrderNotification(null)}
+            action={
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => {
+                  printThermalReceipt(incomingOrderNotification);
+                }}
+                sx={{ fontWeight: 900, bgcolor: 'rgba(255,255,255,0.25)', '&:hover': { bgcolor: 'rgba(255,255,255,0.35)' } }}
+              >
+                🖨️ طباعة الفاتورة
+              </Button>
+            }
+            sx={{ width: '100%', fontWeight: 800, fontSize: '0.95rem', borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}
+          >
+            🔔 وصل أوردر جديد رقم #{incomingOrderNotification.orderNumber || incomingOrderNotification.order_number}!
+          </Alert>
+        </Snackbar>
+      )}
     </Box>
   );
 }

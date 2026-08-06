@@ -484,13 +484,12 @@ export function printThermalReceipt(orderData) {
 
   // Hidden iframe trigger for 100% reliable printing
   const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
+  iframe.style.position = 'absolute';
+  iframe.style.top = '-9999px';
+  iframe.style.left = '-9999px';
+  iframe.style.width = '1px';
+  iframe.style.height = '1px';
   iframe.style.border = '0';
-  iframe.style.visibility = 'hidden';
 
   document.body.appendChild(iframe);
 
@@ -500,14 +499,44 @@ export function printThermalReceipt(orderData) {
   doc.close();
 
   setTimeout(() => {
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } catch (e) {
+      console.error('Print iframe error:', e);
+    }
     setTimeout(() => {
       try {
         document.body.removeChild(iframe);
       } catch (e) { }
-    }, 2000);
-  }, 250);
+    }, 3000);
+  }, 300);
+}
+
+export function playOrderNotificationSound() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+
+    const playTone = (freq, start, duration) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime + start);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + start);
+      osc.stop(ctx.currentTime + start + duration);
+    };
+
+    playTone(659.25, 0, 0.15); // E5
+    playTone(880, 0.15, 0.35);  // A5
+  } catch (e) {
+    console.warn('Audio chime notice error:', e);
+  }
 }
 
 // Custom General / Collection Invoice Printing Helper

@@ -6,7 +6,7 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableFooter, Paper,
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions, Select, MenuItem,
   InputAdornment, FormControl, InputLabel, List, ListItem, ListItemText, ListItemSecondaryAction,
-  Chip, Tooltip, Alert, CircularProgress, Divider, Avatar
+  Chip, Tooltip, Alert, CircularProgress, Divider, Avatar, Snackbar
 } from '@mui/material';
 import {
   DeliveryDining, AccessTime, LocationOn, Person, Phone, Home, Print, CheckCircle,
@@ -20,7 +20,7 @@ import { useBranchStore } from '@/store/useBranchStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useShiftStore } from '@/store/useShiftStore';
 import DeliveryTimerBadge from '@/components/delivery/DeliveryTimerBadge';
-import { printThermalReceipt } from '@/lib/printReceipt';
+import { printThermalReceipt, playOrderNotificationSound } from '@/lib/printReceipt';
 import { sendDeliveryWhatsApp } from '@/lib/whatsapp';
 import { generateReportPDF } from '@/lib/reportPdfExport';
 import EditOrderModal from '@/components/dialogs/EditOrderModal';
@@ -48,6 +48,7 @@ export default function DeliveryPage() {
   const [deliveryOrders, setDeliveryOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [orderStatusFilter, setOrderStatusFilter] = useState('all');
+  const [incomingOrderNotification, setIncomingOrderNotification] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [deliveryTimerMinutes, setDeliveryTimerMinutes] = useState(30);
 
@@ -101,12 +102,15 @@ export default function DeliveryPage() {
 
         // Mark existing orders on initial load, and auto-print new incoming orders
         if (isInitialFetch.current) {
-          delOrders.forEach(o => autoPrintedOrderIds.current.add(o.id));
+          delOrders.forEach(o => autoPrintedOrderIds.current.add(String(o.id)));
           isInitialFetch.current = false;
         } else {
           delOrders.forEach(o => {
-            if (!autoPrintedOrderIds.current.has(o.id)) {
-              autoPrintedOrderIds.current.add(o.id);
+            const orderKey = String(o.id);
+            if (!autoPrintedOrderIds.current.has(orderKey)) {
+              autoPrintedOrderIds.current.add(orderKey);
+              playOrderNotificationSound();
+              setIncomingOrderNotification(o);
               handlePrintDelivery(o);
             }
           });
@@ -1975,6 +1979,37 @@ export default function DeliveryPage() {
         order={orderToEdit}
         onSaveSuccess={() => fetchDeliveryData()}
       />
+
+      {/* Incoming Order Realtime Notification Toast */}
+      {incomingOrderNotification && (
+        <Snackbar
+          open={Boolean(incomingOrderNotification)}
+          autoHideDuration={10000}
+          onClose={() => setIncomingOrderNotification(null)}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert
+            severity="success"
+            variant="filled"
+            onClose={() => setIncomingOrderNotification(null)}
+            action={
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => {
+                  handlePrintDelivery(incomingOrderNotification);
+                }}
+                sx={{ fontWeight: 900, bgcolor: 'rgba(255,255,255,0.25)', '&:hover': { bgcolor: 'rgba(255,255,255,0.35)' } }}
+              >
+                🖨️ طباعة الفاتورة
+              </Button>
+            }
+            sx={{ width: '100%', fontWeight: 800, fontSize: '0.95rem', borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}
+          >
+            🔔 وصل أوردر دليفري جديد رقم #{incomingOrderNotification.order_number || incomingOrderNotification.orderNumber}!
+          </Alert>
+        </Snackbar>
+      )}
     </Box>
   );
 }
