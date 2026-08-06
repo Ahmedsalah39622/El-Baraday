@@ -38,6 +38,7 @@ export default function POSPage() {
   const [sizeModalOpen, setSizeModalOpen] = useState(false);
   const [selectedProductForSize, setSelectedProductForSize] = useState(null);
   const [qtySmall, setQtySmall] = useState(1);
+  const [qtyLarge, setQtyLarge] = useState(1);
   const [isSystemLoading, setIsSystemLoading] = useState(true);
 
   const autoPrintedPosOrders = useRef(new Set());
