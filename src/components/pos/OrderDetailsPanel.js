@@ -32,16 +32,25 @@ export default function OrderDetailsPanel({
   const { customers = [], drivers = [], activeQueue = [], saveOrUpdateCustomer } = useCustomerStore();
   const { user } = useAuthStore();
   const { branches, selectedBranchId, fetchBranches } = useBranchStore();
-  const { activeShift } = useShiftStore();
-  const isShiftActive = activeShift && activeShift.status === 'active';
+  const { activeShift, shifts } = useShiftStore();
+  const targetBranchId = (user && user.role !== 'admin' && user.branch_id)
+    ? user.branch_id
+    : (selectedBranchId !== 'all' ? selectedBranchId : (user?.branch_id || 'b1'));
+
+  const isShiftActive = (shifts && shifts.length > 0)
+    ? shifts.some(s => s.status === 'active' && (s.branch_id === targetBranchId || (!s.branch_id && targetBranchId === 'b1')))
+    : (activeShift && activeShift.status === 'active');
+
   const activeCashierName = user?.name || user?.username || 'أحمد محمود';
 
   const [shiftClosedDialogOpen, setShiftClosedDialogOpen] = useState(false);
 
-  const [orderBranchId, setOrderBranchId] = useState(selectedBranchId !== 'all' ? selectedBranchId : (user?.branch_id || 'b1'));
+  const [orderBranchId, setOrderBranchId] = useState(targetBranchId);
 
   useEffect(() => {
-    const targetBranch = selectedBranchId !== 'all' ? selectedBranchId : (user?.branch_id || 'b1');
+    const targetBranch = (user && user.role !== 'admin' && user.branch_id)
+      ? user.branch_id
+      : (selectedBranchId !== 'all' ? selectedBranchId : (user?.branch_id || 'b1'));
     setOrderBranchId(targetBranch);
     fetchNextOrderNumber(targetBranch);
     fetchBranches(); // Always refresh branches from DB on mount

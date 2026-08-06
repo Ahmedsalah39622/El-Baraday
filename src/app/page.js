@@ -38,8 +38,10 @@ export default function POSPage() {
   const [sizeModalOpen, setSizeModalOpen] = useState(false);
   const [selectedProductForSize, setSelectedProductForSize] = useState(null);
   const [qtySmall, setQtySmall] = useState(1);
-  const [qtyLarge, setQtyLarge] = useState(1);
   const [isSystemLoading, setIsSystemLoading] = useState(true);
+
+  const autoPrintedPosOrders = useRef(new Set());
+  const isInitialPosFetch = useRef(true);
 
   // Offer Customization Modal State
   const [offerModalOpen, setOfferModalOpen] = useState(false);
@@ -316,7 +318,9 @@ export default function POSPage() {
               orderType: o.order_type,
               customerName: o.customer_name,
               customerPhone: o.customer_phone,
+              customerAddress: o.customer_address,
               cashierName: o.cashier_name,
+              driverName: o.driver_name,
               subtotal: parseFloat(o.subtotal || 0),
               total: parseFloat(o.total || 0),
               paidAmount: parseFloat(o.paid_amount || 0),
@@ -327,7 +331,42 @@ export default function POSPage() {
               createdAt: o.created_at ? (new Date(o.created_at).toISOString ? new Date(o.created_at).toISOString() : String(o.created_at)) : new Date().toISOString(),
               branchId: o.branch_id,
               branch_id: o.branch_id,
+              items: Array.isArray(o.items) ? o.items : [],
             }));
+
+            if (isInitialPosFetch.current) {
+              mappedOrders.forEach(o => autoPrintedPosOrders.current.add(o.id));
+              isInitialPosFetch.current = false;
+            } else {
+              mappedOrders.forEach(o => {
+                if (!autoPrintedPosOrders.current.has(o.id)) {
+                  autoPrintedPosOrders.current.add(o.id);
+                  const oBranch = o.branch_id || o.branchId || 'b1';
+                  if (!effectiveBranchId || effectiveBranchId === 'all' || oBranch === effectiveBranchId) {
+                    printThermalReceipt({
+                      orderNumber: o.orderNumber || '1',
+                      dateStr: new Date(o.createdAt || Date.now()).toLocaleString('ar-EG'),
+                      cashierName: o.cashierName || 'كاشير',
+                      driverName: o.driverName || '',
+                      customerName: o.customerName || '',
+                      customerPhone: o.customerPhone || '',
+                      customerAddress: o.customerAddress || '',
+                      items: o.items || [],
+                      subtotal: o.subtotal || o.total,
+                      deliveryFee: o.deliveryFee || 0,
+                      discount: o.discount || 0,
+                      total: o.total,
+                      paidAmount: o.paidAmount || o.total,
+                      remainingAmount: o.remainingAmount || 0,
+                      paymentMethod: o.paymentMethod || 'cash',
+                      orderType: o.orderType || 'takeaway',
+                      branch_id: oBranch
+                    });
+                  }
+                }
+              });
+            }
+
             useInvoiceStore.setState({ invoices: mappedOrders });
           }
         }

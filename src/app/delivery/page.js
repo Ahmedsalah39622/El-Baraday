@@ -99,7 +99,19 @@ export default function DeliveryPage() {
           return true;
         });
 
-        // Mark existing orders as seen on initial load
+        // Mark existing orders on initial load, and auto-print new incoming orders
+        if (isInitialFetch.current) {
+          delOrders.forEach(o => autoPrintedOrderIds.current.add(o.id));
+          isInitialFetch.current = false;
+        } else {
+          delOrders.forEach(o => {
+            if (!autoPrintedOrderIds.current.has(o.id)) {
+              autoPrintedOrderIds.current.add(o.id);
+              handlePrintDelivery(o);
+            }
+          });
+        }
+
         setDeliveryOrders(delOrders);
       }
     } catch (e) {
