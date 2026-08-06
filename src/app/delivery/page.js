@@ -20,7 +20,7 @@ import { useBranchStore } from '@/store/useBranchStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useShiftStore } from '@/store/useShiftStore';
 import DeliveryTimerBadge from '@/components/delivery/DeliveryTimerBadge';
-import { printThermalReceipt, playOrderNotificationSound } from '@/lib/printReceipt';
+import { printThermalReceipt, playOrderNotificationSound, isOrderPrinted, markOrderAsPrinted } from '@/lib/printReceipt';
 import { sendDeliveryWhatsApp } from '@/lib/whatsapp';
 import { generateReportPDF } from '@/lib/reportPdfExport';
 import EditOrderModal from '@/components/dialogs/EditOrderModal';
@@ -102,13 +102,17 @@ export default function DeliveryPage() {
 
         // Mark existing orders on initial load, and auto-print new incoming orders
         if (isInitialFetch.current) {
-          delOrders.forEach(o => autoPrintedOrderIds.current.add(String(o.id)));
+          delOrders.forEach(o => {
+            autoPrintedOrderIds.current.add(String(o.id));
+            markOrderAsPrinted(o.id, o.order_number);
+          });
           isInitialFetch.current = false;
         } else {
           delOrders.forEach(o => {
             const orderKey = String(o.id);
-            if (!autoPrintedOrderIds.current.has(orderKey)) {
+            if (!autoPrintedOrderIds.current.has(orderKey) && !isOrderPrinted(o.id, o.order_number)) {
               autoPrintedOrderIds.current.add(orderKey);
+              markOrderAsPrinted(o.id, o.order_number);
               if (!isAdmin) {
                 playOrderNotificationSound();
                 setIncomingOrderNotification(o);

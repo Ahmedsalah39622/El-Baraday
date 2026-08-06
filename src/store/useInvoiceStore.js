@@ -333,10 +333,12 @@ export const useInvoiceStore = create((set, get) => ({
         if (invoice.orderType === 'delivery' || invoice.driverName || invoice.driver_name) {
           useCustomerStore.getState().fetchAttendanceQueue(targetBranch);
         }
+        return { success: true, data: { ...newInvoice, ...created, id: created.id, orderNumber: String(created.order_number) } };
       }
     } catch (err) {
       console.warn('⚠️ Order saved locally only:', err.message);
     }
+    return { success: true, data: newInvoice };
   },
 
   getTodayInvoices: () => {

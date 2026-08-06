@@ -16,7 +16,7 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { useShiftStore } from '@/store/useShiftStore';
 import { useBranchStore } from '@/store/useBranchStore';
 import { useAuthStore } from '@/store/useAuthStore';
-import { printThermalReceipt, playOrderNotificationSound } from '@/lib/printReceipt';
+import { printThermalReceipt, playOrderNotificationSound, isOrderPrinted, markOrderAsPrinted } from '@/lib/printReceipt';
 
 export default function POSPage() {
   const { products, fetchProducts } = useProductStore();
@@ -342,14 +342,16 @@ export default function POSPage() {
             } else {
               mappedOrders.forEach(o => {
                 const orderKey = String(o.id);
-                if (!autoPrintedPosOrders.current.has(orderKey)) {
+                if (!autoPrintedPosOrders.current.has(orderKey) && !isOrderPrinted(o.id, o.orderNumber)) {
                   autoPrintedPosOrders.current.add(orderKey);
+                  markOrderAsPrinted(o.id, o.orderNumber);
                   const oBranch = o.branch_id || o.branchId || 'b1';
                   if (!effectiveBranchId || effectiveBranchId === 'all' || oBranch === effectiveBranchId) {
                     if (!isAdmin) {
                       playOrderNotificationSound();
                       setIncomingOrderNotification(o);
                       printThermalReceipt({
+                        id: o.id,
                         orderNumber: o.orderNumber || '1',
                         dateStr: new Date(o.createdAt || Date.now()).toLocaleString('ar-EG'),
                         cashierName: o.cashierName || 'كاشير',

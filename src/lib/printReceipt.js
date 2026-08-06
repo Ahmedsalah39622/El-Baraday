@@ -1,7 +1,25 @@
+const printedOrderIdsSet = new Set();
+
+export function isOrderPrinted(orderId, orderNumber) {
+  if (!orderId && !orderNumber) return false;
+  if (orderId && printedOrderIdsSet.has(String(orderId))) return true;
+  if (orderNumber && printedOrderIdsSet.has(String(orderNumber))) return true;
+  return false;
+}
+
+export function markOrderAsPrinted(orderId, orderNumber) {
+  if (orderId) printedOrderIdsSet.add(String(orderId));
+  if (orderNumber) printedOrderIdsSet.add(String(orderNumber));
+}
+
 export function printThermalReceipt(orderData) {
   if (!orderData) return;
 
+  const orderId = orderData.id || orderData.order_id;
   const orderNum = orderData.orderNumber || orderData.order_number || '1';
+
+  markOrderAsPrinted(orderId, orderNum);
+
   const orderTypeVal = orderData.orderType || orderData.order_type || 'takeaway';
   const isDelivery = orderTypeVal === 'delivery';
 

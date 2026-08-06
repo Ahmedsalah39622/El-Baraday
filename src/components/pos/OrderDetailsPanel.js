@@ -188,7 +188,7 @@ export default function OrderDetailsPanel({
     if (onCloseMobile) onCloseMobile();
   };
 
-  const handleCompleteOrder = () => {
+  const handleCompleteOrder = async () => {
     if (items.length === 0) return;
 
     if (!isShiftActive) {
@@ -237,7 +237,7 @@ export default function OrderDetailsPanel({
       branch_id: orderBranchId,
     };
 
-    addInvoice({
+    const invoiceRes = await addInvoice({
       items: [...items],
       orderType,
       customerName,
@@ -258,11 +258,19 @@ export default function OrderDetailsPanel({
       notes: orderNotes,
     });
 
-    setCompletedOrderData(currentOrderData);
+    const savedOrder = invoiceRes?.data;
+    const finalOrderDataToPrint = {
+      ...currentOrderData,
+      id: savedOrder?.id || currentOrderData.id,
+      orderNumber: savedOrder?.orderNumber || savedOrder?.order_number || currentOrderData.orderNumber,
+      order_number: savedOrder?.order_number || savedOrder?.orderNumber || currentOrderData.orderNumber,
+    };
+
+    setCompletedOrderData(finalOrderDataToPrint);
     setSuccessDialogOpen(true);
 
     // 🖨️ Isolated Iframe Thermal Print (100% Bulletproof for Epson 80mm Printers)
-    printThermalReceipt(currentOrderData);
+    printThermalReceipt(finalOrderDataToPrint);
 
     // 📱 Automatic WhatsApp Delivery Message to Customer (Order details + Driver phone)
     const targetCustomerPhone = (customerPhone || '').toString().trim();
