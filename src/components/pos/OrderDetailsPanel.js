@@ -259,8 +259,9 @@ export default function OrderDetailsPanel({
       }
     }
 
+    const sourceBranchName = isTransferringToOtherBranch ? (currentBranch?.name || activeBranchName) : null;
     const transferNote = isTransferringToOtherBranch
-      ? `[طلب دليفري محول من ${currentBranch?.name || activeBranchName} بواسطة ${activeCashierName}]`
+      ? `[طلب دليفري محول من ${sourceBranchName} بواسطة ${activeCashierName}]`
       : '';
     const finalNotes = transferNote ? `${transferNote} ${orderNotes || ''}`.trim() : orderNotes;
 
@@ -281,6 +282,8 @@ export default function OrderDetailsPanel({
       dateStr: new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
       branchName: currentBranch?.name || activeBranchName,
       branch_name: currentBranch?.name || activeBranchName,
+      sourceBranchName,
+      source_branch_name: sourceBranchName,
       driverName,
       cashierName: activeCashierName,
       customerName,
@@ -323,6 +326,8 @@ export default function OrderDetailsPanel({
       paymentMethod: paymentMethod,
       payment_method: paymentMethod,
       branch_id: orderBranchId,
+      sourceBranchName,
+      source_branch_name: sourceBranchName,
       notes: finalNotes,
     });
 

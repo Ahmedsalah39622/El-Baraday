@@ -1339,9 +1339,18 @@ export default function POSPage() {
             }
             sx={{ width: '100%', fontWeight: 800, fontSize: '0.95rem', borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}
           >
-            {incomingOrderNotification.notes?.includes('تحويل دليفري')
-              ? `🚀 وصل طلب دليفري جديد محول من فرع آخر! (رقم #${incomingOrderNotification.orderNumber || incomingOrderNotification.order_number})`
-              : `🔔 وصل أوردر جديد رقم #${incomingOrderNotification.orderNumber || incomingOrderNotification.order_number}!`}
+            {(() => {
+              let transferBranchToast = incomingOrderNotification.sourceBranchName || incomingOrderNotification.source_branch_name || '';
+              const notesVal = incomingOrderNotification.notes || incomingOrderNotification.orderNotes || '';
+              if (!transferBranchToast && notesVal.includes('طلب دليفري محول من')) {
+                const match = notesVal.match(/طلب دليفري محول من\s+([^\]\s]+(?:\s+[^\]\s]+)*?)(?:\s+بواسطة|\])/);
+                if (match && match[1]) transferBranchToast = match[1].trim();
+              }
+
+              return transferBranchToast
+                ? `🚀 وصل طلب دليفري جديد محول من (${transferBranchToast})! (رقم #${incomingOrderNotification.orderNumber || incomingOrderNotification.order_number})`
+                : `🔔 وصل أوردر جديد رقم #${incomingOrderNotification.orderNumber || incomingOrderNotification.order_number}!`;
+            })()}
           </Alert>
         </Snackbar>
       )}

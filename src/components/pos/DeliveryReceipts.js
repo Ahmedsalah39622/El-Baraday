@@ -31,6 +31,16 @@ export default function DeliveryReceipts({ orderData }) {
   const orderNoteText = notes || orderNotes || '';
   const isDelivery = orderType === 'delivery';
 
+  let transferBranchText = orderData.sourceBranchName || orderData.source_branch_name || '';
+  if (!transferBranchText && orderNoteText.includes('طلب دليفري محول من')) {
+    const match = orderNoteText.match(/طلب دليفري محول من\s+([^\]\s]+(?:\s+[^\]\s]+)*?)(?:\s+بواسطة|\])/);
+    if (match && match[1]) {
+      transferBranchText = match[1].trim();
+    } else {
+      transferBranchText = 'فرع آخر';
+    }
+  }
+
   return (
     <Box id="printable-receipts" sx={{ display: 'flex', flexDirection: 'column', gap: 2, color: '#000', fontSize: '12px' }}>
       {/* ========================================================
@@ -194,6 +204,14 @@ export default function DeliveryReceipts({ orderData }) {
             <Typography variant="subtitle2" sx={{ fontWeight: 900, border: '1.5px solid #000', color: '#000', py: 0.3, px: 1.5, borderRadius: '6px', display: 'inline-block', mt: 0.5 }}>
               🛵 دليفري (Delivery)
             </Typography>
+
+            {transferBranchText && (
+              <Box sx={{ border: '2px solid #000', borderRadius: '6px', p: 0.5, mt: 0.8, bgcolor: '#E5E7EB', textAlign: 'center' }}>
+                <Typography variant="body2" sx={{ fontWeight: 900, color: '#000', fontSize: '0.85rem' }}>
+                  🚀 طلب دليفري محول من: {transferBranchText}
+                </Typography>
+              </Box>
+            )}
           </Box>
 
           <Divider sx={{ my: 1, borderColor: '#000', borderWidth: 1 }} />
@@ -402,6 +420,14 @@ export default function DeliveryReceipts({ orderData }) {
             <Typography variant="subtitle1" sx={{ fontWeight: 900, mt: 0.5, color: '#000' }}>
               {customerArea || 'تجميع'}
             </Typography>
+
+            {transferBranchText && (
+              <Box sx={{ border: '2px solid #000', borderRadius: '6px', p: 0.5, mt: 0.8, bgcolor: '#E5E7EB', textAlign: 'center' }}>
+                <Typography variant="body2" sx={{ fontWeight: 900, color: '#000', fontSize: '0.95rem' }}>
+                  🚀 طلب دليفري محول من: {transferBranchText}
+                </Typography>
+              </Box>
+            )}
           </Box>
 
           <Divider sx={{ my: 1, borderColor: '#000', borderWidth: 2 }} />
