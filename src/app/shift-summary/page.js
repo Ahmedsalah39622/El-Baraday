@@ -142,6 +142,7 @@ export default function ShiftSummaryPage() {
   const isShiftActive = relevantActiveShifts.length > 0;
 
   // Filter invoices to only include those created SINCE relevant active shift
+  // Filter invoices to only include those created SINCE relevant active shift
   // AND match current effectiveBranchId AND exclude cancelled orders
   const activeShiftInvoices = (invoices || []).filter((inv) => {
     if (inv.status === 'cancelled') return false;
@@ -150,11 +151,14 @@ export default function ShiftSummaryPage() {
     if (effectiveBranchId !== 'all' && invBranch !== effectiveBranchId) return false;
 
     const invActiveShift = relevantActiveShifts.find(s => s.branch_id === invBranch || (!s.branch_id && invBranch === 'b1'));
-    if (!invActiveShift?.rawStartTime || !inv.createdAt) return true;
+    if (!invActiveShift) return false;
 
-    const invTime = new Date(inv.createdAt).getTime();
-    const shiftStartTime = new Date(invActiveShift.rawStartTime).getTime();
-    if (isNaN(invTime) || isNaN(shiftStartTime)) return true;
+    const rawShiftStart = invActiveShift.start_time || invActiveShift.rawStartTime || invActiveShift.created_at;
+    if (!rawShiftStart || !(inv.createdAt || inv.created_at)) return false;
+
+    const invTime = new Date(inv.createdAt || inv.created_at).getTime();
+    const shiftStartTime = new Date(rawShiftStart).getTime();
+    if (isNaN(invTime) || isNaN(shiftStartTime)) return false;
     return invTime >= shiftStartTime;
   });
 
@@ -166,10 +170,13 @@ export default function ShiftSummaryPage() {
     if (effectiveBranchId !== 'all' && retBranch !== effectiveBranchId) return false;
 
     const retActiveShift = relevantActiveShifts.find(s => s.branch_id === retBranch || (!s.branch_id && retBranch === 'b1'));
-    if (!retActiveShift?.rawStartTime) return false;
+    if (!retActiveShift) return false;
+
+    const rawShiftStart = retActiveShift.start_time || retActiveShift.rawStartTime || retActiveShift.created_at;
+    if (!rawShiftStart) return false;
 
     const retTime = new Date(ret.created_at).getTime();
-    const shiftStartTime = new Date(retActiveShift.rawStartTime).getTime();
+    const shiftStartTime = new Date(rawShiftStart).getTime();
     if (isNaN(retTime) || isNaN(shiftStartTime) || retTime < shiftStartTime) return false;
 
     return true;

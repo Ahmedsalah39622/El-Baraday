@@ -136,6 +136,9 @@ export default function OrdersPage() {
       const matchBranch = !targetBranch || targetBranch === 'all' || inv.branchId === targetBranch || inv.branch_id === targetBranch;
       if (!matchBranch || inv.status === 'cancelled') return false;
 
+      // When showing previous shifts, include all non-cancelled orders of selected branch/all branches
+      if (showPreviousShifts) return true;
+
       // When a shift is active, keep the KPI cards aligned with the current shift window.
       const invBranch = inv.branchId || inv.branch_id || 'b1';
       const branchActiveShift = (allShiftsList && allShiftsList.length > 0)
@@ -155,7 +158,7 @@ export default function OrdersPage() {
 
       return true;
     });
-  }, [invoices, targetBranch, activeShift, allShiftsList]);
+  }, [invoices, targetBranch, activeShift, allShiftsList, showPreviousShifts]);
 
   // 1. Total Cash in Drawer (إجمالي النقدية في الخزنة) - Exactly aligned with POS till logic
   const totalCashInDrawer = useMemo(() => {
@@ -169,9 +172,10 @@ export default function OrdersPage() {
       const invBranch = inv.branchId || inv.branch_id || 'b1';
       const invShift = relevantShifts.find(s => s.branch_id === invBranch || (!s.branch_id && invBranch === 'b1'));
 
-      if (invShift && invShift.rawStartTime && inv.createdAt) {
-        const invTime = new Date(inv.createdAt).getTime();
-        const shiftStartTime = new Date(invShift.rawStartTime).getTime();
+      const rawStart = invShift ? (invShift.rawStartTime || invShift.start_time || invShift.created_at) : null;
+      if (invShift && rawStart && (inv.createdAt || inv.created_at)) {
+        const invTime = new Date(inv.createdAt || inv.created_at).getTime();
+        const shiftStartTime = new Date(rawStart).getTime();
         if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < shiftStartTime) {
           return sum; // Skip invoices before current active shift start
         }
@@ -192,7 +196,7 @@ export default function OrdersPage() {
     }, 0);
 
     return startCash + cashSalesSum;
-  }, [branchSummaryOrders, activeShift, allShiftsList, targetBranch]);
+  }, [branchSummaryOrders, activeShift, allShiftsList, targetBranch, activeShiftsList]);
 
   // 2. Total Delivery Sales (إجمالي مبيعات الدليفري)
   const totalDeliverySales = useMemo(() => {

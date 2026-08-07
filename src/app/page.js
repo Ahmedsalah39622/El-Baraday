@@ -1322,7 +1322,7 @@ export default function POSPage() {
           anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
         >
           <Alert
-            severity="success"
+            severity={incomingOrderNotification.notes?.includes('تحويل دليفري') ? "info" : "success"}
             variant="filled"
             onClose={() => setIncomingOrderNotification(null)}
             action={
@@ -1339,7 +1339,9 @@ export default function POSPage() {
             }
             sx={{ width: '100%', fontWeight: 800, fontSize: '0.95rem', borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}
           >
-            🔔 وصل أوردر جديد رقم #{incomingOrderNotification.orderNumber || incomingOrderNotification.order_number}!
+            {incomingOrderNotification.notes?.includes('تحويل دليفري')
+              ? `🚀 وصل طلب دليفري جديد محول من فرع آخر! (رقم #${incomingOrderNotification.orderNumber || incomingOrderNotification.order_number})`
+              : `🔔 وصل أوردر جديد رقم #${incomingOrderNotification.orderNumber || incomingOrderNotification.order_number}!`}
           </Alert>
         </Snackbar>
       )}

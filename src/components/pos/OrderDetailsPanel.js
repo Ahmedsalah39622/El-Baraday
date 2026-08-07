@@ -205,6 +205,54 @@ export default function OrderDetailsPanel({
 
     const currentOrderNum = nextOrderNumber ? nextOrderNumber.toString() : '35';
 
+    const userHomeBranch = (user && user.branch_id) ? user.branch_id : 'b1';
+    const isSenderAdmin = user?.role === 'admin';
+    const isTransferringToOtherBranch = orderType === 'delivery' && orderBranchId !== userHomeBranch && orderBranchId !== 'all';
+
+    if (isTransferringToOtherBranch) {
+      const targetBranchObj = branches.find(b => b.id === orderBranchId);
+      const targetName = targetBranchObj ? targetBranchObj.name : 'الفرع الآخر';
+
+      // 1. Target branch must have an active shift
+      const targetActiveShift = (shifts || []).find(s => 
+        s.status === 'active' && (s.branch_id === orderBranchId || (!s.branch_id && orderBranchId === 'b1'))
+      );
+
+      if (!targetActiveShift) {
+        alert(`⚠️ لا توجد وردية مفتوحة حالياً في ${targetName}.\nيجب أن يكون الكاشير فتح وردية في ${targetName} لاستلام الطلب والطباعة.`);
+        setIsSubmittingOrder(false);
+        return;
+      }
+
+      // 2. Rule: User -> User, Admin -> User, but User CANNOT send to Admin
+      if (!isSenderAdmin) {
+        try {
+          const uRes = await fetch('/api/users');
+          if (uRes.ok) {
+            const usersList = await uRes.json();
+            const cashierNameOnShift = targetActiveShift.cashier_name || targetActiveShift.cashierName || '';
+            const targetUser = (usersList || []).find(u =>
+              (u.username && cashierNameOnShift && u.username.toLowerCase() === cashierNameOnShift.toLowerCase()) ||
+              (u.name && cashierNameOnShift && u.name.toLowerCase() === cashierNameOnShift.toLowerCase())
+            );
+
+            if (targetUser && targetUser.role === 'admin') {
+              alert('⛔ عذراً، لا يمكنك تحويل الطلب إلى حساب مدير (أدمن).\nالتحويل متاح فقط عندما يكون الفرع الآخر يعمل تحت حساب كاشير (يوزر).');
+              setIsSubmittingOrder(false);
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ User role check error during branch transfer:', e.message);
+        }
+      }
+    }
+
+    const transferNote = isTransferringToOtherBranch
+      ? `[طلب دليفري محول من ${currentBranch?.name || activeBranchName} بواسطة ${activeCashierName}]`
+      : '';
+    const finalNotes = transferNote ? `${transferNote} ${orderNotes || ''}`.trim() : orderNotes;
+
     // Save/Update Customer with phone, name, address, floor, apartment, and deliveryFee
     if (orderType === 'delivery' && customerPhone) {
       saveOrUpdateCustomer({
@@ -229,8 +277,8 @@ export default function OrderDetailsPanel({
       customerAddress,
       customerFloor,
       customerApartment,
-      notes: orderNotes,
-      orderNotes,
+      notes: finalNotes,
+      orderNotes: finalNotes,
       items: [...items],
       subtotal,
       discount: calculatedDiscount,
@@ -264,7 +312,7 @@ export default function OrderDetailsPanel({
       paymentMethod: paymentMethod,
       payment_method: paymentMethod,
       branch_id: orderBranchId,
-      notes: orderNotes,
+      notes: finalNotes,
     });
 
     const savedOrder = invoiceRes?.data;
@@ -489,29 +537,49 @@ export default function OrderDetailsPanel({
           {/* Form Fields (Expandable / Collapsible) */}
           {showDeliveryForm && (
             <>
-              {/* Branch Selector for Delivery - ADMIN ONLY */}
-              {(user?.role === 'admin' || !user) && (
-                <FormControl fullWidth size="small">
-                  <InputLabel sx={{ fontSize: '0.75rem', fontWeight: 800 }}>🏢 فرع التوصيل المنفذ (الأدمن فقط)</InputLabel>
-                  <Select
-                    value={orderBranchId}
-                    label="🏢 فرع التوصيل المنفذ (الأدمن فقط)"
-                    onChange={(e) => {
-                      const newBranchId = e.target.value;
-                      setOrderBranchId(newBranchId);
-                      fetchNextOrderNumber(newBranchId);
-                    }}
-                    renderValue={(val) => {
-                      const found = branches.find(b => b.id === val);
-                      return found ? `🏢 ${found.name}` : (val || '');
-                    }}
-                    sx={{ borderRadius: '8px', bgcolor: '#FFF', fontSize: '0.813rem', fontWeight: 800 }}
-                  >
-                    {branches.map((b) => (
-                      <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+              {/* Branch Selector for Delivery (All Users can select target branch for delivery transfers) */}
+              <FormControl fullWidth size="small">
+                <InputLabel sx={{ fontSize: '0.75rem', fontWeight: 800 }}>🏢 فرع التوصيل والتحصيل</InputLabel>
+                <Select
+                  value={orderBranchId}
+                  label="🏢 فرع التوصيل والتحصيل"
+                  onChange={(e) => {
+                    const newBranchId = e.target.value;
+                    setOrderBranchId(newBranchId);
+                    fetchNextOrderNumber(newBranchId);
+                  }}
+                  renderValue={(val) => {
+                    const found = branches.find(b => b.id === val);
+                    const userHomeBranch = (user && user.branch_id) ? user.branch_id : 'b1';
+                    const isTransfer = user && user.role !== 'admin' && userHomeBranch !== val;
+                    return found ? `🏢 ${found.name}${isTransfer ? ' 🚀 (تحويل دليفري)' : ''}` : (val || '');
+                  }}
+                  sx={{
+                    borderRadius: '8px',
+                    bgcolor: user && user.role !== 'admin' && (user.branch_id || 'b1') !== orderBranchId ? '#EFF6FF' : '#FFF',
+                    fontSize: '0.813rem',
+                    fontWeight: 800
+                  }}
+                >
+                  {branches.map((b) => {
+                    const userHomeBranch = (user && user.branch_id) ? user.branch_id : 'b1';
+                    const isOtherBranch = user && user.role !== 'admin' && userHomeBranch !== b.id;
+                    return (
+                      <MenuItem key={b.id} value={b.id}>
+                        🏢 {b.name} {isOtherBranch ? ' 🚀 (تحويل طلب دليفري للفرع الآخر)' : ' (فرعي)'}
+                      </MenuItem>
+                    );
+                  })}
+                </Select>
+              </FormControl>
+
+              {user && user.role !== 'admin' && (user.branch_id || 'b1') !== orderBranchId && (
+                <Chip
+                  label={`🚀 تحويل الدليفري إلى ${branches.find(b => b.id === orderBranchId)?.name || 'الفرع الآخر'} (سيتم الإرسال والطباعة تلقائياً لدى الكاشير)`}
+                  size="small"
+                  color="primary"
+                  sx={{ fontWeight: 800, fontSize: '0.73rem', borderRadius: '8px', py: 0.3 }}
+                />
               )}
 
               {/* Driver & Phone in 2 Columns */}
