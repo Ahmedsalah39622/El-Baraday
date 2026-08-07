@@ -213,13 +213,24 @@ export default function OrderDetailsPanel({
       const targetBranchObj = branches.find(b => b.id === orderBranchId);
       const targetName = targetBranchObj ? targetBranchObj.name : 'الفرع الآخر';
 
-      // 1. Target branch must have an active shift
-      const targetActiveShift = (shifts || []).find(s => 
-        s.status === 'active' && (s.branch_id === orderBranchId || (!s.branch_id && orderBranchId === 'b1'))
-      );
+      // 1. Fetch real-time active shift of target branch directly from server
+      let targetActiveShift = null;
+      try {
+        const sRes = await fetch(`/api/shifts?branch_id=${orderBranchId}`);
+        if (sRes.ok) {
+          const shiftData = await sRes.json();
+          if (Array.isArray(shiftData)) {
+            targetActiveShift = shiftData.find(s => 
+              s.status === 'active' && (s.branch_id === orderBranchId || (!s.branch_id && orderBranchId === 'b1'))
+            );
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Shift fetch error during branch transfer:', e.message);
+      }
 
       if (!targetActiveShift) {
-        alert(`⚠️ لا توجد وردية مفتوحة حالياً في ${targetName}.\nيجب أن يكون الكاشير فتح وردية في ${targetName} لاستلام الطلب والطباعة.`);
+        alert(`⚠️ لا توجد وردية مفتوحة حالياً في ${targetName}.\nيجب أن يكون الكاشير قد فتح وردية في ${targetName} لاستلام الطلب والطباعة.`);
         setIsSubmittingOrder(false);
         return;
       }
