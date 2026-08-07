@@ -297,6 +297,10 @@ export const useInvoiceStore = create((set, get) => ({
           remaining_amount: invoice.remainingAmount || 0,
           cashier_name: invoice.cashierName || 'administrator',
           branch_id: targetBranch,
+          source_branch_name: invoice.sourceBranchName || invoice.source_branch_name || null,
+          notes: invoice.notes || invoice.orderNotes || null,
+          customer_floor: invoice.customerFloor || invoice.floor || null,
+          customer_apartment: invoice.customerApartment || invoice.apartment || null,
           items: invoice.items?.map((item) => ({
             product_id: item.id || item.product_id,
             product_name: item.name || item.product_name,

@@ -8,6 +8,10 @@ async function ensureOrderColumns() {
   try { await query('ALTER TABLE orders ADD COLUMN delivered_to_customer_at DATETIME DEFAULT NULL'); } catch(e){}
   try { await query('ALTER TABLE orders ADD COLUMN is_cash_collected TINYINT(1) DEFAULT 0'); } catch(e){}
   try { await query('ALTER TABLE orders ADD COLUMN cash_collected_at DATETIME DEFAULT NULL'); } catch(e){}
+  try { await query('ALTER TABLE orders ADD COLUMN notes TEXT DEFAULT NULL'); } catch(e){}
+  try { await query('ALTER TABLE orders ADD COLUMN source_branch_name VARCHAR(255) DEFAULT NULL'); } catch(e){}
+  try { await query('ALTER TABLE orders ADD COLUMN customer_floor VARCHAR(50) DEFAULT NULL'); } catch(e){}
+  try { await query('ALTER TABLE orders ADD COLUMN customer_apartment VARCHAR(50) DEFAULT NULL'); } catch(e){}
   orderColumnsChecked = true;
 }
 
@@ -91,9 +95,9 @@ export async function POST(request) {
     const body = await request.json();
     const {
       order_type, payment_method, customer_name, customer_phone, customer_area,
-      customer_address, driver_name, driver_id, subtotal, delivery_fee,
+      customer_address, customer_floor, customer_apartment, driver_name, driver_id, subtotal, delivery_fee,
       discount, total, paid_amount, remaining_amount, cashier_name, items,
-      branch_id, status, is_cash_collected
+      branch_id, source_branch_name, notes, status, is_cash_collected
     } = body;
 
     const targetBranch = branch_id || 'b1';
@@ -145,14 +149,14 @@ export async function POST(request) {
     // Insert order into DB with branch_id and payment_method
     const orderResult = await query(
       `INSERT INTO orders (id, order_number, order_type, payment_method, customer_name, customer_phone, customer_area,
-        customer_address, driver_name, driver_id, subtotal, delivery_fee, discount, total,
-        paid_amount, remaining_amount, cashier_name, status, branch_id, dispatched_at, is_cash_collected, cash_collected_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+        customer_address, customer_floor, customer_apartment, driver_name, driver_id, subtotal, delivery_fee, discount, total,
+        paid_amount, remaining_amount, cashier_name, status, branch_id, source_branch_name, notes, dispatched_at, is_cash_collected, cash_collected_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
        RETURNING *`,
       [orderId, nextNum, order_type || 'dine_in', payment_method || 'cash', customer_name || null, customer_phone || null, customer_area || null,
-        customer_address || null, driver_name || null, driver_id || null, parseFloat(subtotal) || 0, parseFloat(delivery_fee) || 0,
+        customer_address || null, customer_floor || null, customer_apartment || null, driver_name || null, driver_id || null, parseFloat(subtotal) || 0, parseFloat(delivery_fee) || 0,
         parseFloat(discount) || 0, parseFloat(total) || 0, parseFloat(paid_amount) || 0, parseFloat(remaining_amount) || 0,
-        cashier_name || 'administrator', initialStatus, targetBranch, isDispatched ? new Date().toISOString() : null,
+        cashier_name || 'administrator', initialStatus, targetBranch, source_branch_name || null, notes || null, isDispatched ? new Date().toISOString() : null,
         cashCollectedVal, cashCollectedAtVal]
     );
 
@@ -161,10 +165,17 @@ export async function POST(request) {
       order_number: nextNum,
       order_type: order_type || 'dine_in',
       customer_name,
+      customer_phone,
+      customer_area,
+      customer_address,
+      customer_floor,
+      customer_apartment,
       total,
       cashier_name: cashier_name || 'administrator',
       status: initialStatus,
       branch_id: targetBranch,
+      source_branch_name: source_branch_name || null,
+      notes: notes || null,
       is_cash_collected: cashCollectedBool,
       dispatched_at: isDispatched ? new Date().toISOString() : null,
       created_at: new Date().toISOString()
