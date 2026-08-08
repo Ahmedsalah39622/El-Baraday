@@ -66,7 +66,30 @@ export default function OrderTable({
                       <IconButton size="small" onClick={(e) => { e.stopPropagation(); onUpdateQuantity(item.id, item.quantity - 1); }} disabled={item.quantity <= 1}>
                         <RemoveIcon fontSize="small" />
                       </IconButton>
-                      <Typography sx={{ mx: 1 }}>{item.quantity}</Typography>
+                      <input
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          if (!isNaN(val) && val >= 1) {
+                            onUpdateQuantity(item.id, val);
+                          }
+                        }}
+                        onFocus={(e) => e.target.select()}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          fontWeight: 900,
+                          width: '36px',
+                          textAlign: 'center',
+                          fontSize: '0.9rem',
+                          color: 'inherit',
+                          border: 'none',
+                          background: 'transparent',
+                          outline: 'none',
+                          MozAppearance: 'textfield'
+                        }}
+                      />
                       <IconButton size="small" onClick={(e) => { e.stopPropagation(); onUpdateQuantity(item.id, item.quantity + 1); }}>
                         <AddIcon fontSize="small" />
                       </IconButton>

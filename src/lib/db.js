@@ -20,9 +20,9 @@ export function getPool() {
         database: (process.env.MYSQL_DATABASE || process.env.DB_NAME || 'u407531143_bara').trim(),
         port: parseInt(process.env.MYSQL_PORT || process.env.DB_PORT || '3306'),
         waitForConnections: true,
-        connectionLimit: 2,
+        connectionLimit: 5,
         queueLimit: 0,
-        connectTimeout: 5000,
+        connectTimeout: 10000,
         enableKeepAlive: true,
         keepAliveInitialDelay: 10000,
       };

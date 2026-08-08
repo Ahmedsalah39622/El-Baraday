@@ -992,17 +992,43 @@ export default function POSPage() {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, bgcolor: '#FFFFFF', p: 0.5, borderRadius: '12px', border: '1.5px solid #FCD34D' }}>
                       <IconButton
                         size="small"
-                        onClick={() => setQtySmall(Math.max(1, qtySmall - 1))}
+                        onClick={() => setQtySmall(Math.max(1, (parseInt(qtySmall) || 1) - 1))}
                         sx={{ bgcolor: '#FEF3C7', color: '#D97706', width: 30, height: 30, fontWeight: 900 }}
                       >
                         -
                       </IconButton>
-                      <Typography sx={{ fontWeight: 900, px: 1, minWidth: 22, textAlign: 'center', fontSize: '1rem', color: '#B45309' }}>
-                        {qtySmall}
-                      </Typography>
+                      <input
+                        type="number"
+                        min="1"
+                        value={qtySmall}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '') {
+                            setQtySmall('');
+                          } else {
+                            const num = parseInt(val, 10);
+                            if (!isNaN(num)) setQtySmall(num);
+                          }
+                        }}
+                        onBlur={() => {
+                          if (!qtySmall || qtySmall < 1) setQtySmall(1);
+                        }}
+                        onFocus={(e) => e.target.select()}
+                        style={{
+                          fontWeight: 900,
+                          width: '45px',
+                          textAlign: 'center',
+                          fontSize: '1rem',
+                          color: '#B45309',
+                          border: 'none',
+                          background: 'transparent',
+                          outline: 'none',
+                          MozAppearance: 'textfield'
+                        }}
+                      />
                       <IconButton
                         size="small"
-                        onClick={() => setQtySmall(qtySmall + 1)}
+                        onClick={() => setQtySmall((parseInt(qtySmall) || 1) + 1)}
                         sx={{ bgcolor: '#FEF3C7', color: '#D97706', width: 30, height: 30, fontWeight: 900 }}
                       >
                         +
@@ -1013,13 +1039,14 @@ export default function POSPage() {
                     <Button
                       variant="contained"
                       onClick={() => {
+                        const finalQty = Math.max(1, parseInt(qtySmall) || 1);
                         addItem({
                           id: `${p.id}_صغير`,
                           name: `${p.name} (صغير)`,
                           price: pSmall,
                           image: p.image,
                           size: 'صغير',
-                          quantity: qtySmall,
+                          quantity: finalQty,
                         });
                         setSizeModalOpen(false);
                       }}
@@ -1033,7 +1060,7 @@ export default function POSPage() {
                         fontSize: '0.85rem',
                       }}
                     >
-                      + إضافة {qtySmall > 1 ? `(${qtySmall})` : ''} للفاتورة
+                      + إضافة {(parseInt(qtySmall) || 1) > 1 ? `(${parseInt(qtySmall) || 1})` : ''} للفاتورة
                     </Button>
                   </Box>
                 </Paper>
@@ -1073,17 +1100,43 @@ export default function POSPage() {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, bgcolor: '#FFFFFF', p: 0.5, borderRadius: '12px', border: '1.5px solid #BFDBFE' }}>
                       <IconButton
                         size="small"
-                        onClick={() => setQtyLarge(Math.max(1, qtyLarge - 1))}
+                        onClick={() => setQtyLarge(Math.max(1, (parseInt(qtyLarge) || 1) - 1))}
                         sx={{ bgcolor: '#DBEAFE', color: '#1D4ED8', width: 30, height: 30, fontWeight: 900 }}
                       >
                         -
                       </IconButton>
-                      <Typography sx={{ fontWeight: 900, px: 1, minWidth: 22, textAlign: 'center', fontSize: '1rem', color: '#1E40AF' }}>
-                        {qtyLarge}
-                      </Typography>
+                      <input
+                        type="number"
+                        min="1"
+                        value={qtyLarge}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '') {
+                            setQtyLarge('');
+                          } else {
+                            const num = parseInt(val, 10);
+                            if (!isNaN(num)) setQtyLarge(num);
+                          }
+                        }}
+                        onBlur={() => {
+                          if (!qtyLarge || qtyLarge < 1) setQtyLarge(1);
+                        }}
+                        onFocus={(e) => e.target.select()}
+                        style={{
+                          fontWeight: 900,
+                          width: '45px',
+                          textAlign: 'center',
+                          fontSize: '1rem',
+                          color: '#1E40AF',
+                          border: 'none',
+                          background: 'transparent',
+                          outline: 'none',
+                          MozAppearance: 'textfield'
+                        }}
+                      />
                       <IconButton
                         size="small"
-                        onClick={() => setQtyLarge(qtyLarge + 1)}
+                        onClick={() => setQtyLarge((parseInt(qtyLarge) || 1) + 1)}
                         sx={{ bgcolor: '#DBEAFE', color: '#1D4ED8', width: 30, height: 30, fontWeight: 900 }}
                       >
                         +
@@ -1094,13 +1147,14 @@ export default function POSPage() {
                     <Button
                       variant="contained"
                       onClick={() => {
+                        const finalQty = Math.max(1, parseInt(qtyLarge) || 1);
                         addItem({
                           id: `${p.id}_كبير`,
                           name: `${p.name} (كبير)`,
                           price: pLarge,
                           image: p.image,
                           size: 'كبير',
-                          quantity: qtyLarge,
+                          quantity: finalQty,
                         });
                         setSizeModalOpen(false);
                       }}
@@ -1114,7 +1168,7 @@ export default function POSPage() {
                         fontSize: '0.85rem',
                       }}
                     >
-                      + إضافة {qtyLarge > 1 ? `(${qtyLarge})` : ''} للفاتورة
+                      + إضافة {(parseInt(qtyLarge) || 1) > 1 ? `(${parseInt(qtyLarge) || 1})` : ''} للفاتورة
                     </Button>
                   </Box>
                 </Paper>

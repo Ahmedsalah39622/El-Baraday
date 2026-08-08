@@ -868,9 +868,29 @@ export default function OrderDetailsPanel({
                 >
                   -
                 </IconButton>
-                <Typography variant="body2" sx={{ fontWeight: 900, minWidth: 18, textAlign: 'center', fontSize: '0.813rem' }}>
-                  {item.quantity}
-                </Typography>
+                <input
+                  type="number"
+                  min="1"
+                  value={item.quantity}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (!isNaN(val) && val >= 1) {
+                      onUpdateQuantity && onUpdateQuantity(item.id, val);
+                    }
+                  }}
+                  onFocus={(e) => e.target.select()}
+                  style={{
+                    fontWeight: 900,
+                    width: '32px',
+                    textAlign: 'center',
+                    fontSize: '0.813rem',
+                    color: '#1A1A2E',
+                    border: 'none',
+                    background: 'transparent',
+                    outline: 'none',
+                    MozAppearance: 'textfield'
+                  }}
+                />
                 <IconButton
                   size="small"
                   onClick={() => onUpdateQuantity && onUpdateQuantity(item.id, item.quantity + 1)}
