@@ -257,7 +257,7 @@ export default function EditOrderModal({ open, onClose, order, onSaveSuccess }) 
         {/* Order Details & Customer Header */}
         <Paper variant="outlined" sx={{ p: 2, borderRadius: '14px', bgcolor: '#F8FAFC' }}>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={4}>
+            <Grid xs={12} sm={4}>
               <FormControl fullWidth size="small">
                 <InputLabel>نوع الطلب</InputLabel>
                 <Select
@@ -273,7 +273,7 @@ export default function EditOrderModal({ open, onClose, order, onSaveSuccess }) 
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={4}>
+            <Grid xs={12} sm={4}>
               <FormControl fullWidth size="small">
                 <InputLabel>طريقة الدفع</InputLabel>
                 <Select
@@ -289,7 +289,7 @@ export default function EditOrderModal({ open, onClose, order, onSaveSuccess }) 
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={4}>
+            <Grid xs={12} sm={4}>
               <TextField
                 fullWidth
                 size="small"
@@ -300,7 +300,7 @@ export default function EditOrderModal({ open, onClose, order, onSaveSuccess }) 
               />
             </Grid>
 
-            <Grid item xs={12} sm={4}>
+            <Grid xs={12} sm={4}>
               <TextField
                 fullWidth
                 size="small"
@@ -312,7 +312,7 @@ export default function EditOrderModal({ open, onClose, order, onSaveSuccess }) 
             </Grid>
 
             {orderType === 'delivery' && (
-              <Grid item xs={12} sm={8}>
+              <Grid xs={12} sm={8}>
                 <TextField
                   fullWidth
                   size="small"
@@ -446,7 +446,7 @@ export default function EditOrderModal({ open, onClose, order, onSaveSuccess }) 
         {/* Section: Financials & Price Difference Banner */}
         <Paper variant="outlined" sx={{ p: 2, borderRadius: '14px', bgcolor: '#FFFDF5', borderColor: '#FDE68A' }}>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={4}>
+            <Grid xs={12} sm={4}>
               <TextField
                 fullWidth
                 size="small"
@@ -459,7 +459,7 @@ export default function EditOrderModal({ open, onClose, order, onSaveSuccess }) 
             </Grid>
 
             {orderType === 'delivery' && (
-              <Grid item xs={12} sm={4}>
+              <Grid xs={12} sm={4}>
                 <TextField
                   fullWidth
                   size="small"
@@ -472,7 +472,7 @@ export default function EditOrderModal({ open, onClose, order, onSaveSuccess }) 
               </Grid>
             )}
 
-            <Grid item xs={12} sm={orderType === 'delivery' ? 4 : 8}>
+            <Grid xs={12} sm={orderType === 'delivery' ? 4 : 8}>
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
                 <Typography variant="body2" sx={{ color: '#64748B' }}>
                   المبلغ الأصلي السابق: <strong>{originalTotal.toFixed(2)} ج.م</strong>

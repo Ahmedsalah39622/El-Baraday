@@ -487,7 +487,7 @@ export default function ReportsPage() {
 
       {/* Financial Summary Metric Cards */}
       <Grid container spacing={2}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid xs={12} sm={6} md={3}>
           <Card sx={{ borderRadius: '16px', bgcolor: '#EFF6FF', border: '1px solid #BFDBFE' }}>
             <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 2 }}>
               <Box sx={{ p: 1.2, borderRadius: '12px', bgcolor: '#3B82F6', color: '#FFF' }}>
@@ -501,7 +501,7 @@ export default function ReportsPage() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid xs={12} sm={6} md={3}>
           <Card sx={{ borderRadius: '16px', bgcolor: '#ECFDF5', border: '1px solid #A7F3D0' }}>
             <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 2 }}>
               <Box sx={{ p: 1.2, borderRadius: '12px', bgcolor: '#10B981', color: '#FFF' }}>
@@ -515,7 +515,7 @@ export default function ReportsPage() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid xs={12} sm={6} md={3}>
           <Card sx={{ borderRadius: '16px', bgcolor: '#FFF3EB', border: '1px solid #FFD8B3' }}>
             <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 2 }}>
               <Box sx={{ p: 1.2, borderRadius: '12px', bgcolor: '#FF8C42', color: '#FFF' }}>
@@ -529,7 +529,7 @@ export default function ReportsPage() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid xs={12} sm={6} md={3}>
           <Card sx={{ borderRadius: '16px', bgcolor: '#F3E8FF', border: '1px solid #E9D5FF' }}>
             <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 2 }}>
               <Box sx={{ p: 1.2, borderRadius: '12px', bgcolor: '#8B5CF6', color: '#FFF' }}>
@@ -576,7 +576,7 @@ export default function ReportsPage() {
               {/* TAB 1: OVERVIEW */}
               {activeTab === 'overview' && (
                 <Grid container spacing={3}>
-                  <Grid item xs={12} md={7}>
+                  <Grid xs={12} md={7}>
                     <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.5, color: '#1A1A2E' }}>🔥 الأصناف الأكثر مبيعاً</Typography>
                     <TableContainer component={Paper} sx={{ borderRadius: '12px', border: '1px solid #E2E8F0' }}>
                       <Table size="small">
@@ -599,7 +599,7 @@ export default function ReportsPage() {
                       </Table>
                     </TableContainer>
                   </Grid>
-                  <Grid item xs={12} md={5}>
+                  <Grid xs={12} md={5}>
                     <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.5, color: '#1A1A2E' }}>📊 ملخص الخزنة اليومي</Typography>
                     {dailyReportSummary && (
                       <Paper sx={{ p: 2, borderRadius: '12px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: 1.2 }}>

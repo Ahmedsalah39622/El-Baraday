@@ -647,7 +647,7 @@ export default function FinancesPage() {
       {/* KPI Financial Overview Cards - Responsive 2 Columns on Mobile, 4 Columns on Desktop */}
       <Grid container spacing={1.5}>
         {/* Total Revenues */}
-        <Grid item xs={6} sm={6} md={3}>
+        <Grid xs={6} sm={6} md={3}>
           <Card sx={{ borderRadius: '16px', border: '1px solid #BAE6FD', bgcolor: '#F0F9FF', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
             <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
@@ -666,7 +666,7 @@ export default function FinancesPage() {
         </Grid>
 
         {/* Raw Material & Purchases Cost */}
-        <Grid item xs={6} sm={6} md={3}>
+        <Grid xs={6} sm={6} md={3}>
           <Card sx={{ borderRadius: '16px', border: '1px solid #FFEDD5', bgcolor: '#FFF7ED', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
             <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
@@ -685,7 +685,7 @@ export default function FinancesPage() {
         </Grid>
 
         {/* Outstanding Debts Owed to Suppliers ("علينا كام") */}
-        <Grid item xs={6} sm={6} md={3}>
+        <Grid xs={6} sm={6} md={3}>
           <Card sx={{ borderRadius: '16px', border: '1.5px solid #FCA5A5', bgcolor: '#FEF2F2', boxShadow: '0 2px 8px rgba(239,68,68,0.08)' }}>
             <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
@@ -704,7 +704,7 @@ export default function FinancesPage() {
         </Grid>
 
         {/* Net Profit & Cash Flow */}
-        <Grid item xs={6} sm={6} md={3}>
+        <Grid xs={6} sm={6} md={3}>
           <Card sx={{ borderRadius: '16px', border: '1px solid #A7F3D0', bgcolor: '#ECFDF5', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
             <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
@@ -1010,7 +1010,7 @@ export default function FinancesPage() {
       <TabPanel value={tabValue} index={3}>
         <Grid container spacing={1.5}>
           {supplierBalances.map((sup) => (
-            <Grid item xs={12} sm={6} md={4} key={sup.name}>
+            <Grid xs={12} sm={6} md={4} key={sup.name}>
               <Paper sx={{ p: 2, borderRadius: '16px', border: '1px solid #E5E7EB', bgcolor: sup.totalOwed > 0 ? '#FEF2F2' : '#F0FDF4' }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                   <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#1A1A2E' }}>
@@ -1054,7 +1054,7 @@ export default function FinancesPage() {
         <DialogTitle sx={{ fontWeight: 800 }}>تسجيل فاتورة توريد خامات جديدة</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1.5 }}>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <FormControl fullWidth size="small">
                 <InputLabel>الفرع</InputLabel>
                 <Select
@@ -1068,7 +1068,7 @@ export default function FinancesPage() {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 size="small"
@@ -1077,7 +1077,7 @@ export default function FinancesPage() {
                 onChange={(e) => setPurchaseForm({ ...purchaseForm, supplier_name: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 size="small"
@@ -1086,7 +1086,7 @@ export default function FinancesPage() {
                 onChange={(e) => setPurchaseForm({ ...purchaseForm, item_name: e.target.value })}
               />
             </Grid>
-            <Grid item xs={6} sm={3}>
+            <Grid xs={6} sm={3}>
               <TextField
                 fullWidth
                 type="number"
@@ -1096,7 +1096,7 @@ export default function FinancesPage() {
                 onChange={(e) => handlePurchaseCalc('quantity', e.target.value)}
               />
             </Grid>
-            <Grid item xs={6} sm={3}>
+            <Grid xs={6} sm={3}>
               <TextField
                 fullWidth
                 size="small"
@@ -1105,7 +1105,7 @@ export default function FinancesPage() {
                 onChange={(e) => setPurchaseForm({ ...purchaseForm, unit: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 type="number"
@@ -1115,7 +1115,7 @@ export default function FinancesPage() {
                 onChange={(e) => handlePurchaseCalc('cost_per_unit', e.target.value)}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 type="number"
@@ -1125,7 +1125,7 @@ export default function FinancesPage() {
                 onChange={(e) => setPurchaseForm({ ...purchaseForm, total_amount: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <FormControl fullWidth size="small">
                 <InputLabel>حالة الدفع</InputLabel>
                 <Select
@@ -1139,7 +1139,7 @@ export default function FinancesPage() {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 type="number"
@@ -1149,7 +1149,7 @@ export default function FinancesPage() {
                 onChange={(e) => setPurchaseForm({ ...purchaseForm, paid_amount: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid xs={12}>
               <TextField
                 fullWidth
                 multiline

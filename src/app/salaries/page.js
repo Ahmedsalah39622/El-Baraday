@@ -1175,7 +1175,7 @@ export default function SalariesPage() {
           </FormControl>
 
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <FormControl fullWidth>
                 <InputLabel>نوع المكافأة / البونص</InputLabel>
                 <Select
@@ -1190,7 +1190,7 @@ export default function SalariesPage() {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 required
@@ -1201,7 +1201,7 @@ export default function SalariesPage() {
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid xs={12}>
               <TextField
                 fullWidth
                 multiline
@@ -1273,7 +1273,7 @@ export default function SalariesPage() {
           </FormControl>
 
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <FormControl fullWidth>
                 <InputLabel>نوع الخصم</InputLabel>
                 <Select
@@ -1287,7 +1287,7 @@ export default function SalariesPage() {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 required
@@ -1298,7 +1298,7 @@ export default function SalariesPage() {
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid xs={12}>
               <TextField
                 fullWidth
                 multiline
@@ -1359,7 +1359,7 @@ export default function SalariesPage() {
             return (
               <>
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
+                  <Grid xs={12} sm={6}>
                     <TextField
                       fullWidth
                       type="number"
@@ -1370,7 +1370,7 @@ export default function SalariesPage() {
                     />
                   </Grid>
 
-                  <Grid item xs={12} sm={6}>
+                  <Grid xs={12} sm={6}>
                     <TextField
                       fullWidth
                       type="number"
@@ -1382,7 +1382,7 @@ export default function SalariesPage() {
                     />
                   </Grid>
 
-                  <Grid item xs={12} sm={6}>
+                  <Grid xs={12} sm={6}>
                     <TextField
                       fullWidth
                       type="number"
@@ -1398,7 +1398,7 @@ export default function SalariesPage() {
                     />
                   </Grid>
 
-                  <Grid item xs={12} sm={6}>
+                  <Grid xs={12} sm={6}>
                     <TextField
                       fullWidth
                       type="number"
@@ -1409,7 +1409,7 @@ export default function SalariesPage() {
                     />
                   </Grid>
 
-                  <Grid item xs={12} sm={6}>
+                  <Grid xs={12} sm={6}>
                     <TextField
                       fullWidth
                       type="number"
@@ -1425,7 +1425,7 @@ export default function SalariesPage() {
                     />
                   </Grid>
 
-                  <Grid item xs={12} sm={6}>
+                  <Grid xs={12} sm={6}>
                     <TextField
                       fullWidth
                       type="number"

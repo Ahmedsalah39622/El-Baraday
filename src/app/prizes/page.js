@@ -411,7 +411,7 @@ export default function PrizesPage() {
 
       {/* DYNAMIC METRIC CARDS */}
       <Grid container spacing={2.5}>
-        <Grid item xs={6} md={3}>
+        <Grid xs={6} md={3}>
           <Paper sx={{ p: 2.5, borderRadius: '20px', bgcolor: '#1E293B', border: '1px solid #334155', display: 'flex', alignItems: 'center', gap: 2 }}>
             <Box sx={{ width: 48, height: 48, borderRadius: '14px', bgcolor: 'rgba(245, 158, 11, 0.15)', color: '#F59E0B', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <ConfirmationNumber sx={{ fontSize: 28 }} />
@@ -423,7 +423,7 @@ export default function PrizesPage() {
           </Paper>
         </Grid>
 
-        <Grid item xs={6} md={3}>
+        <Grid xs={6} md={3}>
           <Paper sx={{ p: 2.5, borderRadius: '20px', bgcolor: '#1E293B', border: '1px solid #334155', display: 'flex', alignItems: 'center', gap: 2 }}>
             <Box sx={{ width: 48, height: 48, borderRadius: '14px', bgcolor: 'rgba(59, 130, 246, 0.15)', color: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <EmojiEvents sx={{ fontSize: 28 }} />
@@ -435,7 +435,7 @@ export default function PrizesPage() {
           </Paper>
         </Grid>
 
-        <Grid item xs={6} md={3}>
+        <Grid xs={6} md={3}>
           <Paper sx={{ p: 2.5, borderRadius: '20px', bgcolor: '#1E293B', border: '1px solid #334155', display: 'flex', alignItems: 'center', gap: 2 }}>
             <Box sx={{ width: 48, height: 48, borderRadius: '14px', bgcolor: 'rgba(236, 72, 153, 0.15)', color: '#EC4899', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Casino sx={{ fontSize: 28 }} />
@@ -447,7 +447,7 @@ export default function PrizesPage() {
           </Paper>
         </Grid>
 
-        <Grid item xs={6} md={3}>
+        <Grid xs={6} md={3}>
           <Paper sx={{ p: 2.5, borderRadius: '20px', bgcolor: '#1E293B', border: '1px solid #334155', display: 'flex', alignItems: 'center', gap: 2 }}>
             <Box sx={{ width: 48, height: 48, borderRadius: '14px', bgcolor: 'rgba(16, 185, 129, 0.15)', color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Person sx={{ fontSize: 28 }} />
@@ -481,7 +481,7 @@ export default function PrizesPage() {
 
         <Grid container spacing={3} alignItems="center">
           {/* Customer Selection & Direct Phone Fill */}
-          <Grid item xs={12} md={7}>
+          <Grid xs={12} md={7}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Typography variant="caption" sx={{ color: '#CBD5E1', fontWeight: 800 }}>
                 💡 اختر العميل من السيستم (أو أدخل بيانات عميل جديد لإصدار الكوبون فوراً):
@@ -524,7 +524,7 @@ export default function PrizesPage() {
               />
 
               <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
+                <Grid xs={12} sm={6}>
                   <TextField
                     fullWidth
                     label="اسم العميل *"
@@ -540,7 +540,7 @@ export default function PrizesPage() {
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6}>
+                <Grid xs={12} sm={6}>
                   <TextField
                     fullWidth
                     label="رقم الهاتف *"
@@ -581,7 +581,7 @@ export default function PrizesPage() {
           </Grid>
 
           {/* Live Coupon Thermal Ticket Mockup Preview Card */}
-          <Grid item xs={12} md={5}>
+          <Grid xs={12} md={5}>
             <Paper
               elevation={4}
               sx={{
@@ -665,7 +665,7 @@ export default function PrizesPage() {
       {/* TAB 0: WHEEL OF FORTUNE */}
       <TabPanel value={tabValue} index={0}>
         <Grid container spacing={3} alignItems="center">
-          <Grid item xs={12} md={5}>
+          <Grid xs={12} md={5}>
             <Paper sx={{ p: 3, borderRadius: '24px', border: '1px solid #334155', bgcolor: '#1E293B', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
               <Typography variant="h6" sx={{ fontWeight: 900, color: '#F472B6', display: 'flex', alignItems: 'center', gap: 1 }}>
                 <AutoAwesome /> بيانات عميل عجلة الحظ
@@ -710,7 +710,7 @@ export default function PrizesPage() {
             </Paper>
           </Grid>
 
-          <Grid item xs={12} md={7} sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <Grid xs={12} md={7} sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             <Box sx={{ position: 'relative', width: 340, height: 340, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Box
                 sx={{
@@ -802,7 +802,7 @@ export default function PrizesPage() {
       {/* TAB 1: RAFFLE TICKER DRAWER */}
       <TabPanel value={tabValue} index={1}>
         <Grid container spacing={3}>
-          <Grid item xs={12} md={5}>
+          <Grid xs={12} md={5}>
             <Paper sx={{ p: 3, borderRadius: '24px', border: '1px solid #334155', bgcolor: '#1E293B', display: 'flex', flexDirection: 'column', gap: 2.5 }}>
               <Typography variant="h6" sx={{ fontWeight: 900, color: '#60A5FA', display: 'flex', alignItems: 'center', gap: 1 }}>
                 <ConfirmationNumber /> إعدادات السحب الكبرى
@@ -856,7 +856,7 @@ export default function PrizesPage() {
             </Paper>
           </Grid>
 
-          <Grid item xs={12} md={7}>
+          <Grid xs={12} md={7}>
             <Paper
               sx={{
                 p: 4,

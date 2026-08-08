@@ -460,7 +460,7 @@ export default function InvoicesPage() {
 
       {/* Stats KPI Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }} className="no-print">
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid xs={12} sm={6} md={3}>
           <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.06)', borderRight: '4px solid #4285F4' }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -483,7 +483,7 @@ export default function InvoicesPage() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid xs={12} sm={6} md={3}>
           <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.06)', borderRight: '4px solid #2E7D32' }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -506,7 +506,7 @@ export default function InvoicesPage() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid xs={12} sm={6} md={3}>
           <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.06)', borderRight: '4px solid #1565C0' }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -529,7 +529,7 @@ export default function InvoicesPage() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid xs={12} sm={6} md={3}>
           <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.06)', borderRight: '4px solid #D32F2F' }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -574,7 +574,7 @@ export default function InvoicesPage() {
         {/* Filters bar */}
         <Paper sx={{ p: 2, mb: 3, borderRadius: '16px', bgcolor: 'background.paper' }}>
           <Grid container spacing={2} sx={{ alignItems: 'center' }}>
-            <Grid item xs={12} md={4}>
+            <Grid xs={12} md={4}>
               <TextField
                 fullWidth
                 placeholder="بحث باسم العميل (باسم كذا)، رقم الفاتورة، أو البيان..."
@@ -588,7 +588,7 @@ export default function InvoicesPage() {
               />
             </Grid>
             
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid xs={12} sm={6} md={3}>
               <TextField
                 fullWidth
                 type="date"
@@ -599,7 +599,7 @@ export default function InvoicesPage() {
               />
             </Grid>
 
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid xs={12} sm={6} md={3}>
               <FormControl fullWidth>
                 <InputLabel>حالة التحصيل</InputLabel>
                 <Select
@@ -615,7 +615,7 @@ export default function InvoicesPage() {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} md={2} sx={{ display: 'flex', gap: 1 }}>
+            <Grid xs={12} md={2} sx={{ display: 'flex', gap: 1 }}>
               <Button
                 fullWidth
                 variant="outlined"
@@ -853,7 +853,7 @@ export default function InvoicesPage() {
           )}
 
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 required
@@ -864,7 +864,7 @@ export default function InvoicesPage() {
               />
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 type="date"
@@ -876,7 +876,7 @@ export default function InvoicesPage() {
               />
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="عنوان / بيان الفاتورة"
@@ -886,7 +886,7 @@ export default function InvoicesPage() {
               />
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="رقم الهاتف (اختياري للإرسال واتساب)"
@@ -896,7 +896,7 @@ export default function InvoicesPage() {
               />
             </Grid>
 
-            <Grid item xs={12} sm={4}>
+            <Grid xs={12} sm={4}>
               <TextField
                 fullWidth
                 required
@@ -913,7 +913,7 @@ export default function InvoicesPage() {
               />
             </Grid>
 
-            <Grid item xs={12} sm={4}>
+            <Grid xs={12} sm={4}>
               <TextField
                 fullWidth
                 type="number"
@@ -928,7 +928,7 @@ export default function InvoicesPage() {
               />
             </Grid>
 
-            <Grid item xs={12} sm={4}>
+            <Grid xs={12} sm={4}>
               <TextField
                 fullWidth
                 disabled
@@ -943,7 +943,7 @@ export default function InvoicesPage() {
               />
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <FormControl fullWidth>
                 <InputLabel>طريقة الدفع</InputLabel>
                 <Select
@@ -960,7 +960,7 @@ export default function InvoicesPage() {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <FormControl fullWidth>
                 <InputLabel>حالة التحصيل</InputLabel>
                 <Select
@@ -975,7 +975,7 @@ export default function InvoicesPage() {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid xs={12}>
               <TextField
                 fullWidth
                 multiline
@@ -988,7 +988,7 @@ export default function InvoicesPage() {
             </Grid>
 
             {/* Optional detailed items section */}
-            <Grid item xs={12}>
+            <Grid xs={12}>
               <Typography variant="subtitle2" fontWeight="bold" sx={{ mt: 1, mb: 1 }}>
                 إضافة بنود تفصيلية للفاتورة (اختياري)
               </Typography>
@@ -1124,23 +1124,23 @@ export default function InvoicesPage() {
 
               {/* Invoice Meta Grid */}
               <Grid container spacing={1.5} sx={{ mb: 2, bgcolor: '#F8FAFC', p: 1.5, borderRadius: '12px' }}>
-                <Grid item xs={6}>
+                <Grid xs={6}>
                   <Typography variant="caption" color="text.secondary">رقم الفاتورة:</Typography>
                   <Typography variant="body2" fontWeight="bold">{viewInvoice.invoice_number}</Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid xs={6}>
                   <Typography variant="caption" color="text.secondary">التاريخ (يوم كذا):</Typography>
                   <Typography variant="body2" fontWeight="bold">{viewInvoice.invoice_date?.split('T')[0]}</Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid xs={6}>
                   <Typography variant="caption" color="text.secondary">اسم العميل / الجهة (باسم كذا):</Typography>
                   <Typography variant="body2" fontWeight="bold">{viewInvoice.customer_name}</Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid xs={6}>
                   <Typography variant="caption" color="text.secondary">الهاتف:</Typography>
                   <Typography variant="body2" fontWeight="bold">{viewInvoice.customer_phone || '-'}</Typography>
                 </Grid>
-                <Grid item xs={12}>
+                <Grid xs={12}>
                   <Typography variant="caption" color="text.secondary">البيان / الوصف:</Typography>
                   <Typography variant="body2" fontWeight="bold">{viewInvoice.title || 'فاتورة تحصيل'}</Typography>
                 </Grid>
