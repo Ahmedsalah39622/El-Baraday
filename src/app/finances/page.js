@@ -324,42 +324,65 @@ export default function FinancesPage() {
     if (!printWindow) return;
 
     const branchName = branchFilterOptions.find((b) => b.id === selectedBranchId)?.name || 'جميع الفروع';
+    const currentDateStr = new Date().toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' });
 
     const content = `
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
       <head>
         <meta charset="utf-8">
-        <title>تقرير دفتر الإيرادات والمصروفات الكلية - مطعم البرادعي</title>
+        <title>تقرير دفتر الإيرادات والمصروفات - مطعم البرادعي</title>
         <style>
-          @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800;900&display=swap');
-          body { font-family: 'Cairo', sans-serif; padding: 25px; color: #1A1A2E; direction: rtl; background: #FFF; }
-          h1 { text-align: center; color: #1E40AF; margin-bottom: 5px; font-size: 24px; font-weight: 900; }
-          .subtitle { text-align: center; color: #64748B; font-size: 13px; margin-bottom: 20px; }
+          @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&display=swap');
+          @page {
+            size: 80mm auto;
+            margin: 0mm !important;
+          }
+          @media print {
+            @page {
+              size: 80mm auto;
+              margin: 0mm !important;
+            }
+            html, body {
+              width: 100% !important;
+              margin: 0 !important;
+              padding: 0 1.5mm !important;
+              background: #FFF !important;
+              color: #000 !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+          }
+          * { box-sizing: border-box !important; margin: 0; padding: 0; }
+          body { font-family: 'Cairo', Arial, sans-serif; padding: 1.5mm; color: #000; direction: rtl; background: #FFF; font-size: 10px; }
+          .center { text-align: center; }
+          h1 { font-size: 15px; font-weight: 900; color: #000; text-align: center; margin-bottom: 2px; }
+          .subtitle { text-align: center; color: #333; font-size: 9.5px; font-weight: 700; margin-bottom: 6px; }
           
-          .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 25px; }
-          .summary-card { background: #F8FAFC; border: 1px solid #E2E8F0; padding: 12px; border-radius: 8px; text-align: center; }
-          .summary-title { font-size: 11px; color: #64748B; font-weight: 700; }
-          .summary-val { font-size: 17px; font-weight: 900; color: #1E293B; margin-top: 4px; }
+          .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin-bottom: 8px; }
+          .summary-card { background: #FFFFFF; border: 1px solid #000; padding: 4px; border-radius: 3px; text-align: center; }
+          .summary-title { font-size: 9px; color: #333; font-weight: 800; }
+          .summary-val { font-size: 11.5px; font-weight: 900; color: #000; margin-top: 2px; }
 
-          h2 { color: #1E293B; font-size: 16px; border-right: 4px solid #3B82F6; padding-right: 10px; margin-top: 25px; margin-bottom: 12px; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-          th, td { border: 1px solid #CBD5E1; padding: 8px 10px; text-align: right; font-size: 12px; }
-          th { background-color: #F1F5F9; color: #1E293B; font-weight: 800; }
+          h2 { color: #000; font-size: 11px; font-weight: 900; border-bottom: 1px dashed #000; padding-bottom: 2px; margin-top: 8px; margin-bottom: 4px; text-align: center; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 6px; font-size: 9px; }
+          th, td { border: 1px solid #000; padding: 4px 2px; text-align: center; word-break: break-word; }
+          th { background-color: #E2E8F0; color: #000; font-weight: 900; font-size: 9.5px; }
           tr:nth-child(even) { background-color: #F8FAFC; }
-          .owed { color: #DC2626; font-weight: 800; }
-          .paid { color: #059669; font-weight: 800; }
+          .owed { color: #DC2626; font-weight: 900; }
+          .paid { color: #059669; font-weight: 900; }
 
-          .footer { margin-top: 40px; text-align: center; font-size: 11px; color: #94A3B8; border-top: 1px solid #E2E8F0; padding-top: 15px; }
+          .footer { margin-top: 8px; text-align: center; font-size: 9px; font-weight: 800; color: #000; border-top: 1px dashed #000; padding-top: 4px; padding-bottom: 15mm; }
         </style>
       </head>
       <body>
-        <h1> تقرير الإيرادات والمصروفات الكلية</h1>
-        <div class="subtitle">مطعم البرادعي POS | ${branchName} | تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')} - ${new Date().toLocaleTimeString('ar-EG')}</div>
+        <h1>مطعم البرادعي</h1>
+        <div class="subtitle">EL-BARADAY POS | تقرير الإيرادات والمصروفات الكلية</div>
+        <div class="subtitle">الفرع: ${branchName} | التاريخ: ${currentDateStr}</div>
         
         <div class="summary-grid">
           <div class="summary-card">
-            <div class="summary-title">إجمالي إيرادات المبيعات</div>
+            <div class="summary-title">إجمالي المبيعات</div>
             <div class="summary-val">${metrics.estimatedRevenue.toLocaleString()} ج.م</div>
           </div>
           <div class="summary-card">
@@ -368,11 +391,11 @@ export default function FinancesPage() {
           </div>
           <div class="summary-card">
             <div class="summary-title">مستحقات الموردين ("علينا")</div>
-            <div class="summary-val" style="color:#DC2626;">${metrics.totalPurchasesOwed.toLocaleString()} ج.م</div>
+            <div class="summary-val owed">${metrics.totalPurchasesOwed.toLocaleString()} ج.م</div>
           </div>
           <div class="summary-card">
             <div class="summary-title">صافي التدفق كاش</div>
-            <div class="summary-val" style="color:#059669;">${metrics.netProfit.toLocaleString()} ج.م</div>
+            <div class="summary-val paid">${metrics.netProfit.toLocaleString()} ج.م</div>
           </div>
         </div>
 
@@ -381,12 +404,12 @@ export default function FinancesPage() {
           <thead>
             <tr>
               <th>الفرع</th>
-              <th>إجمالي المبيعات</th>
-              <th>مشتريات الخامات</th>
-              <th>المصروفات التشغيلية</th>
-              <th>إجمالي المصاريف المسددة</th>
-              <th>ديون الموردين ("علينا")</th>
-              <th>صافي الربح كاش</th>
+              <th>المبيعات</th>
+              <th>المشتريات</th>
+              <th>المصاريف</th>
+              <th>المسدد</th>
+              <th>علينا</th>
+              <th>الربح</th>
             </tr>
           </thead>
           <tbody>
@@ -395,12 +418,12 @@ export default function FinancesPage() {
                 (b) => `
               <tr>
                 <td><b>${b.branchName}</b></td>
-                <td>${b.revenue.toLocaleString()} ج.م</td>
-                <td>${b.purchasesCost.toLocaleString()} ج.م</td>
-                <td>${b.opExpenses.toLocaleString()} ج.م</td>
-                <td>${b.totalOutflows.toLocaleString()} ج.م</td>
-                <td class="owed">${b.purchasesOwed.toLocaleString()} ج.م</td>
-                <td class="paid">${b.netProfit.toLocaleString()} ج.م</td>
+                <td>${b.revenue.toLocaleString()}</td>
+                <td>${b.purchasesCost.toLocaleString()}</td>
+                <td>${b.opExpenses.toLocaleString()}</td>
+                <td>${b.totalOutflows.toLocaleString()}</td>
+                <td class="owed">${b.purchasesOwed.toLocaleString()}</td>
+                <td class="paid">${b.netProfit.toLocaleString()}</td>
               </tr>
             `
               )
@@ -416,9 +439,9 @@ export default function FinancesPage() {
               <th>المورد</th>
               <th>الخامة</th>
               <th>الكمية</th>
-              <th>إجمالي الفاتورة</th>
-              <th>المدفوع كاش</th>
-              <th>المتبقي ("علينا")</th>
+              <th>الإجمالي</th>
+              <th>المدفوع</th>
+              <th>المتبقي</th>
             </tr>
           </thead>
           <tbody>
@@ -430,9 +453,9 @@ export default function FinancesPage() {
                 <td>${p.supplier_name || ''}</td>
                 <td>${p.item_name || ''}</td>
                 <td>${p.quantity} ${p.unit}</td>
-                <td>${(parseFloat(p.total_amount) || 0).toLocaleString()} ج.م</td>
-                <td>${(parseFloat(p.paid_amount) || 0).toLocaleString()} ج.م</td>
-                <td class="${parseFloat(p.remaining_amount) > 0 ? 'owed' : 'paid'}">${(parseFloat(p.remaining_amount) || 0).toLocaleString()} ج.م</td>
+                <td>${(parseFloat(p.total_amount) || 0).toLocaleString()}</td>
+                <td>${(parseFloat(p.paid_amount) || 0).toLocaleString()}</td>
+                <td class="${parseFloat(p.remaining_amount) > 0 ? 'owed' : 'paid'}">${(parseFloat(p.remaining_amount) || 0).toLocaleString()}</td>
               </tr>
             `
               )
@@ -440,7 +463,10 @@ export default function FinancesPage() {
           </tbody>
         </table>
 
-        <div class="footer">تم استخراج هذا التقرير تلقائياً بواسطة نظام البرادعي إدارة POS</div>
+        <div class="footer">
+          <div>تم استخراج هذا التقرير تلقائياً بواسطة نظام البرادعي POS</div>
+          <div>*** تقرير حراري 80MM رسمـي ***</div>
+        </div>
         <script>
           window.onload = function() { window.print(); }
         </script>
