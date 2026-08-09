@@ -128,16 +128,25 @@ export async function POST(request) {
 
       if (activeShiftRecord && activeShiftRecord.start_time) {
         const sql = (targetBranch && targetBranch !== 'all')
-          ? "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND created_at >= $2"
-          : "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE created_at >= $1";
+          ? "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND (created_at >= $2 OR DATE(created_at) = CURRENT_DATE())"
+          : "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE (created_at >= $1 OR DATE(created_at) = CURRENT_DATE())";
         const params = (targetBranch && targetBranch !== 'all') ? [targetBranch, activeShiftRecord.start_time] : [activeShiftRecord.start_time];
         const nextRes = await query(sql, params);
         if (nextRes && nextRes.rows && nextRes.rows.length > 0 && nextRes.rows[0].next) {
           nextNum = parseInt(nextRes.rows[0].next) || 1;
         }
       } else {
-        // Shift is closed -> new shift starts fresh from 1
-        nextNum = 1;
+        // Shift is closed / not active -> find max order number for today so numbers increment sequentially
+        const sql = (targetBranch && targetBranch !== 'all')
+          ? "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND DATE(created_at) = CURRENT_DATE()"
+          : "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE DATE(created_at) = CURRENT_DATE()";
+        const params = (targetBranch && targetBranch !== 'all') ? [targetBranch] : [];
+        const nextRes = await query(sql, params);
+        if (nextRes && nextRes.rows && nextRes.rows.length > 0 && nextRes.rows[0].next) {
+          nextNum = parseInt(nextRes.rows[0].next) || 1;
+        } else {
+          nextNum = 1;
+        }
       }
     } catch (err) {
       console.warn('⚠️ Standard nextNum query failed:', err.message);

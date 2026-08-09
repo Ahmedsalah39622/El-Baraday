@@ -23,18 +23,18 @@ export async function GET(request) {
 
     if (activeShift && activeShift.start_time) {
       if (branchId && branchId !== 'all') {
-        sql = "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND created_at >= $2";
+        sql = "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND (created_at >= $2 OR DATE(created_at) = CURRENT_DATE())";
         params = [branchId, activeShift.start_time];
       } else {
-        sql = "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE created_at >= $1";
+        sql = "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE (created_at >= $1 OR DATE(created_at) = CURRENT_DATE())";
         params = [activeShift.start_time];
       }
     } else {
       if (branchId && branchId !== 'all') {
-        sql = "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1";
+        sql = "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND DATE(created_at) = CURRENT_DATE()";
         params = [branchId];
       } else {
-        sql = "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders";
+        sql = "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE DATE(created_at) = CURRENT_DATE()";
         params = [];
       }
     }

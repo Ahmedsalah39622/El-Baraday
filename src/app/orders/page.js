@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -96,6 +96,61 @@ export default function OrdersPage() {
     return () => clearInterval(interval);
   }, [targetBranch, user]);
 
+  const isInvoiceInCurrentShift = useCallback((inv) => {
+    const invBranch = inv.branchId || inv.branch_id || 'b1';
+    const branchActiveShift = (allShiftsList && allShiftsList.length > 0)
+      ? allShiftsList.find(s => s.status === 'active' && (s.branch_id === invBranch || (!s.branch_id && invBranch === 'b1')))
+      : (activeShift && (activeShift.branch_id === invBranch || (!activeShift.branch_id && invBranch === 'b1')) ? activeShift : null);
+
+    const invDateStr = inv.createdAt || inv.created_at;
+    if (!invDateStr) return true;
+    const invDate = new Date(invDateStr);
+    const invTime = invDate.getTime();
+    if (isNaN(invTime)) return true;
+
+    // If branch has no active shift: show orders created today (calendar date)
+    if (!branchActiveShift) {
+      const today = new Date();
+      return invDate.getFullYear() === today.getFullYear() &&
+             invDate.getMonth() === today.getMonth() &&
+             invDate.getDate() === today.getDate();
+    }
+
+    const rawShiftStart = branchActiveShift.start_time || branchActiveShift.rawStartTime || branchActiveShift.created_at;
+    if (!rawShiftStart) return true;
+    const shiftStartTime = new Date(rawShiftStart).getTime();
+    if (isNaN(shiftStartTime)) return true;
+
+    // 1. Direct match: order created after shift start (with 5-min grace window)
+    if (invTime >= (shiftStartTime - 300000)) {
+      return true;
+    }
+
+    // 2. Same calendar day match: if order was created today on same day shift was opened, and no closed shift ended in between
+    const shiftDate = new Date(shiftStartTime);
+    const isSameDay = invDate.getFullYear() === shiftDate.getFullYear() &&
+                      invDate.getMonth() === shiftDate.getMonth() &&
+                      invDate.getDate() === shiftDate.getDate();
+
+    if (isSameDay) {
+      const closedShiftInBetween = (allShiftsList || []).some(s => {
+        if (s.status !== 'closed') return false;
+        const sBranch = s.branch_id || 'b1';
+        if (sBranch !== invBranch && !(sBranch === 'b1' && invBranch === 'b1')) return false;
+        const sEndStr = s.end_time || s.endTime || s.created_at;
+        if (!sEndStr) return false;
+        const sEnd = new Date(sEndStr).getTime();
+        return !isNaN(sEnd) && sEnd > invTime && sEnd <= shiftStartTime;
+      });
+
+      if (!closedShiftInBetween) {
+        return true;
+      }
+    }
+
+    return false;
+  }, [allShiftsList, activeShift]);
+
   // Filter orders strictly by selected branch, shift time, & search query
   const filteredOrders = (invoices || []).filter((inv) => {
     const matchBranch = !targetBranch || targetBranch === 'all' || inv.branchId === targetBranch || inv.branch_id === targetBranch;
@@ -103,21 +158,7 @@ export default function OrdersPage() {
 
     // When NOT showing previous shifts: hide old orders
     if (!showPreviousShifts) {
-      const invBranch = inv.branchId || inv.branch_id || 'b1';
-      const branchActiveShift = (allShiftsList && allShiftsList.length > 0)
-        ? allShiftsList.find(s => s.status === 'active' && (s.branch_id === invBranch || (!s.branch_id && invBranch === 'b1')))
-        : (activeShift && (activeShift.branch_id === invBranch || (!activeShift.branch_id && invBranch === 'b1')) ? activeShift : null);
-
-      if (!branchActiveShift) return false;
-
-      const rawShiftStart = branchActiveShift.start_time || branchActiveShift.rawStartTime || branchActiveShift.created_at;
-      if (rawShiftStart && (inv.createdAt || inv.created_at)) {
-        const invTime = new Date(inv.createdAt || inv.created_at).getTime();
-        const shiftStartTime = new Date(rawShiftStart).getTime();
-        if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 300000)) {
-          return false;
-        }
-      }
+      if (!isInvoiceInCurrentShift(inv)) return false;
     }
 
     if (!searchQuery) return true;
@@ -139,26 +180,9 @@ export default function OrdersPage() {
       // When showing previous shifts, include all non-cancelled orders of selected branch/all branches
       if (showPreviousShifts) return true;
 
-      // When a shift is active, keep the KPI cards aligned with the current shift window.
-      const invBranch = inv.branchId || inv.branch_id || 'b1';
-      const branchActiveShift = (allShiftsList && allShiftsList.length > 0)
-        ? allShiftsList.find(s => s.status === 'active' && (s.branch_id === invBranch || (!s.branch_id && invBranch === 'b1')))
-        : (activeShift && (activeShift.branch_id === invBranch || (!activeShift.branch_id && invBranch === 'b1')) ? activeShift : null);
-
-      if (!branchActiveShift) return false;
-
-      const rawShiftStart = branchActiveShift.start_time || branchActiveShift.rawStartTime || branchActiveShift.created_at;
-      if (rawShiftStart && (inv.createdAt || inv.created_at)) {
-        const invTime = new Date(inv.createdAt || inv.created_at).getTime();
-        const shiftStartTime = new Date(rawShiftStart).getTime();
-        if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < shiftStartTime) {
-          return false;
-        }
-      }
-
-      return true;
+      return isInvoiceInCurrentShift(inv);
     });
-  }, [invoices, targetBranch, activeShift, allShiftsList, showPreviousShifts]);
+  }, [invoices, targetBranch, showPreviousShifts, isInvoiceInCurrentShift]);
 
   // 1. Total Cash in Drawer (إجمالي النقدية في الخزنة) - Exactly aligned with POS till logic
   const totalCashInDrawer = useMemo(() => {
@@ -169,18 +193,6 @@ export default function OrdersPage() {
     const startCash = relevantShifts.reduce((sum, s) => sum + (parseFloat(s.startAmount || s.start_amount || 0)), 0);
 
     const cashSalesSum = branchSummaryOrders.reduce((sum, inv) => {
-      const invBranch = inv.branchId || inv.branch_id || 'b1';
-      const invShift = relevantShifts.find(s => s.branch_id === invBranch || (!s.branch_id && invBranch === 'b1'));
-
-      const rawStart = invShift ? (invShift.rawStartTime || invShift.start_time || invShift.created_at) : null;
-      if (invShift && rawStart && (inv.createdAt || inv.created_at)) {
-        const invTime = new Date(inv.createdAt || inv.created_at).getTime();
-        const shiftStartTime = new Date(rawStart).getTime();
-        if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < shiftStartTime) {
-          return sum; // Skip invoices before current active shift start
-        }
-      }
-
       // Exclude uncollected delivery cash
       const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
       if (isDelivery) {
@@ -196,7 +208,7 @@ export default function OrdersPage() {
     }, 0);
 
     return startCash + cashSalesSum;
-  }, [branchSummaryOrders, activeShift, allShiftsList, targetBranch, activeShiftsList]);
+  }, [branchSummaryOrders, targetBranch, activeShiftsList]);
 
   // 2. Total Delivery Sales (إجمالي مبيعات الدليفري)
   const totalDeliverySales = useMemo(() => {

@@ -482,7 +482,14 @@ export default function POSPage() {
     if (b1ActiveShift.rawStartTime && inv.createdAt) {
       const invTime = new Date(inv.createdAt).getTime();
       const shiftStartTime = new Date(b1ActiveShift.rawStartTime).getTime();
-      if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 300000)) return sum;
+      if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 300000)) {
+        const invDate = new Date(invTime);
+        const shiftDate = new Date(shiftStartTime);
+        const isSameDay = invDate.getFullYear() === shiftDate.getFullYear() &&
+                          invDate.getMonth() === shiftDate.getMonth() &&
+                          invDate.getDate() === shiftDate.getDate();
+        if (!isSameDay) return sum;
+      }
     }
 
     const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
@@ -503,7 +510,14 @@ export default function POSPage() {
     if (b2ActiveShift.rawStartTime && inv.createdAt) {
       const invTime = new Date(inv.createdAt).getTime();
       const shiftStartTime = new Date(b2ActiveShift.rawStartTime).getTime();
-      if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 300000)) return sum;
+      if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 300000)) {
+        const invDate = new Date(invTime);
+        const shiftDate = new Date(shiftStartTime);
+        const isSameDay = invDate.getFullYear() === shiftDate.getFullYear() &&
+                          invDate.getMonth() === shiftDate.getMonth() &&
+                          invDate.getDate() === shiftDate.getDate();
+        if (!isSameDay) return sum;
+      }
     }
 
     const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';

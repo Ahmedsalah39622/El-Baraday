@@ -168,8 +168,12 @@ export default function DeliveryPage() {
       : (activeShift && (activeShift.branch_id === oBranch || (!activeShift.branch_id && oBranch === 'b1')) ? activeShift : null);
 
     if (!branchActiveShift) {
-      // Branch has no active shift -> hide completed & collected past orders unless showPreviousShifts is true
-      return false;
+      // Branch has no active shift -> show orders created today
+      const orderDate = new Date(o.created_at || o.createdAt);
+      const today = new Date();
+      return orderDate.getFullYear() === today.getFullYear() &&
+             orderDate.getMonth() === today.getMonth() &&
+             orderDate.getDate() === today.getDate();
     }
 
     const rawShiftStart = branchActiveShift.start_time || branchActiveShift.rawStartTime || branchActiveShift.created_at;
@@ -177,8 +181,13 @@ export default function DeliveryPage() {
     const orderTime = new Date(o.created_at || o.createdAt).getTime();
 
     if (!isNaN(shiftStart) && !isNaN(orderTime)) {
-      // 5-minute clock buffer
-      return orderTime >= (shiftStart - 300000);
+      if (orderTime >= (shiftStart - 300000)) return true;
+      const orderDate = new Date(orderTime);
+      const shiftDate = new Date(shiftStart);
+      const isSameDay = orderDate.getFullYear() === shiftDate.getFullYear() &&
+                        orderDate.getMonth() === shiftDate.getMonth() &&
+                        orderDate.getDate() === shiftDate.getDate();
+      return isSameDay;
     }
 
     return true;
