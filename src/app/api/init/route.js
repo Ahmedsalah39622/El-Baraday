@@ -119,19 +119,35 @@ export async function GET(req) {
 
     // Active shift start_time check for order_number resetting
     let activeShiftStartTime = null;
-    const sRes = await safeQuery("SELECT start_time FROM shifts WHERE status = 'active' ORDER BY start_time DESC LIMIT 1");
+    let shiftCheckSql = "SELECT start_time FROM shifts WHERE status = 'active'";
+    const shiftCheckParams = [];
+    if (branchId && branchId !== 'all') {
+      shiftCheckSql += " AND (branch_id = $1 OR branch_id IS NULL OR branch_id = '' OR branch_id = 'all')";
+      shiftCheckParams.push(branchId);
+    }
+    shiftCheckSql += " ORDER BY start_time DESC LIMIT 1";
+
+    const sRes = await safeQuery(shiftCheckSql, shiftCheckParams);
     if (sRes.rows && sRes.rows[0]) activeShiftStartTime = sRes.rows[0].start_time;
 
-    let nextOrderSql = "SELECT 1 as next";
+    let nextOrderSql = "";
     let nextOrderParams = [];
 
     if (activeShiftStartTime) {
       if (branchId && branchId !== 'all') {
-        nextOrderSql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND created_at >= $2";
+        nextOrderSql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND (created_at >= $2 OR DATE(created_at) = CURRENT_DATE())";
         nextOrderParams = [branchId, activeShiftStartTime];
       } else {
-        nextOrderSql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE created_at >= $1";
+        nextOrderSql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE (created_at >= $1 OR DATE(created_at) = CURRENT_DATE())";
         nextOrderParams = [activeShiftStartTime];
+      }
+    } else {
+      if (branchId && branchId !== 'all') {
+        nextOrderSql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND DATE(created_at) = CURRENT_DATE()";
+        nextOrderParams = [branchId];
+      } else {
+        nextOrderSql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE DATE(created_at) = CURRENT_DATE()";
+        nextOrderParams = [];
       }
     }
 

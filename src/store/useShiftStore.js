@@ -154,7 +154,7 @@ export const useShiftStore = create(
       
       // Clear active shift from state immediately (no localStorage cache)
       set({ activeShift: null });
-      useInvoiceStore.setState({ nextOrderNumber: 1 });
+      useInvoiceStore.getState().fetchNextOrderNumber(current?.branch_id || 'b1');
 
       if (shiftId) {
         try {
