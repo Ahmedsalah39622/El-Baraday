@@ -116,7 +116,7 @@ export default function ShiftSummaryPage() {
     // Auto-refresh every 10 seconds for real-time data (only when tab is visible)
     const refreshInterval = setInterval(() => {
       if (document.visibilityState === 'visible') {
-        fetchInvoices(500, effectiveBranchId);
+        fetchInvoices(500, effectiveBranchId, true);
         fetchShifts(effectiveBranchId);
         fetchReturns(effectiveBranchId);
       }

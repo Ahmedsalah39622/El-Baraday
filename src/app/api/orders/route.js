@@ -1,9 +1,8 @@
-import { query } from '@/lib/db';
+import { query, isSchemaChecked, markSchemaChecked } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
-let orderColumnsChecked = false;
 async function ensureOrderColumns() {
-  if (orderColumnsChecked) return;
+  if (isSchemaChecked('orderCols')) return;
   try { await query('ALTER TABLE orders ADD COLUMN dispatched_at DATETIME DEFAULT NULL'); } catch(e){}
   try { await query('ALTER TABLE orders ADD COLUMN delivered_to_customer_at DATETIME DEFAULT NULL'); } catch(e){}
   try { await query('ALTER TABLE orders ADD COLUMN is_cash_collected TINYINT(1) DEFAULT 0'); } catch(e){}
@@ -12,8 +11,9 @@ async function ensureOrderColumns() {
   try { await query('ALTER TABLE orders ADD COLUMN source_branch_name VARCHAR(255) DEFAULT NULL'); } catch(e){}
   try { await query('ALTER TABLE orders ADD COLUMN customer_floor VARCHAR(50) DEFAULT NULL'); } catch(e){}
   try { await query('ALTER TABLE orders ADD COLUMN customer_apartment VARCHAR(50) DEFAULT NULL'); } catch(e){}
-  orderColumnsChecked = true;
+  markSchemaChecked('orderCols');
 }
+
 
 export async function GET(request) {
   try {

@@ -79,7 +79,7 @@ export default function DeliveryPage() {
 
   // Fetch Delivery Orders & Settings
   const fetchDeliveryData = async (isSilent = false) => {
-    if (!isSilent) setLoadingOrders(true);
+    if (!isSilent && deliveryOrders.length === 0) setLoadingOrders(true);
     try {
       const setRes = await fetch('/api/settings');
       if (setRes.ok) {
@@ -122,7 +122,16 @@ export default function DeliveryPage() {
           });
         }
 
-        setDeliveryOrders(delOrders);
+        setDeliveryOrders((prev) => {
+          const serverIds = new Set(delOrders.map(m => String(m.id)));
+          const localPending = (prev || []).filter(
+            (localInv) =>
+              !serverIds.has(String(localInv.id)) &&
+              (localInv.created_at || localInv.createdAt) &&
+              Date.now() - new Date(localInv.created_at || localInv.createdAt).getTime() < 60000
+          );
+          return [...localPending, ...delOrders];
+        });
       }
     } catch (e) {
       console.error('❌ Error fetching delivery orders:', e);

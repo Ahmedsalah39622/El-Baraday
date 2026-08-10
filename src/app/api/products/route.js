@@ -1,25 +1,29 @@
-import { query } from '@/lib/db';
+import { query, isSchemaChecked, markSchemaChecked } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
-let sizeColumnsChecked = false;
 async function ensureSizeColumns() {
-  if (sizeColumnsChecked) return;
+  if (isSchemaChecked('productCols')) return;
   try { await query('ALTER TABLE products ADD COLUMN has_sizes TINYINT(1) DEFAULT 0'); } catch(e){}
   try { await query('ALTER TABLE products ADD COLUMN price_small DECIMAL(10, 2) DEFAULT NULL'); } catch(e){}
   try { await query('ALTER TABLE products ADD COLUMN price_large DECIMAL(10, 2) DEFAULT NULL'); } catch(e){}
   try { await query('ALTER TABLE products ADD COLUMN sizes JSON DEFAULT NULL'); } catch(e){}
   try { await query('ALTER TABLE products MODIFY COLUMN image_url LONGTEXT'); } catch(e){}
-  sizeColumnsChecked = true;
+  markSchemaChecked('productCols');
 }
+
 
 export async function GET() {
   try {
-    await ensureSizeColumns();
+    ensureSizeColumns().catch(() => {});
     let result;
     try {
       result = await query('SELECT * FROM products ORDER BY sort_order ASC');
     } catch(e) {
       result = await query('SELECT * FROM products');
+    }
+
+    if (result && result.isFallback) {
+      return NextResponse.json({ error: result.error || 'Database error' }, { status: 500 });
     }
 
     return NextResponse.json(result.rows || [], {
@@ -30,7 +34,7 @@ export async function GET() {
       },
     });
   } catch (error) {
-    return NextResponse.json([], { status: 200 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 

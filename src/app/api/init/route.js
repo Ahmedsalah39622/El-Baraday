@@ -1,9 +1,8 @@
-import { query } from '@/lib/db';
+import { query, isSchemaChecked, markSchemaChecked } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
-let branchesChecked = false;
 async function ensureBranchesTable() {
-  if (branchesChecked) return;
+  if (isSchemaChecked('branches')) return;
   try {
     await query(`
       CREATE TABLE IF NOT EXISTS branches (
@@ -18,12 +17,11 @@ async function ensureBranchesTable() {
     await query(`INSERT INTO branches (id, name) VALUES ('b1', 'فرع عزت') ON DUPLICATE KEY UPDATE name='فرع عزت'`);
     await query(`INSERT INTO branches (id, name) VALUES ('b2', 'فرع المسلة') ON DUPLICATE KEY UPDATE name='فرع المسلة'`);
   } catch(e) {}
-  branchesChecked = true;
+  markSchemaChecked('branches');
 }
 
-let driverAttendanceChecked = false;
 async function ensureDriverAttendanceTable() {
-  if (driverAttendanceChecked) return;
+  if (isSchemaChecked('driverAttendance')) return;
   try {
     await query(`
       CREATE TABLE IF NOT EXISTS driver_attendance (
@@ -40,12 +38,11 @@ async function ensureDriverAttendanceTable() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
   } catch(e) {}
-  driverAttendanceChecked = true;
+  markSchemaChecked('driverAttendance');
 }
 
-let invoicesChecked = false;
 async function ensureInvoicesTable() {
-  if (invoicesChecked) return;
+  if (isSchemaChecked('invoices')) return;
   try {
     await query(`
       CREATE TABLE IF NOT EXISTS invoices (
@@ -69,36 +66,37 @@ async function ensureInvoicesTable() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
   } catch(e) {}
-  invoicesChecked = true;
+  markSchemaChecked('invoices');
 }
 
-let shiftColsChecked = false;
 async function ensureShiftColsTable() {
-  if (shiftColsChecked) return;
+  if (isSchemaChecked('shiftCols')) return;
   try { await query('ALTER TABLE shifts ADD COLUMN expected_amount DECIMAL(10, 2) DEFAULT 0'); } catch(e) {}
   try { await query('ALTER TABLE shifts ADD COLUMN cash_difference DECIMAL(10, 2) DEFAULT 0'); } catch(e) {}
   try { await query('ALTER TABLE shifts ADD COLUMN difference_type VARCHAR(50) DEFAULT \'balanced\''); } catch(e) {}
   try { await query('ALTER TABLE shifts ADD COLUMN notes TEXT'); } catch(e) {}
-  shiftColsChecked = true;
+  markSchemaChecked('shiftCols');
 }
+
 
 const safeQuery = async (sql, params = []) => {
   try {
     const res = await query(sql, params);
+    if (res && res.isFallback) return { rows: [], isFallback: true, error: res.error };
     if (res && Array.isArray(res.rows)) return res;
     return { rows: [] };
   } catch (e) {
     console.warn('⚠️ Safe query warning:', e.message);
-    return { rows: [] };
+    return { rows: [], isFallback: true, error: e.message };
   }
 };
 
 export async function GET(req) {
   try {
-    await ensureBranchesTable();
-    await ensureDriverAttendanceTable();
-    await ensureInvoicesTable();
-    await ensureShiftColsTable();
+    ensureBranchesTable().catch(() => {});
+    ensureDriverAttendanceTable().catch(() => {});
+    ensureInvoicesTable().catch(() => {});
+    ensureShiftColsTable().catch(() => {});
 
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get('branch_id');
@@ -189,6 +187,11 @@ export async function GET(req) {
         WHERE da.check_out_time IS NULL
       `)
     ]);
+
+    if (productsRes.isFallback || branchesRes.isFallback) {
+      console.error('❌ Init route database connection fallback detected');
+      return NextResponse.json({ error: productsRes.error || branchesRes.error || 'Database connection error' }, { status: 500 });
+    }
 
     const settingsObj = {};
     if (settingsRes.rows) {

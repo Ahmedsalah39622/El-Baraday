@@ -38,9 +38,22 @@ export function getPool() {
   return pool;
 }
 
-// In-Memory Query Cache for fast responses (1s TTL)
+// Global set to prevent repeated DDL ALTER/CREATE table checks on serverless warm instances
+if (!global._ensuredSchemas) {
+  global._ensuredSchemas = new Set();
+}
+
+export function isSchemaChecked(key) {
+  return global._ensuredSchemas.has(key);
+}
+
+export function markSchemaChecked(key) {
+  global._ensuredSchemas.add(key);
+}
+
+// In-Memory Query Cache for fast responses (2.5s TTL)
 const queryCache = new Map();
-const CACHE_TTL_MS = 1000;
+const CACHE_TTL_MS = 2500;
 
 export async function query(text, params = []) {
   try {

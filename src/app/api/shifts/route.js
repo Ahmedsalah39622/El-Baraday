@@ -1,16 +1,16 @@
-import { query } from '@/lib/db';
+import { query, isSchemaChecked, markSchemaChecked } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
-let shiftColsChecked = false;
 async function ensureShiftCols() {
-  if (shiftColsChecked) return;
+  if (isSchemaChecked('shiftCols')) return;
   try { await query('ALTER TABLE shifts ADD COLUMN expected_amount DECIMAL(10, 2) DEFAULT 0'); } catch (e) {}
   try { await query('ALTER TABLE shifts ADD COLUMN cash_difference DECIMAL(10, 2) DEFAULT 0'); } catch (e) {}
   try { await query('ALTER TABLE shifts ADD COLUMN difference_type VARCHAR(50) DEFAULT \'balanced\''); } catch (e) {}
   try { await query('ALTER TABLE shifts ADD COLUMN notes TEXT'); } catch (e) {}
   try { await query('ALTER TABLE shifts ADD COLUMN branch_id VARCHAR(100) DEFAULT \'b1\''); } catch (e) {}
-  shiftColsChecked = true;
+  markSchemaChecked('shiftCols');
 }
+
 
 export async function GET(request) {
   try {

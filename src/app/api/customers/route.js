@@ -1,5 +1,12 @@
-import { query } from '@/lib/db';
+import { query, isSchemaChecked, markSchemaChecked } from '@/lib/db';
 import { NextResponse } from 'next/server';
+
+async function ensureCustomerCols() {
+  if (isSchemaChecked('custCols')) return;
+  try { await query('ALTER TABLE customers ADD COLUMN delivery_fee DECIMAL(10, 2) DEFAULT 15'); } catch(e) {}
+  markSchemaChecked('custCols');
+}
+
 
 export async function GET() {
   try {
@@ -36,7 +43,7 @@ export async function POST(request) {
       cleanPhone = cleanPhone.split(' - ')[0].trim();
     }
 
-    try { await query('ALTER TABLE customers ADD COLUMN delivery_fee DECIMAL(10, 2) DEFAULT 15'); } catch(e) {}
+    await ensureCustomerCols();
 
     const result = await query(
       `INSERT INTO customers (id, name, phone, address, floor, apartment, delivery_fee, addresses, total_orders, total_spend)

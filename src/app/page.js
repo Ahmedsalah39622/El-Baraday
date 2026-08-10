@@ -388,7 +388,16 @@ export default function POSPage() {
               });
             }
 
-            useInvoiceStore.setState({ invoices: mappedOrders });
+            useInvoiceStore.setState((state) => {
+              const serverIds = new Set(mappedOrders.map((m) => String(m.id)));
+              const localPending = (state.invoices || []).filter(
+                (localInv) =>
+                  !serverIds.has(String(localInv.id)) &&
+                  localInv.createdAt &&
+                  Date.now() - new Date(localInv.createdAt).getTime() < 60000
+              );
+              return { invoices: [...localPending, ...mappedOrders] };
+            });
           }
         }
 

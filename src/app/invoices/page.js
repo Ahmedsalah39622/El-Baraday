@@ -651,7 +651,7 @@ export default function InvoicesPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {loading ? (
+              {(loading && customInvoices.length === 0) ? (
                 <TableRow>
                   <TableCell colSpan={9} align="center" sx={{ py: 6 }}>
                     <CircularProgress />

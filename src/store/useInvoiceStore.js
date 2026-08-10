@@ -19,7 +19,7 @@ export const useInvoiceStore = create((set, get) => ({
   },
 
   // Fetch POS order invoices from DB
-  fetchInvoices: async (limitOrBranch = 500, branchIdArg = 'all') => {
+  fetchInvoices: async (limitOrBranch = 500, branchIdArg = 'all', isSilent = false) => {
     let limit = 500;
     let branchId = 'all';
 
@@ -31,7 +31,9 @@ export const useInvoiceStore = create((set, get) => ({
       if (typeof branchIdArg === 'string') branchId = branchIdArg;
     }
 
-    set({ loading: true });
+    if (!isSilent && get().invoices.length === 0) {
+      set({ loading: true });
+    }
     try {
       const url = branchId && branchId !== 'all' 
         ? `/api/orders?limit=${limit}&branch_id=${encodeURIComponent(branchId)}` 
@@ -39,42 +41,57 @@ export const useInvoiceStore = create((set, get) => ({
       const res = await fetch(url);
       if (res.ok) {
         const rows = await res.json();
-        const mapped = rows.map((o) => ({
-          id: o.id,
-          orderNumber: String(o.order_number),
-          invoiceNumber: `INV-${o.order_number}`,
-          orderType: o.order_type,
-          customerName: o.customer_name,
-          customerPhone: o.customer_phone,
-          customerAddress: o.customer_address,
-          cashierName: o.cashier_name,
-          driverName: o.driver_name,
-          subtotal: parseFloat(o.subtotal || 0),
-          total: parseFloat(o.total || 0),
-          paidAmount: parseFloat(o.paid_amount || 0),
-          remainingAmount: parseFloat(o.remaining_amount || 0),
-          deliveryFee: parseFloat(o.delivery_fee || 0),
-          discount: parseFloat(o.discount || 0),
-          paymentMethod: o.payment_method,
-          status: o.status,
-          createdAt: o.created_at ? (new Date(o.created_at).toISOString ? new Date(o.created_at).toISOString() : String(o.created_at)) : new Date().toISOString(),
-          branchId: o.branch_id,
-          branch_id: o.branch_id,
-          branchName: o.branch_name,
-          items: Array.isArray(o.items) ? o.items : [],
-          isReturned: false,
-        }));
-        set({ invoices: mapped, loading: false });
+        if (Array.isArray(rows)) {
+          const mapped = rows.map((o) => ({
+            id: o.id,
+            orderNumber: String(o.order_number),
+            invoiceNumber: `INV-${o.order_number}`,
+            orderType: o.order_type,
+            customerName: o.customer_name,
+            customerPhone: o.customer_phone,
+            customerAddress: o.customer_address,
+            cashierName: o.cashier_name,
+            driverName: o.driver_name,
+            subtotal: parseFloat(o.subtotal || 0),
+            total: parseFloat(o.total || 0),
+            paidAmount: parseFloat(o.paid_amount || 0),
+            remainingAmount: parseFloat(o.remaining_amount || 0),
+            deliveryFee: parseFloat(o.delivery_fee || 0),
+            discount: parseFloat(o.discount || 0),
+            paymentMethod: o.payment_method,
+            status: o.status,
+            createdAt: o.created_at ? (new Date(o.created_at).toISOString ? new Date(o.created_at).toISOString() : String(o.created_at)) : new Date().toISOString(),
+            branchId: o.branch_id,
+            branch_id: o.branch_id,
+            branchName: o.branch_name,
+            items: Array.isArray(o.items) ? o.items : [],
+            isReturned: false,
+          }));
+
+          set((state) => {
+            const serverIds = new Set(mapped.map((m) => String(m.id)));
+            const localPending = (state.invoices || []).filter(
+              (localInv) =>
+                !serverIds.has(String(localInv.id)) &&
+                localInv.createdAt &&
+                Date.now() - new Date(localInv.createdAt).getTime() < 60000
+            );
+            return { invoices: [...localPending, ...mapped], loading: false };
+          });
+        }
       }
     } catch (err) {
       console.warn('⚠️ Using cached invoices:', err.message);
+    } finally {
       set({ loading: false });
     }
   },
 
   // Fetch custom created invoices (التحصيل والفواتير العامة)
-  fetchCustomInvoices: async (filters = {}) => {
-    set({ loading: true });
+  fetchCustomInvoices: async (filters = {}, isSilent = false) => {
+    if (!isSilent && get().customInvoices.length === 0) {
+      set({ loading: true });
+    }
     try {
       const queryParams = new URLSearchParams();
       if (filters.search) queryParams.set('search', filters.search);
@@ -85,7 +102,9 @@ export const useInvoiceStore = create((set, get) => ({
       const res = await fetch(`/api/invoices?${queryParams.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        set({ customInvoices: data, loading: false });
+        if (Array.isArray(data)) {
+          set({ customInvoices: data, loading: false });
+        }
         return data;
       }
     } catch (err) {
@@ -95,6 +114,7 @@ export const useInvoiceStore = create((set, get) => ({
     }
     return [];
   },
+
 
   // Add custom invoice (اسم كذا، تحصيل كذا، يوم كذا)
   addCustomInvoice: async (invoiceData) => {

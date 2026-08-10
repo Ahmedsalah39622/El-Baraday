@@ -1,9 +1,8 @@
-import { query } from '@/lib/db';
+import { query, isSchemaChecked, markSchemaChecked } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
-let invoicesTableChecked = false;
 async function ensureInvoicesTable() {
-  if (invoicesTableChecked) return;
+  if (isSchemaChecked('invoices')) return;
   try {
     await query(`
       CREATE TABLE IF NOT EXISTS invoices (
@@ -29,8 +28,9 @@ async function ensureInvoicesTable() {
   } catch(e) {
     console.error('Failed to create invoices table:', e);
   }
-  invoicesTableChecked = true;
+  markSchemaChecked('invoices');
 }
+
 
 export async function GET(req) {
   try {

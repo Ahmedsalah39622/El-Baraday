@@ -33,7 +33,7 @@ export default function AttendancePage() {
   const [submitting, setSubmitting] = useState(false);
 
   const fetchAttendance = async (isSilent = false) => {
-    if (!isSilent) setLoading(true);
+    if (!isSilent && activeQueue.length === 0) setLoading(true);
     try {
       const res = await fetch(`/api/attendance?branch_id=${selectedBranchId}`);
       if (res.ok) {
