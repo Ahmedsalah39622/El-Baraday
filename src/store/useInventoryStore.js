@@ -39,7 +39,8 @@ export const useInventoryStore = create(
                   currentStock: parseFloat(r.current_stock || 0),
                   minStock: parseFloat(r.min_stock || 0),
                   costPerUnit: parseFloat(r.cost_per_unit || 0),
-                  category: r.category || 'عام'
+                  category: r.category || 'عام',
+                  branchStocks: r.branch_stocks || { b_main: parseFloat(r.current_stock || 0), b1: 0, b2: 0 }
                 })),
                 loading: false
               });
@@ -136,7 +137,7 @@ export const useInventoryStore = create(
       }),
     }),
     {
-      name: 'el-baraday-inventory-v2',
+      name: 'el-baraday-inventory-v3',
     }
   )
 );

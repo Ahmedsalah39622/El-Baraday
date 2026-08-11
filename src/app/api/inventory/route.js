@@ -3,8 +3,33 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const result = await query('SELECT * FROM inventory_items ORDER BY category, name');
-    return NextResponse.json(result.rows || []);
+    const itemsRes = await query('SELECT * FROM inventory_items ORDER BY category, name');
+    const items = itemsRes.rows || [];
+
+    let branchStockRes = { rows: [] };
+    try {
+      branchStockRes = await query('SELECT item_id, branch_id, current_stock FROM inventory_branch_stock');
+    } catch (e) {}
+
+    const stockMap = {};
+    (branchStockRes.rows || []).forEach(r => {
+      if (!stockMap[r.item_id]) stockMap[r.item_id] = {};
+      stockMap[r.item_id][r.branch_id] = parseFloat(r.current_stock || 0);
+    });
+
+    const result = items.map(item => {
+      const bStocks = stockMap[item.id] || {};
+      bStocks.b_main = parseFloat(item.current_stock || 0);
+      return {
+        ...item,
+        current_stock: parseFloat(item.current_stock || 0),
+        min_stock: parseFloat(item.min_stock || 0),
+        cost_per_unit: parseFloat(item.cost_per_unit || 0),
+        branch_stocks: bStocks
+      };
+    });
+
+    return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

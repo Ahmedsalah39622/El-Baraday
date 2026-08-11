@@ -14,8 +14,40 @@ async function ensureBranchesTable() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+    await query(`INSERT INTO branches (id, name) VALUES ('b_main', 'المخزن الرئيسي') ON DUPLICATE KEY UPDATE name='المخزن الرئيسي'`);
     await query(`INSERT INTO branches (id, name) VALUES ('b1', 'فرع عزت') ON DUPLICATE KEY UPDATE name='فرع عزت'`);
     await query(`INSERT INTO branches (id, name) VALUES ('b2', 'فرع المسلة') ON DUPLICATE KEY UPDATE name='فرع المسلة'`);
+
+    // Ensure inventory_branch_stock table
+    await query(`
+      CREATE TABLE IF NOT EXISTS inventory_branch_stock (
+        id VARCHAR(100) PRIMARY KEY,
+        item_id VARCHAR(100) NOT NULL,
+        branch_id VARCHAR(100) NOT NULL,
+        current_stock DECIMAL(10,3) NOT NULL DEFAULT 0.000,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_item_branch (item_id, branch_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // Ensure inventory_transfers table
+    await query(`
+      CREATE TABLE IF NOT EXISTS inventory_transfers (
+        id VARCHAR(100) PRIMARY KEY,
+        from_branch_id VARCHAR(100) NOT NULL,
+        to_branch_id VARCHAR(100) NOT NULL,
+        item_id VARCHAR(100) NOT NULL,
+        quantity DECIMAL(10,3) NOT NULL,
+        unit VARCHAR(50),
+        sender_name VARCHAR(100),
+        receiver_name VARCHAR(100),
+        status VARCHAR(50) DEFAULT 'completed',
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_from_branch (from_branch_id),
+        INDEX idx_to_branch (to_branch_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
   } catch(e) {}
   markSchemaChecked('branches');
 }

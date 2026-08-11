@@ -32,23 +32,12 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const fromBranchId = body.from_branch_id || body.fromBranchId;
-    const toBranchId = body.to_branch_id || body.toBranchId;
     const itemId = body.item_id || body.itemId;
-    const quantity = parseFloat(body.quantity || 0);
     const senderName = body.sender_name || body.senderName || 'المسؤول';
     const notes = body.notes || '';
 
-    if (!fromBranchId || !toBranchId || !itemId) {
-      return NextResponse.json({ error: 'برجاء تحديد الفرع المحول منه، الفرع المحول إليه، والخامة' }, { status: 400 });
-    }
-
-    if (fromBranchId === toBranchId) {
-      return NextResponse.json({ error: 'لا يمكن التحويل لنفس الفرع' }, { status: 400 });
-    }
-
-    if (quantity <= 0) {
-      return NextResponse.json({ error: 'برجاء تحديد كمية صحيحة أكبر من الصفر' }, { status: 400 });
+    if (!itemId) {
+      return NextResponse.json({ error: 'برجاء تحديد الخامة المراد تحويلها' }, { status: 400 });
     }
 
     // 1. Fetch Item details
@@ -59,77 +48,136 @@ export async function POST(request) {
     const item = itemRes.rows[0];
     const unit = item.unit || 'كجم';
 
-    // 2. Fetch From Branch & To Branch names
-    const branchesRes = await query('SELECT id, name FROM branches WHERE id IN ($1, $2)', [fromBranchId, toBranchId]);
-    const branchMap = {};
-    (branchesRes.rows || []).forEach(b => { branchMap[b.id] = b.name; });
-    const fromBranchName = branchMap[fromBranchId] || fromBranchId;
-    const toBranchName = branchMap[toBranchId] || toBranchId;
+    // 2. Support batch distribution (توزيع جماعي لفرعين في وقت واحد)
+    const distributions = body.distributions || [];
+    if (Array.isArray(distributions) && distributions.length > 0) {
+      const fromBranchId = body.from_branch_id || body.fromBranchId || 'b_main';
+      const results = [];
 
-    // 3. Check stock balance in main inventory or branch stock
-    const currentMainStock = parseFloat(item.current_stock || 0);
+      for (const dist of distributions) {
+        const toBranchId = dist.to_branch_id || dist.toBranchId;
+        const quantity = parseFloat(dist.quantity || 0);
+        if (!toBranchId || quantity <= 0) continue;
+        if (fromBranchId === toBranchId) continue;
 
-    // Update main inventory stock (deduct from main/source)
+        const singleResult = await processSingleTransfer({
+          fromBranchId,
+          toBranchId,
+          itemId,
+          quantity,
+          unit,
+          senderName,
+          notes: dist.notes || notes,
+          item
+        });
+        results.push(singleResult);
+      }
+
+      return NextResponse.json({ success: true, transfers: results }, { status: 201 });
+    }
+
+    // 3. Single Transfer Logic
+    const fromBranchId = body.from_branch_id || body.fromBranchId || 'b_main';
+    const toBranchId = body.to_branch_id || body.toBranchId;
+    const quantity = parseFloat(body.quantity || 0);
+
+    if (!fromBranchId || !toBranchId) {
+      return NextResponse.json({ error: 'برجاء تحديد الفرع المحول منه والفرع المحول إليه' }, { status: 400 });
+    }
+
+    if (fromBranchId === toBranchId) {
+      return NextResponse.json({ error: 'لا يمكن التحويل لنفس الفرع' }, { status: 400 });
+    }
+
+    if (quantity <= 0) {
+      return NextResponse.json({ error: 'برجاء تحديد كمية صحيحة أكبر من الصفر' }, { status: 400 });
+    }
+
+    const transferObj = await processSingleTransfer({
+      fromBranchId,
+      toBranchId,
+      itemId,
+      quantity,
+      unit,
+      senderName,
+      notes,
+      item
+    });
+
+    return NextResponse.json({ success: true, transfer: transferObj }, { status: 201 });
+
+  } catch (error) {
+    console.error('Error executing inventory transfer:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+async function processSingleTransfer({ fromBranchId, toBranchId, itemId, quantity, unit, senderName, notes, item }) {
+  // Fetch branch names
+  const branchesRes = await query('SELECT id, name FROM branches WHERE id IN ($1, $2)', [fromBranchId, toBranchId]);
+  const branchMap = { 'b_main': 'المخزن الرئيسي' };
+  (branchesRes.rows || []).forEach(b => { branchMap[b.id] = b.name; });
+  const fromBranchName = branchMap[fromBranchId] || fromBranchId;
+  const toBranchName = branchMap[toBranchId] || toBranchId;
+
+  // Deduct from Source
+  if (fromBranchId === 'b_main') {
     await query(
       'UPDATE inventory_items SET current_stock = GREATEST(0, current_stock - $1) WHERE id = $2',
       [quantity, itemId]
     );
+  } else {
+    await query(
+      `INSERT INTO inventory_branch_stock (id, item_id, branch_id, current_stock)
+       VALUES ($1, $2, $3, 0)
+       ON DUPLICATE KEY UPDATE current_stock = GREATEST(0, current_stock - $4)`,
+      [`obs_${Date.now()}_${Math.floor(Math.random() * 1000)}`, itemId, fromBranchId, quantity]
+    );
+  }
 
-    // 4. Update or Insert target branch stock in inventory_branch_stock
+  // Add to Destination
+  if (toBranchId === 'b_main') {
+    await query(
+      'UPDATE inventory_items SET current_stock = current_stock + $1 WHERE id = $2',
+      [quantity, itemId]
+    );
+  } else {
     await query(
       `INSERT INTO inventory_branch_stock (id, item_id, branch_id, current_stock)
        VALUES ($1, $2, $3, $4)
        ON DUPLICATE KEY UPDATE current_stock = current_stock + $4`,
       [`obs_${Date.now()}_${Math.floor(Math.random() * 1000)}`, itemId, toBranchId, quantity]
     );
-
-    // 5. Insert transfer log into inventory_transfers
-    const transferId = `trf_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-    const transferResult = await query(
-      `INSERT INTO inventory_transfers (id, from_branch_id, to_branch_id, item_id, quantity, unit, sender_name, status, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed', $8)
-       RETURNING *`,
-      [transferId, fromBranchId, toBranchId, itemId, quantity, unit, senderName, notes]
-    );
-
-    // 6. Log transactions
-    const tOutId = `trans_out_${Date.now()}`;
-    const tInId = `trans_in_${Date.now()}`;
-
-    await query(
-      `INSERT INTO inventory_transactions (id, item_id, type, quantity, notes) VALUES ($1, $2, 'transfer_out', $3, $4)`,
-      [tOutId, itemId, quantity, `تحويل خامة إلى ${toBranchName} - ${notes}`]
-    );
-
-    await query(
-      `INSERT INTO inventory_transactions (id, item_id, type, quantity, notes) VALUES ($1, $2, 'transfer_in', $3, $4)`,
-      [tInId, itemId, quantity, `استلام خامة محولة من ${fromBranchName} - ${notes}`]
-    );
-
-    const created = transferResult.rows && transferResult.rows.length > 0 ? transferResult.rows[0] : {
-      id: transferId,
-      from_branch_id: fromBranchId,
-      to_branch_id: toBranchId,
-      item_id: itemId,
-      quantity,
-      unit,
-      sender_name: senderName,
-      status: 'completed',
-      notes
-    };
-
-    return NextResponse.json({
-      success: true,
-      transfer: {
-        ...created,
-        from_branch_name: fromBranchName,
-        to_branch_name: toBranchName,
-        item_name: item.name
-      }
-    }, { status: 201 });
-
-  } catch (error) {
-    console.error('Error executing inventory transfer:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Log transfer record
+  const transferId = `trf_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+  const transferResult = await query(
+    `INSERT INTO inventory_transfers (id, from_branch_id, to_branch_id, item_id, quantity, unit, sender_name, status, notes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed', $8)
+     RETURNING *`,
+    [transferId, fromBranchId, toBranchId, itemId, quantity, unit, senderName, notes]
+  );
+
+  // Log audit transactions
+  await query(
+    `INSERT INTO inventory_transactions (id, item_id, type, quantity, notes) VALUES ($1, $2, 'transfer_out', $3, $4)`,
+    [`trans_out_${Date.now()}_${Math.floor(Math.random() * 1000)}`, itemId, quantity, `توزيع/تحويل إلى ${toBranchName} - ${notes}`]
+  );
+
+  await query(
+    `INSERT INTO inventory_transactions (id, item_id, type, quantity, notes) VALUES ($1, $2, 'transfer_in', $3, $4)`,
+    [`trans_in_${Date.now()}_${Math.floor(Math.random() * 1000)}`, itemId, quantity, `استلام خامة من ${fromBranchName} - ${notes}`]
+  );
+
+  const created = (transferResult.rows && transferResult.rows.length > 0) ? transferResult.rows[0] : {
+    id: transferId, from_branch_id: fromBranchId, to_branch_id: toBranchId, item_id: itemId, quantity, unit, sender_name: senderName, status: 'completed', notes
+  };
+
+  return {
+    ...created,
+    from_branch_name: fromBranchName,
+    to_branch_name: toBranchName,
+    item_name: item.name
+  };
 }
