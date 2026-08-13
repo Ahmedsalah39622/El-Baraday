@@ -487,7 +487,7 @@ export default function DeliveryPage() {
   const deliveredCount = (visibleDeliveryOrders || []).filter(o => o.status === 'delivered' || o.status === 'completed').length;
 
   // Driver Settlement Profile Aggregations
-  const driverProfiles = (drivers || []).filter(d => !selectedBranchId || selectedBranchId === 'all' || d.branch_id === selectedBranchId).map(d => {
+  const driverProfiles = (drivers || []).filter(d => !selectedBranchId || selectedBranchId === 'all' || !d.branch_id || d.branch_id === 'all' || d.branch_id === selectedBranchId).map(d => {
     const driverOrders = (visibleDeliveryOrders || []).filter(o => (o.driver_name === d.name || o.driverName === d.name || o.driver_id === d.id));
     const pendingOrders = driverOrders.filter(o => !o.is_cash_collected && !o.isCashCollected && o.status !== 'cash_collected');
     const collectedOrders = driverOrders.filter(o => o.is_cash_collected || o.isCashCollected || o.status === 'cash_collected');
