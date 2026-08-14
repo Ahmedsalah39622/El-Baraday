@@ -39,7 +39,7 @@ const initialPurchases = [
   {
     id: 'purch-3',
     branch_id: 'b2',
-    branch_name: 'الفرع الثاني',
+    branch_name: 'فرع المسلة',
     supplier_name: 'مزارع الوطنية للدواجن',
     item_name: 'صدور فراخ متبلة',
     quantity: 30,
@@ -55,7 +55,7 @@ const initialPurchases = [
   {
     id: 'purch-4',
     branch_id: 'b2',
-    branch_name: 'الفرع الثاني',
+    branch_name: 'فرع المسلة',
     supplier_name: 'شركة النيل للزيوت والبقالة',
     item_name: 'زيت خليط طهي 18 لتر',
     quantity: 5,
@@ -74,7 +74,7 @@ const initialExpenses = [
   {
     id: 'exp-1',
     branch_id: 'b1',
-    branch_name: 'الفرع الأول - الرئيسي',
+    branch_name: 'فرع عزت',
     title: 'فاتورة كهرباء شهر يوليو',
     category: 'مرافق وخدمات',
     amount: 3400,
@@ -85,7 +85,7 @@ const initialExpenses = [
   {
     id: 'exp-2',
     branch_id: 'b2',
-    branch_name: 'الفرع الثاني',
+    branch_name: 'فرع المسلة',
     title: 'شحن أسطوانات غاز تجاري (3 أسطوانات)',
     category: 'مستلزمات تشغيل',
     amount: 1350,

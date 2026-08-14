@@ -89,6 +89,27 @@ export async function POST(request) {
         `INSERT INTO inventory_transactions (id, item_id, type, quantity, notes) VALUES ($1, $2, 'waste', $3, $4)`,
         [`trans_${Date.now()}_${Math.floor(Math.random() * 1000)}`, item_id, numQty, `خصم هالك / تالف - ${notes || ''}`]
       );
+    } else if (adjustmentType === 'override' || adjustmentType === 'set' || adjustmentType === 'adjustment') {
+      // Direct physical stock override (تسوية جردية لتحديد قيمة الرصيد مباشرة)
+      if (targetBranch === 'b_main') {
+        await query(
+          'UPDATE inventory_items SET current_stock = $1 WHERE id = $2',
+          [numQty, item_id]
+        );
+      } else {
+        await query(
+          `INSERT INTO inventory_branch_stock (id, item_id, branch_id, current_stock)
+           VALUES ($1, $2, $3, $4)
+           ON DUPLICATE KEY UPDATE current_stock = $4`,
+          [`obs_${Date.now()}_${Math.floor(Math.random() * 1000)}`, item_id, targetBranch, numQty]
+        );
+      }
+
+      // Log transaction
+      await query(
+        `INSERT INTO inventory_transactions (id, item_id, type, quantity, notes) VALUES ($1, $2, 'adjustment', $3, $4)`,
+        [`trans_${Date.now()}_${Math.floor(Math.random() * 1000)}`, item_id, numQty, `تسوية رصيد جردية - ${notes || ''}`]
+      );
     }
 
     return NextResponse.json({ success: true, message: 'تم تسوية وتحديث مخزون الخامة بنجاح' });

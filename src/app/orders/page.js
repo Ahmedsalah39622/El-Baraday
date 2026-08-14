@@ -423,7 +423,7 @@ export default function OrdersPage() {
               const pm = row.paymentMethod || row.payment_method || 'cash';
 
               const branchObj = branches.find((b) => b.id === (row.branchId || row.branch_id));
-              const displayBranchName = row.branchName || (branchObj ? branchObj.name : ((row.branchId || row.branch_id) === 'b2' ? 'الفرع الثاني' : 'الفرع الأول - الرئيسي'));
+              const displayBranchName = row.branchName || (branchObj ? branchObj.name : ((row.branchId || row.branch_id) === 'b2' ? 'فرع المسلة' : ((row.branchId || row.branch_id) === 'b1' ? 'فرع عزت' : 'المخزن الرئيسي')));
 
               return (
                 <TableRow key={row.id} hover>

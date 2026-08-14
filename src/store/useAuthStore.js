@@ -16,7 +16,7 @@ if (typeof window !== 'undefined') {
 }
 
 export const ROLE_PERMISSIONS = {
-  admin:   ['/', '/invoices', '/returns', '/products', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance', '/inventory', '/salaries', '/reports', '/admin', '/settings'],
+  admin:   ['/', '/invoices', '/returns', '/products', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance', '/inventory', '/branches-inventory', '/salaries', '/reports', '/admin', '/settings'],
   cashier: ['/', '/invoices', '/returns', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance'],
   driver:  ['/delivery', '/attendance', '/orders'],
   kitchen: ['/orders'],
@@ -36,6 +36,7 @@ export const ALL_SYSTEM_SCREENS = [
   { path: '/delivery',      name: 'إدارة الدليفري والطيارين' },
   { path: '/attendance',    name: 'تمامات الموظفين والطيارين' },
   { path: '/inventory',     name: 'المخزن والمواد الخام' },
+  { path: '/branches-inventory', name: 'جرد ومتابعة خامات الفروع والتحويلات' },
   { path: '/salaries',      name: 'المرتبات والسلف للموظفين' },
   { path: '/reports',       name: 'التقارير والإحصائيات الحية' },
   { path: '/admin',         name: 'إدارة المستخدمين والأدمن' },

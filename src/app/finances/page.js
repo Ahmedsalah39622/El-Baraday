@@ -90,8 +90,8 @@ export default function FinancesPage() {
     return Array.isArray(branches) && branches.length > 0
       ? branches
       : [
-        { id: 'b1', name: 'الفرع الأول - الرئيسي' },
-        { id: 'b2', name: 'الفرع الثاني' },
+        { id: 'b1', name: 'فرع عزت' },
+        { id: 'b2', name: 'فرع المسلة' },
       ];
   }, [branches]);
 

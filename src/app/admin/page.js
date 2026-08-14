@@ -270,7 +270,7 @@ export default function AdminPage() {
                   <TableCell>
                     <Chip
                       icon={<Store sx={{ fontSize: '14px !important' }} />}
-                      label={u.branch_name || (u.branch_id === 'b2' ? 'الفرع الثاني' : 'الفرع الأول - الرئيسي')}
+                      label={u.branch_name || (u.branch_id === 'b2' ? 'فرع المسلة' : (u.branch_id === 'b1' ? 'فرع عزت' : 'المخزن الرئيسي'))}
                       size="small"
                       sx={{ bgcolor: '#F0FDF4', color: '#166534', fontWeight: 800 }}
                     />

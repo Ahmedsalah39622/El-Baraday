@@ -1593,8 +1593,8 @@ export default function SalariesPage() {
               onChange={(e) => setNewEmpData({ ...newEmpData, branchId: e.target.value })}
             >
               {(branches && branches.length > 0 ? branches : [
-                { id: 'b1', name: 'الفرع الأول - الرئيسي' },
-                { id: 'b2', name: 'الفرع الثاني' }
+                { id: 'b1', name: 'فرع عزت' },
+                { id: 'b2', name: 'فرع المسلة' }
               ]).map((b) => (
                 <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
               ))}
@@ -1677,8 +1677,8 @@ export default function SalariesPage() {
                   onChange={(e) => setEditEmpData({ ...editEmpData, branchId: e.target.value })}
                 >
                   {(branches && branches.length > 0 ? branches : [
-                    { id: 'b1', name: 'الفرع الأول - الرئيسي' },
-                    { id: 'b2', name: 'الفرع الثاني' }
+                    { id: 'b1', name: 'فرع عزت' },
+                    { id: 'b2', name: 'فرع المسلة' }
                   ]).map((b) => (
                     <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
                   ))}

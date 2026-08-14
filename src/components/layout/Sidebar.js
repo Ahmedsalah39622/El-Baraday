@@ -25,6 +25,7 @@ import {
   Receipt,
   CardGiftcard,
   AssignmentReturnOutlined,
+  Hub,
 } from '@mui/icons-material';
 import { useAuthStore } from '@/store/useAuthStore';
 
@@ -40,6 +41,7 @@ const navItems = [
   { id: 'shift-close', label: 'تقفيل شيفتات', icon: AccessTime, path: '/shift-summary' },
   { id: 'salaries', label: 'المرتبات والقبض', icon: AccountBalanceWallet, path: '/salaries' },
   { id: 'inventory', label: 'الخامات', icon: Inventory2Outlined, path: '/inventory' },
+  { id: 'branches-inventory', label: 'خامات الفروع', icon: Hub, path: '/branches-inventory' },
   { id: 'delivery', label: 'الدليفري', icon: DeliveryDining, path: '/delivery' },
   { id: 'attendance', label: 'تمامات الموظفين والطيارين', icon: HowToReg, path: '/attendance' },
   { id: 'reports', label: 'التقارير', icon: AssessmentOutlined, path: '/reports' },
@@ -187,17 +189,48 @@ export default function Sidebar() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    color: active ? '#FFFFFF' : '#9CA3AF',
-                    backgroundColor: active ? '#4285F4' : 'transparent',
-                    boxShadow: active ? '0 4px 12px rgba(66, 133, 244, 0.3)' : 'none',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    color: active ? '#FFFFFF' : '#6B7280',
+                    background: active
+                      ? 'linear-gradient(135deg, #60A5FA 0%, #2563EB 50%, #1D4ED8 100%)'
+                      : 'linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%)',
+                    border: active ? '1px solid #93C5FD' : '1px solid #E2E8F0',
+                    boxShadow: active
+                      ? 'inset 0 2px 3px rgba(255, 255, 255, 0.6), inset 0 -2px 3px rgba(0, 0, 0, 0.3), 0 8px 16px rgba(37, 99, 235, 0.4)'
+                      : 'inset 0 1px 2px rgba(255, 255, 255, 0.8), 0 2px 4px rgba(0, 0, 0, 0.04)',
+                    transform: active ? 'scale(1.05)' : 'scale(1)',
+                    '&::after': {
+                      content: '""',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: '50%',
+                      background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 100%)',
+                      borderRadius: '12px 12px 0 0',
+                      pointerEvents: 'none'
+                    },
                     '&:hover': {
-                      backgroundColor: active ? '#4285F4' : '#F3F4F6',
-                      color: active ? '#FFFFFF' : '#4285F4',
+                      transform: 'translateY(-2px) scale(1.08)',
+                      background: active
+                        ? 'linear-gradient(135deg, #93C5FD 0%, #3B82F6 50%, #2563EB 100%)'
+                        : 'linear-gradient(135deg, #FFFFFF 0%, #CBD5E1 100%)',
+                      boxShadow: active
+                        ? 'inset 0 2px 3px rgba(255, 255, 255, 0.8), inset 0 -2px 3px rgba(0, 0, 0, 0.3), 0 12px 20px rgba(37, 99, 235, 0.5)'
+                        : 'inset 0 1px 2px rgba(255, 255, 255, 0.9), 0 4px 8px rgba(0, 0, 0, 0.08)',
+                      color: active ? '#FFFFFF' : '#2563EB',
                     },
                   }}
                 >
-                  <Icon sx={{ fontSize: 22 }} />
+                  <Icon sx={{
+                    fontSize: 22,
+                    filter: active
+                      ? 'drop-shadow(0px 1px 1px rgba(0,0,0,0.3)) drop-shadow(0px -0.5px 0px rgba(255,255,255,0.4))'
+                      : 'drop-shadow(0px 1px 0px rgba(255,255,255,0.8)) drop-shadow(0px -0.5px 0px rgba(0,0,0,0.15))',
+                    transition: 'all 0.2s ease',
+                  }} />
                 </Box>
               </Tooltip>
             );
@@ -226,16 +259,50 @@ export default function Sidebar() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    color: item.isLogout ? '#EF4444' : (active ? '#FFFFFF' : '#9CA3AF'),
-                    backgroundColor: active ? '#4285F4' : 'transparent',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    color: item.isLogout ? '#EF4444' : (active ? '#FFFFFF' : '#6B7280'),
+                    background: active
+                      ? 'linear-gradient(135deg, #60A5FA 0%, #2563EB 50%, #1D4ED8 100%)'
+                      : (item.isLogout ? 'linear-gradient(135deg, #FFF5F5 0%, #FEE2E2 100%)' : 'linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%)'),
+                    border: active
+                      ? '1px solid #93C5FD'
+                      : (item.isLogout ? '1px solid #FCA5A5' : '1px solid #E2E8F0'),
+                    boxShadow: active
+                      ? 'inset 0 2px 3px rgba(255, 255, 255, 0.6), inset 0 -2px 3px rgba(0, 0, 0, 0.3), 0 8px 16px rgba(37, 99, 235, 0.4)'
+                      : (item.isLogout ? 'inset 0 1px 2px rgba(255, 255, 255, 0.8), 0 2px 4px rgba(239, 68, 68, 0.05)' : 'inset 0 1px 2px rgba(255, 255, 255, 0.8), 0 2px 4px rgba(0, 0, 0, 0.04)'),
+                    transform: active ? 'scale(1.05)' : 'scale(1)',
+                    '&::after': {
+                      content: '""',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: '50%',
+                      background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 100%)',
+                      borderRadius: '12px 12px 0 0',
+                      pointerEvents: 'none'
+                    },
                     '&:hover': {
-                      backgroundColor: item.isLogout ? '#FEE2E2' : (active ? '#4285F4' : '#F3F4F6'),
+                      transform: 'translateY(-2px) scale(1.08)',
+                      background: item.isLogout
+                        ? 'linear-gradient(135deg, #FEE2E2 0%, #FCA5A5 100%)'
+                        : (active ? 'linear-gradient(135deg, #93C5FD 0%, #3B82F6 50%, #2563EB 100%)' : 'linear-gradient(135deg, #FFFFFF 0%, #CBD5E1 100%)'),
+                      boxShadow: item.isLogout
+                        ? 'inset 0 2px 3px rgba(255, 255, 255, 0.8), inset 0 -2px 3px rgba(0, 0, 0, 0.1), 0 8px 16px rgba(239, 68, 68, 0.3)'
+                        : (active ? 'inset 0 2px 3px rgba(255, 255, 255, 0.8), inset 0 -2px 3px rgba(0, 0, 0, 0.3), 0 12px 20px rgba(37, 99, 235, 0.5)' : 'inset 0 1px 2px rgba(255, 255, 255, 0.9), 0 4px 8px rgba(0, 0, 0, 0.08)'),
                       color: item.isLogout ? '#DC2626' : (active ? '#FFFFFF' : '#4285F4'),
                     },
                   }}
                 >
-                  <Icon sx={{ fontSize: 22 }} />
+                  <Icon sx={{
+                    fontSize: 22,
+                    filter: active
+                      ? 'drop-shadow(0px 1px 1px rgba(0,0,0,0.3)) drop-shadow(0px -0.5px 0px rgba(255,255,255,0.4))'
+                      : (item.isLogout ? 'drop-shadow(0px 1px 0.5px rgba(255,255,255,0.8)) drop-shadow(0px -0.5px 0px rgba(0,0,0,0.15))' : 'drop-shadow(0px 1px 0px rgba(255,255,255,0.8)) drop-shadow(0px -0.5px 0px rgba(0,0,0,0.15))'),
+                    transition: 'all 0.2s ease',
+                  }} />
                 </Box>
               </Tooltip>
             );

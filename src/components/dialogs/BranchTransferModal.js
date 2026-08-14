@@ -253,9 +253,10 @@ export default function BranchTransferModal({ open, onClose }) {
                   sx={{ bgcolor: '#FFF', borderRadius: '10px', fontWeight: 800 }}
                 >
                   {inventoryItems.map((inv) => {
-                    const mainStock = inv.branchStocks?.b_main ?? inv.current_stock ?? inv.currentStock ?? 0;
-                    const b1Stock = inv.branchStocks?.b1 ?? 0;
-                    const b2Stock = inv.branchStocks?.b2 ?? 0;
+                    const bStocks = inv.branch_stocks || inv.branchStocks || {};
+                    const mainStock = bStocks.b_main ?? inv.current_stock ?? inv.currentStock ?? 0;
+                    const b1Stock = bStocks.b1 ?? 0;
+                    const b2Stock = bStocks.b2 ?? 0;
                     return (
                       <MenuItem key={inv.id} value={inv.id}>
                         🥩 <b>{inv.name}</b> — [المخزن الرئيسي: {mainStock} {inv.unit}] | [فرع عزت: {b1Stock}] | [فرع المسلة: {b2Stock}]
@@ -269,7 +270,7 @@ export default function BranchTransferModal({ open, onClose }) {
               <Box sx={{ p: 1, bgcolor: '#FFF', borderRadius: '10px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
                 <Typography variant="caption" color="text.secondary" fontWeight={700}>الرصيد بالمخزن الرئيسي:</Typography>
                 <Typography variant="h6" fontWeight={900} color="#4F46E5">
-                  {selectedItemObj ? (selectedItemObj.branchStocks?.b_main ?? selectedItemObj.currentStock ?? selectedItemObj.current_stock ?? 0) : 0} {selectedItemObj?.unit || 'كجم'}
+                  {selectedItemObj ? ((selectedItemObj.branch_stocks || selectedItemObj.branchStocks)?.b_main ?? selectedItemObj.currentStock ?? selectedItemObj.current_stock ?? 0) : 0} {selectedItemObj?.unit || 'كجم'}
                 </Typography>
               </Box>
             </Grid>
@@ -408,7 +409,7 @@ export default function BranchTransferModal({ open, onClose }) {
                     }}
                   />
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                    الرصيد الحالي بالفرع: {selectedItemObj?.branchStocks?.b1 || 0} {selectedItemObj?.unit || 'كجم'}
+                    الرصيد الحالي بالفرع: {(selectedItemObj?.branch_stocks || selectedItemObj?.branchStocks)?.b1 || 0} {selectedItemObj?.unit || 'كجم'}
                   </Typography>
                 </Paper>
               </Grid>
@@ -430,7 +431,7 @@ export default function BranchTransferModal({ open, onClose }) {
                     }}
                   />
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                    الرصيد الحالي بالفرع: {selectedItemObj?.branchStocks?.b2 || 0} {selectedItemObj?.unit || 'كجم'}
+                    الرصيد الحالي بالفرع: {(selectedItemObj?.branch_stocks || selectedItemObj?.branchStocks)?.b2 || 0} {selectedItemObj?.unit || 'كجم'}
                   </Typography>
                 </Paper>
               </Grid>
