@@ -90,9 +90,9 @@ export default function FinancesPage() {
     return Array.isArray(branches) && branches.length > 0
       ? branches
       : [
-          { id: 'b1', name: 'الفرع الأول - الرئيسي' },
-          { id: 'b2', name: 'الفرع الثاني' },
-        ];
+        { id: 'b1', name: 'الفرع الأول - الرئيسي' },
+        { id: 'b2', name: 'الفرع الثاني' },
+      ];
   }, [branches]);
 
   const branchFilterOptions = useMemo(() => {
@@ -414,8 +414,8 @@ export default function FinancesPage() {
           </thead>
           <tbody>
             ${displayedBranchSummary
-              .map(
-                (b) => `
+        .map(
+          (b) => `
               <tr>
                 <td><b>${b.branchName}</b></td>
                 <td>${b.revenue.toLocaleString()}</td>
@@ -426,8 +426,8 @@ export default function FinancesPage() {
                 <td class="paid">${b.netProfit.toLocaleString()}</td>
               </tr>
             `
-              )
-              .join('')}
+        )
+        .join('')}
           </tbody>
         </table>
 
@@ -446,8 +446,8 @@ export default function FinancesPage() {
           </thead>
           <tbody>
             ${filteredPurchases
-              .map(
-                (p) => `
+        .map(
+          (p) => `
               <tr>
                 <td>${p.branch_name || ''}</td>
                 <td>${p.supplier_name || ''}</td>
@@ -458,8 +458,8 @@ export default function FinancesPage() {
                 <td class="${parseFloat(p.remaining_amount) > 0 ? 'owed' : 'paid'}">${(parseFloat(p.remaining_amount) || 0).toLocaleString()}</td>
               </tr>
             `
-              )
-              .join('')}
+        )
+        .join('')}
           </tbody>
         </table>
 

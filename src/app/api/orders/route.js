@@ -3,14 +3,14 @@ import { NextResponse } from 'next/server';
 
 async function ensureOrderColumns() {
   if (isSchemaChecked('orderCols')) return;
-  try { await query('ALTER TABLE orders ADD COLUMN dispatched_at DATETIME DEFAULT NULL'); } catch(e){}
-  try { await query('ALTER TABLE orders ADD COLUMN delivered_to_customer_at DATETIME DEFAULT NULL'); } catch(e){}
-  try { await query('ALTER TABLE orders ADD COLUMN is_cash_collected TINYINT(1) DEFAULT 0'); } catch(e){}
-  try { await query('ALTER TABLE orders ADD COLUMN cash_collected_at DATETIME DEFAULT NULL'); } catch(e){}
-  try { await query('ALTER TABLE orders ADD COLUMN notes TEXT DEFAULT NULL'); } catch(e){}
-  try { await query('ALTER TABLE orders ADD COLUMN source_branch_name VARCHAR(255) DEFAULT NULL'); } catch(e){}
-  try { await query('ALTER TABLE orders ADD COLUMN customer_floor VARCHAR(50) DEFAULT NULL'); } catch(e){}
-  try { await query('ALTER TABLE orders ADD COLUMN customer_apartment VARCHAR(50) DEFAULT NULL'); } catch(e){}
+  try { await query('ALTER TABLE orders ADD COLUMN dispatched_at DATETIME DEFAULT NULL'); } catch (e) { }
+  try { await query('ALTER TABLE orders ADD COLUMN delivered_to_customer_at DATETIME DEFAULT NULL'); } catch (e) { }
+  try { await query('ALTER TABLE orders ADD COLUMN is_cash_collected TINYINT(1) DEFAULT 0'); } catch (e) { }
+  try { await query('ALTER TABLE orders ADD COLUMN cash_collected_at DATETIME DEFAULT NULL'); } catch (e) { }
+  try { await query('ALTER TABLE orders ADD COLUMN notes TEXT DEFAULT NULL'); } catch (e) { }
+  try { await query('ALTER TABLE orders ADD COLUMN source_branch_name VARCHAR(255) DEFAULT NULL'); } catch (e) { }
+  try { await query('ALTER TABLE orders ADD COLUMN customer_floor VARCHAR(50) DEFAULT NULL'); } catch (e) { }
+  try { await query('ALTER TABLE orders ADD COLUMN customer_apartment VARCHAR(50) DEFAULT NULL'); } catch (e) { }
   markSchemaChecked('orderCols');
 }
 
@@ -201,7 +201,7 @@ export async function POST(request) {
           `INSERT INTO order_items (id, order_id, product_id, product_name, price, quantity, size, extras, notes)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
           [itemId, order.id, prodId, item.product_name || item.name || 'صنف',
-          parseFloat(item.price) || 0, itemQty, item.size || null, item.extras || null, item.notes || null]
+            parseFloat(item.price) || 0, itemQty, item.size || null, item.extras || null, item.notes || null]
         );
 
         // 🥩 Automatic Inventory Raw Material Deductions (خصم الخامات والمكونات المربوطة بالأحجام)
@@ -225,10 +225,10 @@ export async function POST(request) {
 
                 // Match size logic
                 const matchesSize = ingSize === 'all' || ingSize === 'عادي' ||
-                                    ingSize === itemSize ||
-                                    (itemSize.includes('صغير') && (ingSize.includes('صغير') || ingSize === 'small')) ||
-                                    (itemSize.includes('كبير') && (ingSize.includes('كبير') || ingSize === 'large')) ||
-                                    (!itemSize && ingSize === 'all');
+                  ingSize === itemSize ||
+                  (itemSize.includes('صغير') && (ingSize.includes('صغير') || ingSize === 'small')) ||
+                  (itemSize.includes('كبير') && (ingSize.includes('كبير') || ingSize === 'large')) ||
+                  (!itemSize && ingSize === 'all');
 
                 if (!matchesSize) continue;
 
@@ -261,7 +261,6 @@ export async function POST(request) {
     if ((initialStatus === 'preparing' || isDispatched) && (driver_name || driver_id)) {
       const cleanName = (driver_name || '').trim();
       const cleanId = (driver_id || '').trim();
-      const firstName = cleanName.split(' ')[0] || cleanName;
 
       await query(
         `UPDATE driver_attendance
@@ -270,10 +269,8 @@ export async function POST(request) {
          AND (
            (driver_id = $2 AND $2 != '')
            OR (TRIM(driver_name) = $3 AND $3 != '')
-           OR (driver_name LIKE $4 AND $4 != '%%')
-           OR (driver_name LIKE $5 AND $5 != '%%')
          )`,
-        [order.id, cleanId, cleanName, `%${cleanName}%`, `%${firstName}%`]
+        [order.id, cleanId, cleanName]
       );
     }
 

@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 
 // Serverless-optimized MySQL connection pool for Hostinger phpMyAdmin
 let pool;
+let currentHostFallback = null;
 
 export function getPool() {
   if (!pool) {
@@ -11,7 +12,11 @@ export function getPool() {
     } else {
       const rawHost = (process.env.MYSQL_HOST || process.env.DB_HOST || 'srv1788.hstgr.io').trim();
       // Bypasses DNS resolution issues on Vercel serverless functions by using direct IP if domain fails
-      const host = (rawHost === 'localhost' || rawHost === '127.0.0.1') ? 'localhost' : (rawHost || 'srv1788.hstgr.io');
+      let host = (rawHost === 'localhost' || rawHost === '127.0.0.1') ? 'localhost' : (rawHost || 'srv1788.hstgr.io');
+
+      if (currentHostFallback) {
+        host = currentHostFallback;
+      }
 
       const config = {
         host: host,
@@ -22,9 +27,9 @@ export function getPool() {
         waitForConnections: true,
         connectionLimit: 5,
         queueLimit: 0,
-        connectTimeout: 10000,
-        enableKeepAlive: true,
-        keepAliveInitialDelay: 10000,
+        connectTimeout: 5000, // Fail fast to trigger retry/fallback
+        maxIdle: 5, // Keep connections alive to prevent connection handshake count exhaustion
+        idleTimeout: 60000, // Keep connections in pool for up to 60 seconds
       };
 
       if (process.env.MYSQL_SSL === 'true') {
@@ -59,11 +64,17 @@ export async function query(text, params = []) {
   try {
     let sql = text;
 
-    // 1. Convert Postgres $1, $2, $3 to MySQL ?
-    sql = sql.replace(/\$\d+/g, '?');
-
     // 2. Convert Postgres typecasts
     sql = sql.replace(/::(TEXT|jsonb|timestamptz|integer|int|numeric)/gi, '');
+
+    // 1. Convert Postgres $1, $2, $3 to MySQL ? and expand parameters accordingly
+    const matches = sql.match(/\$\d+/g);
+    let mappedParams = [...params];
+    if (matches) {
+      const indices = matches.map(m => parseInt(m.substring(1)));
+      sql = sql.replace(/\$\d+/g, '?');
+      mappedParams = indices.map(idx => params[idx - 1]);
+    }
 
     // 3. Convert gen_random_uuid() to explicit generated UUID string
     let genUuid = null;
@@ -104,7 +115,7 @@ export async function query(text, params = []) {
           /INSERT\s+INTO\s+(`?\w+`?)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i,
           (_, tbl, colList, valList) => `INSERT INTO ${tbl} (id, ${colList}) VALUES (?, ${valList})`
         );
-        params = [injectedId, ...params];
+        mappedParams = [injectedId, ...mappedParams];
       }
     }
 
@@ -122,7 +133,7 @@ export async function query(text, params = []) {
     }
 
     const isReadQuery = sql.trim().toUpperCase().startsWith('SELECT');
-    const cacheKey = isReadQuery ? `${sql}:${JSON.stringify(params)}` : null;
+    const cacheKey = isReadQuery ? `${sql}:${JSON.stringify(mappedParams)}` : null;
 
     if (isReadQuery && cacheKey && queryCache.has(cacheKey)) {
       const cached = queryCache.get(cacheKey);
@@ -131,8 +142,53 @@ export async function query(text, params = []) {
       }
     }
 
-    const currentPool = getPool();
-    const [result] = await currentPool.query(sql, params);
+    let result;
+    let attempts = 0;
+    const maxAttempts = 2;
+
+    while (attempts < maxAttempts) {
+      try {
+        const currentPool = getPool();
+        const [res] = await currentPool.query(sql, mappedParams);
+        result = res;
+        break;
+      } catch (err) {
+        attempts++;
+        const isConnectionError = [
+          'PROTOCOL_CONNECTION_LOST',
+          'ECONNRESET',
+          'EPIPE',
+          'ETIMEDOUT',
+          'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR',
+          'PROTOCOL_CONNECTION_CLOSE',
+          'ER_SERVER_SHUTDOWN',
+          'HANDSHAKE_TIMEOUT',
+          'ENOTFOUND',
+          'ECONNREFUSED'
+        ].includes(err.code);
+
+        if (isConnectionError && attempts < maxAttempts) {
+          const rawHost = (process.env.MYSQL_HOST || process.env.DB_HOST || 'srv1788.hstgr.io').trim();
+          console.warn(`⚠️ MySQL Connection error encountered (${err.code}). Recreating pool and retrying (attempt ${attempts}/${maxAttempts})...`);
+
+          if ((err.code === 'ENOTFOUND' || err.code === 'ETIMEDOUT') && rawHost === 'srv1788.hstgr.io') {
+            console.log('Falling back to direct IP address 193.203.168.173 to bypass DNS issues.');
+            currentHostFallback = '193.203.168.173';
+          }
+
+          if (global._mysqlPool) {
+            const oldPool = global._mysqlPool;
+            global._mysqlPool = null;
+            pool = null;
+            oldPool.end().catch(() => { });
+          }
+
+          await new Promise(resolve => setTimeout(resolve, 500));
+          continue;
+        }
+        throw err;
+      }
+    }
 
     let rows = [];
     let rowCount = 0;
@@ -144,9 +200,10 @@ export async function query(text, params = []) {
       rowCount = result.affectedRows || 0;
       if (hasReturning && tableName) {
         // Use injected UUID, or genUuid, or MySQL insertId, or last param (WHERE id = ?), or first param
-        const idParam = injectedId || genUuid || (result.insertId && result.insertId !== 0 ? result.insertId : null) || params[params.length - 1] || params[0];
+        const idParam = injectedId || genUuid || (result.insertId && result.insertId !== 0 ? result.insertId : null) || mappedParams[mappedParams.length - 1] || mappedParams[0];
         if (idParam) {
           try {
+            const currentPool = getPool();
             const [fetchedRows] = await currentPool.query(`SELECT * FROM \`${tableName}\` WHERE id = ?`, [idParam]);
             if (fetchedRows && fetchedRows.length > 0) {
               rows = fetchedRows;
@@ -189,27 +246,92 @@ export async function query(text, params = []) {
 
 export async function transaction(queries) {
   queryCache.clear();
-  const currentPool = getPool();
-  const connection = await currentPool.getConnection();
-  try {
-    await connection.beginTransaction();
-    const results = [];
-    for (const q of queries) {
-      let sql = q.text.replace(/\$\d+/g, '?')
-        .replace(/::(TEXT|jsonb|timestamptz|integer|int|numeric)/gi, '')
-        .replace(/gen_random_uuid\(\)/gi, 'UUID()')
-        .replace(/\bILIKE\b/gi, 'LIKE')
-        .replace(/\s+RETURNING\s+(\*|\w+)/gi, '');
-      const [res] = await connection.query(sql, q.params || []);
-      results.push({ rows: Array.isArray(res) ? res : [], rowCount: res.affectedRows || 0 });
+  let attempts = 0;
+  const maxAttempts = 2;
+
+  while (attempts < maxAttempts) {
+    let connection = null;
+    try {
+      const currentPool = getPool();
+      connection = await currentPool.getConnection();
+      await connection.beginTransaction();
+      const results = [];
+      for (const q of queries) {
+        let sql = q.text
+          .replace(/::(TEXT|jsonb|timestamptz|integer|int|numeric)/gi, '')
+          .replace(/gen_random_uuid\(\)/gi, 'UUID()')
+          .replace(/\bILIKE\b/gi, 'LIKE')
+          .replace(/\s+RETURNING\s+(\*|\w+)/gi, '');
+
+        const matches = sql.match(/\$\d+/g);
+        let mappedParams = q.params ? [...q.params] : [];
+        if (matches) {
+          const indices = matches.map(m => parseInt(m.substring(1)));
+          sql = sql.replace(/\$\d+/g, '?');
+          mappedParams = indices.map(idx => (q.params || [])[idx - 1]);
+        } else {
+          sql = sql.replace(/\$\d+/g, '?'); // safety fallback
+        }
+
+        const [res] = await connection.query(sql, mappedParams);
+        results.push({ rows: Array.isArray(res) ? res : [], rowCount: res.affectedRows || 0 });
+      }
+      await connection.commit();
+      return results;
+    } catch (err) {
+      attempts++;
+      if (connection) {
+        try {
+          await connection.rollback();
+        } catch (rollbackErr) {
+          // ignore rollback failure
+        }
+        try {
+          connection.release();
+        } catch (releaseErr) {
+          // ignore release failure
+        }
+        connection = null;
+      }
+
+      const isConnectionError = [
+        'PROTOCOL_CONNECTION_LOST',
+        'ECONNRESET',
+        'EPIPE',
+        'ETIMEDOUT',
+        'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR',
+        'PROTOCOL_CONNECTION_CLOSE',
+        'ER_SERVER_SHUTDOWN',
+        'HANDSHAKE_TIMEOUT',
+        'ENOTFOUND',
+        'ECONNREFUSED'
+      ].includes(err.code);
+
+      if (isConnectionError && attempts < maxAttempts) {
+        const rawHost = (process.env.MYSQL_HOST || process.env.DB_HOST || 'srv1788.hstgr.io').trim();
+        console.warn(`⚠️ MySQL Transaction connection error encountered (${err.code}). Recreating pool and retrying (attempt ${attempts}/${maxAttempts})...`);
+
+        if ((err.code === 'ENOTFOUND' || err.code === 'ETIMEDOUT') && rawHost === 'srv1788.hstgr.io') {
+          console.log('Falling back to direct IP address 193.203.168.173 to bypass DNS issues.');
+          currentHostFallback = '193.203.168.173';
+        }
+
+        if (global._mysqlPool) {
+          const oldPool = global._mysqlPool;
+          global._mysqlPool = null;
+          pool = null;
+          oldPool.end().catch(() => { });
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+        continue;
+      }
+      throw err;
+    } finally {
+      if (connection) {
+        connection.release();
+      }
     }
-    await connection.commit();
-    return results;
-  } catch (e) {
-    await connection.rollback();
-    throw e;
-  } finally {
-    connection.release();
   }
 }
 

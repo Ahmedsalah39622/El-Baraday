@@ -163,7 +163,7 @@ export default function DeliveryPage() {
     const isCollected = o.is_cash_collected || o.isCashCollected || o.status === 'cash_collected';
     const isCompletedOrCancelled = o.status === 'completed' || o.status === 'cancelled';
     const isPendingOrUncollectedDelivery = !isCollected || !isCompletedOrCancelled;
-    
+
     if (isPendingOrUncollectedDelivery) return true;
 
     // 2. If user toggles "عرض كافة الشيفتات السابقة", show all
@@ -181,8 +181,8 @@ export default function DeliveryPage() {
       const orderDate = new Date(o.created_at || o.createdAt);
       const today = new Date();
       return orderDate.getFullYear() === today.getFullYear() &&
-             orderDate.getMonth() === today.getMonth() &&
-             orderDate.getDate() === today.getDate();
+        orderDate.getMonth() === today.getMonth() &&
+        orderDate.getDate() === today.getDate();
     }
 
     const rawShiftStart = branchActiveShift.start_time || branchActiveShift.rawStartTime || branchActiveShift.created_at;
@@ -194,8 +194,8 @@ export default function DeliveryPage() {
       const orderDate = new Date(orderTime);
       const shiftDate = new Date(shiftStart);
       const isSameDay = orderDate.getFullYear() === shiftDate.getFullYear() &&
-                        orderDate.getMonth() === shiftDate.getMonth() &&
-                        orderDate.getDate() === shiftDate.getDate();
+        orderDate.getMonth() === shiftDate.getMonth() &&
+        orderDate.getDate() === shiftDate.getDate();
       return isSameDay;
     }
 
@@ -214,7 +214,7 @@ export default function DeliveryPage() {
   readyDrivers.forEach((q, idx) => {
     if (q.driver_name && !dispatchDriverOptions.some(opt => opt.name === q.driver_name)) {
       dispatchDriverOptions.push({
-        id: q.id || `q_${idx}`,
+        id: q.driver_id || q.id || `q_${idx}`,
         name: q.driver_name,
         label: `${idx === 0 ? '👑' : '🟢'} ${q.driver_name} (الدور ${idx + 1} - التالي)`
       });
@@ -224,7 +224,7 @@ export default function DeliveryPage() {
   onDeliveryDrivers.forEach((q) => {
     if (q.driver_name && !dispatchDriverOptions.some(opt => opt.name === q.driver_name)) {
       dispatchDriverOptions.push({
-        id: q.id,
+        id: q.driver_id || q.id,
         name: q.driver_name,
         label: `🛵 ${q.driver_name} (في مشوار توصيل حالياً)`
       });
@@ -427,7 +427,7 @@ export default function DeliveryPage() {
   const handleSendWhatsAppToCustomer = async (order) => {
     const driverName = order.driver_name || order.driverName;
     const foundDriver = (activeQueue || []).find(q => q.driver_name === driverName || q.name === driverName)
-                     || (drivers || []).find(d => d.name === driverName);
+      || (drivers || []).find(d => d.name === driverName);
     const driverPhone = foundDriver?.driver_phone || foundDriver?.phone || '';
 
     try {
@@ -593,7 +593,8 @@ export default function DeliveryPage() {
       { label: 'رقم الطلب', accessor: (o) => `#${o.order_number || o.orderNumber}` },
       { label: 'الطيار', accessor: (o) => o.driver_name || o.driverName || '—' },
       { label: 'العميل والفرع', accessor: (o) => `${o.customer_name || o.customerName || 'عميل'} (${o.branch_name || 'الرئيسي'})` },
-      { label: 'قيمة الأوردر (صافي)', accessor: (o) => {
+      {
+        label: 'قيمة الأوردر (صافي)', accessor: (o) => {
           const tot = parseFloat(o.total || 0);
           const fee = parseFloat(o.delivery_fee || o.deliveryFee || 0);
           const sub = parseFloat(o.subtotal || 0) || Math.max(0, tot - fee);
@@ -761,9 +762,9 @@ export default function DeliveryPage() {
                 {isDelivered
                   ? `✅ اكتمل التوصيل | الطيار: ${order.driver_name || order.driverName || '—'}`
                   : (isDispatched
-                      ? `🚀 خارج للتوصيل | الطيار: ${order.driver_name || order.driverName || '—'}`
-                      : `⏳ قيد التحضير بالمطبخ | الطيار: ${order.driver_name || order.driverName || 'لم يحدد بعد'}`
-                    )
+                    ? `🚀 خارج للتوصيل | الطيار: ${order.driver_name || order.driverName || '—'}`
+                    : `⏳ قيد التحضير بالمطبخ | الطيار: ${order.driver_name || order.driverName || 'لم يحدد بعد'}`
+                  )
                 }
               </Typography>
             </Box>
@@ -1220,7 +1221,7 @@ export default function DeliveryPage() {
                           ⏳ قيد التحضير بالمطبخ
                         </Typography>
                         <Typography variant="caption" color="#D97706" fontWeight={700}>
-                          إجمالي: {(filteredOrders.filter(o => !o.dispatched_at && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cash_collected').reduce((s,o) => s + (parseFloat(o.total)||0), 0)).toLocaleString()} ج.م
+                          إجمالي: {(filteredOrders.filter(o => !o.dispatched_at && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cash_collected').reduce((s, o) => s + (parseFloat(o.total) || 0), 0)).toLocaleString()} ج.م
                         </Typography>
                       </Box>
                     </Box>
@@ -1264,7 +1265,7 @@ export default function DeliveryPage() {
                           🚀 خارج للتوصيل (مع العداد)
                         </Typography>
                         <Typography variant="caption" color="#2563EB" fontWeight={700}>
-                          إجمالي: {(filteredOrders.filter(o => !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cash_collected').reduce((s,o) => s + (parseFloat(o.total)||0), 0)).toLocaleString()} ج.م
+                          إجمالي: {(filteredOrders.filter(o => !!o.dispatched_at && o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cash_collected').reduce((s, o) => s + (parseFloat(o.total) || 0), 0)).toLocaleString()} ج.م
                         </Typography>
                       </Box>
                     </Box>
@@ -1308,7 +1309,7 @@ export default function DeliveryPage() {
                           ✅ تم التوصيل (مكتمل)
                         </Typography>
                         <Typography variant="caption" color="#15803D" fontWeight={700}>
-                          إجمالي: {(filteredOrders.filter(o => o.status === 'delivered' || o.status === 'completed' || o.status === 'cash_collected').reduce((s,o) => s + (parseFloat(o.total)||0), 0)).toLocaleString()} ج.م
+                          إجمالي: {(filteredOrders.filter(o => o.status === 'delivered' || o.status === 'completed' || o.status === 'cash_collected').reduce((s, o) => s + (parseFloat(o.total) || 0), 0)).toLocaleString()} ج.م
                         </Typography>
                       </Box>
                     </Box>
@@ -1968,7 +1969,8 @@ export default function DeliveryPage() {
                   { label: 'رقم الطلب', accessor: (o) => `#${o.order_number || o.orderNumber}` },
                   { label: 'الطيار', accessor: (o) => o.driver_name || o.driverName || '—' },
                   { label: 'العميل', accessor: (o) => o.customer_name || o.customerName || 'عميل' },
-                  { label: 'صافي الأوردر', accessor: (o) => {
+                  {
+                    label: 'صافي الأوردر', accessor: (o) => {
                       const tot = parseFloat(o.total || 0);
                       const fee = parseFloat(o.delivery_fee || o.deliveryFee || 0);
                       return `${(parseFloat(o.subtotal || 0) || Math.max(0, tot - fee)).toLocaleString()} ج.م`;

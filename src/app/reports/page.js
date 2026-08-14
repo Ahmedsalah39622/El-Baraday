@@ -207,7 +207,7 @@ export default function ReportsPage() {
     } else if (activeTab === 'delivery') {
       reportTitle = 'تقرير طلبات وأداء الدليفري';
       columns = [
-        { label: 'رقم الطلب', accessor: (r) => `#${r.orderNumber || r.id?.slice(0,6)}` },
+        { label: 'رقم الطلب', accessor: (r) => `#${r.orderNumber || r.id?.slice(0, 6)}` },
         { label: 'العميل', accessor: (r) => r.customerName || 'عميل' },
         { label: 'الهاتف', accessor: (r) => r.customerPhone || '-' },
         { label: 'الطيار', key: 'driverName', accessor: (r) => r.driverName || 'غير محدد' },
@@ -289,7 +289,7 @@ export default function ReportsPage() {
     } else if (activeTab === 'orders') {
       reportTitle = 'تقرير كشف الطلبات التفصيلي';
       columns = [
-        { label: 'رقم الطلب', accessor: (r) => `#${r.orderNumber || r.id?.slice(0,6)}` },
+        { label: 'رقم الطلب', accessor: (r) => `#${r.orderNumber || r.id?.slice(0, 6)}` },
         { label: 'نوع الطلب', accessor: (r) => r.orderType === 'delivery' ? 'دليفري' : 'تيك أوي' },
         { label: 'العميل', key: 'customerName', accessor: (r) => r.customerName || 'كاشير' },
         { label: 'التاريخ والوقت', accessor: (r) => new Date(r.createdAt || Date.now()).toLocaleString('ar-EG') },
