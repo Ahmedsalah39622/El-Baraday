@@ -233,8 +233,8 @@ export async function POST(request) {
                 if (!matchesSize) continue;
 
                 const deductAmount = (parseFloat(ing.quantity) || 0) * itemQty;
-                if (deductAmount > 0) {
-                  // Deduct from inventory_items current_stock
+                if (deductAmount !== 0) {
+                  // Deduct (or add) from/to inventory_items current_stock
                   await query(
                     'UPDATE inventory_items SET current_stock = GREATEST(0, current_stock - $1) WHERE id = $2',
                     [deductAmount, ing.inventory_item_id]
@@ -242,10 +242,16 @@ export async function POST(request) {
 
                   // Log transaction
                   const transId = `trans_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+                  const isDeduction = deductAmount > 0;
+                  const transType = isDeduction ? 'out' : 'in';
+                  const transNotes = isDeduction
+                    ? `خصم أوتوماتيكي (${item.size || 'عادي'}) - طلب #${nextNum}`
+                    : `إضافة أوتوماتيكية وصفة (${item.size || 'عادي'}) - طلب #${nextNum}`;
+
                   await query(
                     `INSERT INTO inventory_transactions (id, item_id, type, quantity, notes)
-                     VALUES ($1, $2, 'out', $3, $4)`,
-                    [transId, ing.inventory_item_id, deductAmount, `خصم أوتوماتيكي (${item.size || 'عادي'}) - طلب #${nextNum}`]
+                     VALUES ($1, $2, $3, $4, $5)`,
+                    [transId, ing.inventory_item_id, transType, Math.abs(deductAmount), transNotes]
                   );
                 }
               }

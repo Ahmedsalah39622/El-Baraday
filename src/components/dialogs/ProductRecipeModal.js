@@ -19,12 +19,14 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
   const [selectedInventoryId, setSelectedInventoryId] = useState('');
   const [quantity, setQuantity] = useState('0.15');
   const [unitMode, setUnitMode] = useState('base'); // 'base' or 'gram'
+  const [actionType, setActionType] = useState('deduct'); // 'deduct' or 'add'
   const [selectedSize, setSelectedSize] = useState('all');
   const [addSuccess, setAddSuccess] = useState(false);
 
-  // Reset unit mode when selected raw material changes
+  // Reset unit mode and action type when selected raw material changes
   useEffect(() => {
     setUnitMode('base');
+    setActionType('deduct');
   }, [selectedInventoryId]);
 
   // Load all products and inventory items when modal opens
@@ -106,6 +108,11 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
       finalQty = numQty / 1000;
     }
 
+    // If actionType is add (+), we save the quantity as a negative number in the recipe table
+    if (actionType === 'add') {
+      finalQty = -finalQty;
+    }
+
     try {
       const res = await fetch('/api/products/ingredients', {
         method: 'POST',
@@ -124,6 +131,7 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
         setSelectedInventoryId('');
         setQuantity('0.15');
         setUnitMode('base');
+        setActionType('deduct');
         loadProductIngredients(selectedProduct.id);
       }
     } catch (err) {
@@ -288,12 +296,12 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
               <AddIcon sx={{ fontSize: 20 }} /> إضافة خامة جديدة لـ ({selectedProduct.name}):
             </Typography>
             <Grid container spacing={2} alignItems="center">
-              <Grid xs={12} sm={4}>
+              <Grid xs={12} sm={3.5}>
                 <FormControl fullWidth size="small">
-                  <InputLabel>اختر الخامة المراد خصمها *</InputLabel>
+                  <InputLabel>{actionType === 'add' ? "اختر الخامة المراد إضافتها *" : "اختر الخامة المراد خصمها *"}</InputLabel>
                   <Select
                     value={selectedInventoryId}
-                    label="اختر الخامة المراد خصمها *"
+                    label={actionType === 'add' ? "اختر الخامة المراد إضافتها *" : "اختر الخامة المراد خصمها *"}
                     onChange={(e) => setSelectedInventoryId(e.target.value)}
                     sx={{ bgcolor: '#FFF' }}
                   >
@@ -306,7 +314,7 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
                 </FormControl>
               </Grid>
 
-              <Grid xs={12} sm={3}>
+              <Grid xs={12} sm={2}>
                 <FormControl fullWidth size="small">
                   <InputLabel>الحجم المخصص *</InputLabel>
                   <Select
@@ -315,19 +323,34 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
                     onChange={(e) => setSelectedSize(e.target.value)}
                     sx={{ bgcolor: '#FFF' }}
                   >
-                    <MenuItem value="all">🌐 الكل / جميع الأحجام</MenuItem>
-                    <MenuItem value="صغير">📏 صغير (Small)</MenuItem>
-                    <MenuItem value="كبير">📏 كبير (Large)</MenuItem>
+                    <MenuItem value="all">🌐 الكل / عادي</MenuItem>
+                    <MenuItem value="صغير">📏 صغير</MenuItem>
+                    <MenuItem value="كبير">📏 كبير</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
 
-              <Grid xs={12} sm={3}>
+              <Grid xs={12} sm={2.5}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>طريقة التأثير بالمخزن *</InputLabel>
+                  <Select
+                    value={actionType}
+                    label="طريقة التأثير بالمخزن *"
+                    onChange={(e) => setActionType(e.target.value)}
+                    sx={{ bgcolor: '#FFF' }}
+                  >
+                    <MenuItem value="deduct">🔻 خصم من المخزن (-)</MenuItem>
+                    <MenuItem value="add">🟢 إنتاج / إضافة للمخزن (+)</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid xs={12} sm={2.5}>
                 <TextField
                   fullWidth
                   size="small"
                   type="number"
-                  label="الكمية المخصومة"
+                  label={actionType === 'add' ? "الكمية المضافة (+)" : "الكمية المخصومة (-)"}
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
                   placeholder={supportsGrams && unitMode === 'gram' ? "مثال: 150" : "مثال: 0.150"}
@@ -351,7 +374,7 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
                 />
               </Grid>
 
-              <Grid xs={12} sm={2}>
+              <Grid xs={12} sm={1.5}>
                 <Button
                   fullWidth
                   variant="contained"
@@ -380,7 +403,7 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
                     <TableCell sx={{ fontWeight: 800 }}>اسم الخامة</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>الفئة</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>الحجم المخصص</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>الكمية المخصومة</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>الكمية بالوصفة</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>الوحدة</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>تكلفة التكعيب للمنتج</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>الرصيد المتاح حالياً</TableCell>
@@ -407,7 +430,9 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
                             <Chip label="🌐 الكل / عادي" size="small" sx={{ bgcolor: '#F3F4F6', color: '#374151', fontWeight: 700 }} />
                           )}
                         </TableCell>
-                        <TableCell sx={{ fontWeight: 900, color: '#2563EB' }}>{ingQty}</TableCell>
+                        <TableCell sx={{ fontWeight: 900, color: ingQty < 0 ? '#10B981' : '#DC2626' }}>
+                          {ingQty < 0 ? `+ ${Math.abs(ingQty)} (إضافة)` : `- ${ingQty} (خصم)`}
+                        </TableCell>
                         <TableCell sx={{ color: '#64748B' }}>{ing.inventory_item_unit || 'كجم'}</TableCell>
                         <TableCell sx={{ fontWeight: 800, color: '#166534' }}>{itemCost.toFixed(2)} ج.م</TableCell>
                         <TableCell sx={{ fontWeight: 700, color: stock <= 5 ? '#DC2626' : '#475569' }}>
