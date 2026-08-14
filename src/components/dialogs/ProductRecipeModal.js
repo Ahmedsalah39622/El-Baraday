@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography,
   FormControl, InputLabel, Select, MenuItem, TextField, Paper, Table, TableHead,
-  TableRow, TableCell, TableBody, TableContainer, IconButton, Tooltip, Chip, Alert, Grid, Divider, Autocomplete
+  TableRow, TableCell, TableBody, TableContainer, IconButton, Tooltip, Chip, Alert, Grid, Divider, Autocomplete, InputAdornment
 } from '@mui/material';
 import { Delete as DeleteIcon, Add as AddIcon, Science, AttachMoney, Inventory, CheckCircle } from '@mui/icons-material';
 
@@ -18,8 +18,14 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
   // New ingredient form
   const [selectedInventoryId, setSelectedInventoryId] = useState('');
   const [quantity, setQuantity] = useState('0.15');
+  const [unitMode, setUnitMode] = useState('base'); // 'base' or 'gram'
   const [selectedSize, setSelectedSize] = useState('all');
   const [addSuccess, setAddSuccess] = useState(false);
+
+  // Reset unit mode when selected raw material changes
+  useEffect(() => {
+    setUnitMode('base');
+  }, [selectedInventoryId]);
 
   // Load all products and inventory items when modal opens
   useEffect(() => {
@@ -91,6 +97,15 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
       return;
     }
 
+    const selectedInvItem = inventoryItems.find(item => item.id === selectedInventoryId);
+    const itemUnit = selectedInvItem?.unit || '';
+    const supportsGrams = itemUnit === 'كجم' || itemUnit === 'لتر';
+
+    let finalQty = numQty;
+    if (supportsGrams && unitMode === 'gram') {
+      finalQty = numQty / 1000;
+    }
+
     try {
       const res = await fetch('/api/products/ingredients', {
         method: 'POST',
@@ -98,7 +113,7 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
         body: JSON.stringify({
           product_id: selectedProduct.id,
           inventory_item_id: selectedInventoryId,
-          quantity: numQty,
+          quantity: finalQty,
           size: selectedSize
         })
       });
@@ -108,6 +123,7 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
         setTimeout(() => setAddSuccess(false), 2500);
         setSelectedInventoryId('');
         setQuantity('0.15');
+        setUnitMode('base');
         loadProductIngredients(selectedProduct.id);
       }
     } catch (err) {
@@ -196,6 +212,10 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
   }, 0);
   const netProfit = Math.max(0, sellingPrice - totalRecipeCost);
   const profitMarginPercent = sellingPrice > 0 ? Math.round((netProfit / sellingPrice) * 100) : 0;
+
+  const selectedInvItem = inventoryItems.find(item => item.id === selectedInventoryId);
+  const itemUnit = selectedInvItem?.unit || '';
+  const supportsGrams = itemUnit === 'كجم' || itemUnit === 'لتر';
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth slotProps={{ paper: { sx: { borderRadius: '20px', p: 1 } } }}>
@@ -310,7 +330,23 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
                   label="الكمية المخصومة"
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
-                  placeholder="مثال: 0.150"
+                  placeholder={supportsGrams && unitMode === 'gram' ? "مثال: 150" : "مثال: 0.150"}
+                  InputProps={{
+                    endAdornment: supportsGrams && (
+                      <InputAdornment position="end">
+                        <Select
+                          value={unitMode}
+                          onChange={(e) => setUnitMode(e.target.value)}
+                          variant="standard"
+                          disableUnderline
+                          sx={{ fontSize: '0.85rem', fontWeight: 800, color: '#3B82F6', cursor: 'pointer', mr: 0.5 }}
+                        >
+                          <MenuItem value="base" sx={{ fontWeight: 700 }}>{itemUnit}</MenuItem>
+                          <MenuItem value="gram" sx={{ fontWeight: 700 }}>{itemUnit === 'كجم' ? 'جرام' : 'ملّي'}</MenuItem>
+                        </Select>
+                      </InputAdornment>
+                    )
+                  }}
                   sx={{ bgcolor: '#FFF' }}
                 />
               </Grid>
