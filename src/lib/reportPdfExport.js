@@ -9,6 +9,7 @@ export function generateReportPDF({
   data = [],
   totals = null,
   pageSize = '80mm', // Default to 80mm POS Thermal Printer Format
+  layoutMode = 'auto', // 'auto', 'vertical', or 'table'
 }) {
   if (!data) return;
 
@@ -18,6 +19,9 @@ export function generateReportPDF({
   let html = '';
 
   if (pageSize === '80mm') {
+    // Determine whether to use a vertical card layout or a standard horizontal table
+    const actualLayoutMode = layoutMode === 'vertical' || (layoutMode === 'auto' && columns.length > 4) ? 'vertical' : 'table';
+
     // 🧾 80mm POS Thermal Printer Bulletproof Format
     const tableHeaderHtml = columns
       .map(c => `<th style="padding: 4px 2px; border: 1px solid #000; background-color: #E2E8F0; color: #000; font-weight: 900; font-size: 9.5px; text-align: center; word-break: break-word;">${c.label}</th>`)
@@ -45,6 +49,95 @@ export function generateReportPDF({
         return `<td style="padding: 5px 2px; border: 1px solid #000; background-color: #000; font-weight: 900; font-size: 10px; color: #FFF; text-align: center;">${cleanVal}</td>`;
       }).join('');
       totalsRowHtml = `<tfoot><tr style="background-color: #000; color: #FFF;">${totalCells}</tr></tfoot>`;
+    }
+
+    let mainContentHtml = '';
+    if (actualLayoutMode === 'vertical') {
+      const cardsHtml = data.map((row, idx) => {
+        const rowFields = columns.map(c => {
+          let val = typeof c.accessor === 'function' ? c.accessor(row, idx) : row[c.accessor];
+          if (val === undefined || val === null) val = '';
+          const cleanVal = String(val).replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '').trim();
+          return { label: c.label, val: cleanVal };
+        });
+
+        const indexVal = rowFields[0] ? rowFields[0].val : `${idx + 1}`;
+        const mainTitleLabel = rowFields[1] ? rowFields[1].label : '';
+        const mainTitleVal = rowFields[1] ? rowFields[1].val : '';
+        const detailFields = rowFields.slice(2);
+
+        return `
+          <div style="border: 1px solid #000; border-radius: 4px; padding: 6px; margin-bottom: 6px; background-color: ${idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC'}; page-break-inside: avoid;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #000; padding-bottom: 4px; margin-bottom: 5px;">
+              <span style="font-size: 11px; font-weight: 900; color: #000;">
+                ${mainTitleLabel ? `${mainTitleLabel}: ${mainTitleVal}` : mainTitleVal}
+              </span>
+              <span style="background-color: #000; color: #FFF; font-size: 9px; font-weight: 900; padding: 1px 5px; border-radius: 2px;">
+                # ${indexVal}
+              </span>
+            </div>
+            <table style="width: 100%; border-collapse: collapse; border: none; margin: 0;">
+              <tbody>
+                ${detailFields.map(field => `
+                  <tr style="border-bottom: 1px dashed #E2E8F0;">
+                    <td style="padding: 3px 2px; font-size: 9.5px; font-weight: 800; color: #4A5568; text-align: right; width: 45%; vertical-align: top;">${field.label}:</td>
+                    <td style="padding: 3px 2px; font-size: 9.5px; font-weight: 800; color: #000; text-align: left; width: 55%; vertical-align: top; word-break: break-word;">${field.val}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }).join('');
+
+      let totalsBlockHtml = '';
+      if (totals && typeof totals === 'object') {
+        const totalsList = columns.map((c, colIdx) => {
+          const key = c.key || (typeof c.accessor === 'string' ? c.accessor : null);
+          let val = key ? totals[key] : (totals[colIdx] !== undefined ? totals[colIdx] : undefined);
+          const cleanVal = val !== undefined ? String(val).replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '').trim() : '';
+          
+          if (cleanVal && colIdx !== 0 && cleanVal !== 'إجمالي الكشف' && cleanVal !== 'الإجمالي') {
+            return { label: c.label, val: cleanVal };
+          }
+          return null;
+        }).filter(Boolean);
+
+        totalsBlockHtml = `
+          <div style="background-color: #000; color: #FFF; border-radius: 4px; padding: 6px 8px; margin-top: 8px; margin-bottom: 4px; page-break-inside: avoid;">
+            <div style="font-weight: 900; font-size: 11px; border-bottom: 1px dashed #FFF; padding-bottom: 4px; margin-bottom: 4px; text-align: center; color: #FFF;">إجمالي الكشف</div>
+            <table style="width: 100%; border-collapse: collapse; border: none; margin: 0;">
+              <tbody>
+                ${totalsList.map(t => `
+                  <tr>
+                    <td style="padding: 3px 2px; font-size: 10px; color: #CCC; text-align: right; width: 45%; font-weight: 800;">${t.label}:</td>
+                    <td style="padding: 3px 2px; font-size: 10px; color: #FFF; text-align: left; width: 55%; font-weight: 900;">${t.val}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      mainContentHtml = `
+        <div class="vertical-cards-container" style="margin-top: 4px;">
+          ${cardsHtml}
+          ${totalsBlockHtml}
+        </div>
+      `;
+    } else {
+      mainContentHtml = `
+        <table>
+          <thead>
+            <tr>${tableHeaderHtml}</tr>
+          </thead>
+          <tbody>
+            ${tableRowsHtml}
+          </tbody>
+          ${totalsRowHtml}
+        </table>
+      `;
     }
 
     const statsHtml = stats.length > 0 ? `
@@ -165,15 +258,7 @@ export function generateReportPDF({
 
         ${statsHtml}
 
-        <table>
-          <thead>
-            <tr>${tableHeaderHtml}</tr>
-          </thead>
-          <tbody>
-            ${tableRowsHtml}
-          </tbody>
-          ${totalsRowHtml}
-        </table>
+        ${mainContentHtml}
 
         <div class="thermal-footer">
           <div>نظام إدارة المبيعات ونقاط البيع - مطعم البرادعي</div>
