@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Button, Chip, Dialog, DialogTitle, DialogContent,
@@ -79,6 +79,8 @@ export default function SalariesPage() {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin' || !user?.role;
   const [selectedMonth, setSelectedMonth] = useState('يوليو 2026');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedRole, setSelectedRole] = useState('all');
 
   // Main Page Tabs (0: شاشة المرتبات والعمليات الحية, 1: تقارير القبض وصرف المرتبات, 2: تقارير السُلف والمسحوبات, 3: تقارير البونص والخصومات)
   const [tabValue, setTabValue] = useState(0);
@@ -193,13 +195,34 @@ export default function SalariesPage() {
     }
   }, [tabValue, selectedReportEmp]);
 
-  const totalSalaries = (employees || []).reduce((sum, e) => {
+  const filteredEmployees = useMemo(() => {
+    return (employees || []).filter(emp => {
+      // 1. Branch filter
+      if (selectedBranchId !== 'all' && emp.branchId !== selectedBranchId) {
+        return false;
+      }
+      // 2. Role filter
+      if (selectedRole !== 'all' && emp.role !== selectedRole) {
+        return false;
+      }
+      // 3. Search query
+      if (searchQuery.trim()) {
+        const queryStr = searchQuery.toLowerCase().trim();
+        const nameMatch = (emp.name || '').toLowerCase().includes(queryStr);
+        const phoneMatch = (emp.phone || '').toLowerCase().includes(queryStr);
+        return nameMatch || phoneMatch;
+      }
+      return true;
+    });
+  }, [employees, selectedBranchId, selectedRole, searchQuery]);
+
+  const totalSalaries = filteredEmployees.reduce((sum, e) => {
     const calc = calculateEmployeeSalary(e);
     return sum + calc.net;
   }, 0);
 
-  const totalAdvances = (employees || []).reduce((sum, e) => sum + (e.advances || 0), 0);
-  const paidCount = (employees || []).filter((e) => e.status === 'تم الصرف' || e.status === 'تمت التصفية').length;
+  const totalAdvances = filteredEmployees.reduce((sum, e) => sum + (e.advances || 0), 0);
+  const paidCount = filteredEmployees.filter((e) => e.status === 'تم الصرف' || e.status === 'تمت التصفية').length;
 
   const handleOpenAdvance = (emp) => {
     setSelectedEmployee(emp);
@@ -755,7 +778,7 @@ export default function SalariesPage() {
           {[
             { label: 'إجمالي المرتبات المستحقة', value: `${totalSalaries.toLocaleString()} ج.م`, color: '#4285F4', icon: <MoneyOutlined /> },
             { label: 'إجمالي السلف المسحوبة', value: `${totalAdvances.toLocaleString()} ج.م`, color: '#EF4444', icon: <AccountBalanceWallet /> },
-            { label: 'تم صرف / تصفية الرواتب', value: `${paidCount} / ${employees?.length || 0}`, color: '#34D399', icon: <PersonOutlined /> },
+            { label: 'تم صرف / تصفية الرواتب', value: `${paidCount} / ${filteredEmployees.length}`, color: '#34D399', icon: <PersonOutlined /> },
             { label: 'الشهر الحالي', value: selectedMonth, color: '#FF8C42', icon: <CalendarMonth /> },
           ].map((stat, i) => (
             <Paper key={i} sx={{ p: 2, borderRadius: '16px', border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -769,6 +792,56 @@ export default function SalariesPage() {
             </Paper>
           ))}
         </Box>
+
+        {/* Search & Filter Bar */}
+        <Paper
+          sx={{
+            p: 2,
+            mb: 3,
+            borderRadius: '16px',
+            border: '1px solid #E5E7EB',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 2,
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            bgcolor: '#F8FAFC'
+          }}
+        >
+          <Box sx={{ display: 'flex', gap: 2, flex: 1, minWidth: { xs: '100%', sm: 'auto' }, flexWrap: 'wrap' }}>
+            <TextField
+              size="small"
+              placeholder="🔍 ابحث باسم الموظف أو رقم الهاتف..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              sx={{
+                width: { xs: '100%', sm: 300 },
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '12px',
+                  bgcolor: '#FFF'
+                }
+              }}
+            />
+
+            <FormControl size="small" sx={{ width: { xs: '100%', sm: 200 } }}>
+              <Select
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
+                sx={{ borderRadius: '12px', bgcolor: '#FFF', fontWeight: 800 }}
+              >
+                <MenuItem value="all">🌐 كافة الوظائف</MenuItem>
+                <MenuItem value="طيار دليفري">🛵 طيار دليفري</MenuItem>
+                <MenuItem value="كاشير">🏪 كاشير</MenuItem>
+                <MenuItem value="شيف مطبخ">👨‍🍳 شيف مطبخ</MenuItem>
+                <MenuItem value="عمال نظافة وترتيب">🧹 عمال نظافة وترتيب</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+
+          <Typography variant="caption" sx={{ color: '#6B7280', fontWeight: 800, px: 1 }}>
+            تم العثور على: <b>{filteredEmployees.length}</b> موظف
+          </Typography>
+        </Paper>
 
         {/* Employees Table */}
         <TableContainer component={Paper} sx={{ borderRadius: '16px', border: '1px solid #E5E7EB', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
@@ -788,14 +861,16 @@ export default function SalariesPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {(!employees || employees.length === 0) ? (
+              {(!filteredEmployees || filteredEmployees.length === 0) ? (
                 <TableRow>
                   <TableCell colSpan={10} align="center" sx={{ py: 4, color: '#94A3B8', fontWeight: 700 }}>
-                    لا يوجد موظفين مسجلين حالياً. اضغط على "إضافة موظف جديد" لبدء السجل.
+                    {searchQuery.trim() || selectedRole !== 'all' || selectedBranchId !== 'all'
+                      ? 'لا توجد نتائج تطابق خيارات التصفية والبحث الحالية!'
+                      : 'لا يوجد موظفين مسجلين حالياً. اضغط على "إضافة موظف جديد" لبدء السجل.'}
                   </TableCell>
                 </TableRow>
               ) : (
-                employees.map((row) => {
+                filteredEmployees.map((row) => {
                   const calc = calculateEmployeeSalary(row);
                   const isPaid = row.status === 'تم الصرف';
                   const isSettled = row.status === 'تمت التصفية';
