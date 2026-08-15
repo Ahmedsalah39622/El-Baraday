@@ -243,11 +243,21 @@ export async function POST(request) {
             if (ingRes.rows && ingRes.rows.length > 0) {
               const itemSize = (item.size || '').toString().trim().toLowerCase();
 
+              // Check if this product has multiple sizes - if not, match ALL ingredients
+              let productHasSizes = false;
+              try {
+                const prodCheck = await query('SELECT has_sizes FROM products WHERE id = $1', [baseProdId]);
+                productHasSizes = prodCheck.rows && prodCheck.rows[0] && (prodCheck.rows[0].has_sizes === 1 || prodCheck.rows[0].has_sizes === true);
+              } catch(e) { }
+
               for (const ing of ingRes.rows) {
                 const ingSize = (ing.size || 'all').toString().trim().toLowerCase();
 
-                // Match size logic
-                const matchesSize = ingSize === 'all' || ingSize === 'عادي' ||
+                // Match size logic:
+                // - If product doesn't have multiple sizes, match ALL ingredients (single product = everything)
+                // - If ingredient size is 'all' or 'عادي', always match
+                // - Otherwise match exact size
+                const matchesSize = !productHasSizes || ingSize === 'all' || ingSize === 'عادي' ||
                   ingSize === itemSize ||
                   (itemSize.includes('صغير') && (ingSize.includes('صغير') || ingSize === 'small')) ||
                   (itemSize.includes('كبير') && (ingSize.includes('كبير') || ingSize === 'large')) ||
