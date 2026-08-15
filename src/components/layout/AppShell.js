@@ -11,13 +11,13 @@ const PUBLIC_ROUTES = ['/login'];
 export default function AppShell({ children }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isAuthenticated, hasPermission } = useAuthStore();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const hasPermission = useAuthStore((state) => state.hasPermission);
 
-  // Tracks whether Zustand has rehydrated from localStorage
+  // Tracks whether Zustand has rehydrated from sessionStorage
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    // Zustand persisted store needs a tick to rehydrate
     setHydrated(true);
   }, []);
 
@@ -41,37 +41,24 @@ export default function AppShell({ children }) {
     }
   }, [hydrated, isAuthenticated, pathname, isPublic, hasPermission, router]);
 
-  // While Zustand is rehydrating from localStorage, show nothing to prevent flash
-  if (!hydrated) {
-    return (
-      <Box sx={{
-        height: '100vh', width: '100vw',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        bgcolor: '#0F172A'
-      }}>
-        <CircularProgress color="warning" size={44} thickness={5} />
-      </Box>
-    );
-  }
-
-  // Block render of protected content while redirect is pending
-  if (!isAuthenticated && !isPublic) {
-    return (
-      <Box sx={{
-        height: '100vh', width: '100vw',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        bgcolor: '#0F172A'
-      }}>
-        <CircularProgress color="error" size={44} thickness={5} />
-      </Box>
-    );
-  }
-
-  // Login page - full screen, no sidebar
+  // Login and public pages render immediately without any blocking spinner
   if (isPublic) {
     return (
       <Box sx={{ height: '100vh', width: '100vw', overflow: 'hidden' }}>
         {children}
+      </Box>
+    );
+  }
+
+  // While Zustand is rehydrating from sessionStorage on protected routes
+  if (!hydrated || (!isAuthenticated && !isPublic)) {
+    return (
+      <Box sx={{
+        height: '100vh', width: '100vw',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        bgcolor: '#FDF6EC'
+      }}>
+        <CircularProgress sx={{ color: '#EAB308' }} size={44} thickness={4} />
       </Box>
     );
   }
@@ -103,3 +90,4 @@ export default function AppShell({ children }) {
     </Box>
   );
 }
+
