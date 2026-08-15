@@ -87,6 +87,10 @@ export default function BranchStockPage({ params }) {
   useEffect(() => {
     if (branchId) {
       loadData();
+      const interval = setInterval(() => {
+        loadData();
+      }, 4000);
+      return () => clearInterval(interval);
     }
   }, [branchId]);
 

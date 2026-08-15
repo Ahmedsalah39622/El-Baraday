@@ -75,9 +75,13 @@ export default function BranchesInventoryPage() {
   // Notifications
   const [toast, setToast] = useState({ open: false, msg: '', type: 'success' });
 
-  // Initial load
+  // Initial load and live auto-refresh polling
   useEffect(() => {
     loadData();
+    const interval = setInterval(() => {
+      loadData();
+    }, 4000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadData = async () => {
