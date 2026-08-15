@@ -210,6 +210,17 @@ export async function POST(request) {
           baseProdId = baseProdId.replace(/_(صغير|كبير)$/, '');
         }
 
+        const NON_DEDUCTIBLE_KEYWORDS = [
+          'بطاطس', 'بطاطا',
+          'روزبيف', 'روست',
+          'سلامى', 'سلامي',
+          'سوسيس', 'سويسويس', 'هوت دوج',
+          'تركى', 'تركي',
+          'بسطرمة', 'بسكرمه', 'بسترمة',
+          'مشروم', 'فطر',
+          'شيدر'
+        ];
+
         if (baseProdId) {
           try {
             // Fetch branch name for transaction logs
@@ -217,7 +228,11 @@ export async function POST(request) {
             const targetBranchName = (bRes.rows && bRes.rows[0]?.name) || (targetBranch === 'b_main' ? 'المخزن الرئيسي' : targetBranch);
 
             const ingRes = await query(
-              'SELECT inventory_item_id, quantity, size, COALESCE(auto_deduct, 1) AS auto_deduct FROM product_ingredients WHERE product_id = $1 OR product_id = $2',
+              `SELECT pi.inventory_item_id, pi.quantity, pi.size, COALESCE(pi.auto_deduct, 1) AS auto_deduct,
+                      inv.name AS inv_name
+               FROM product_ingredients pi
+               LEFT JOIN inventory_items inv ON pi.inventory_item_id = inv.id
+               WHERE pi.product_id = $1 OR pi.product_id = $2`,
               [baseProdId, prodId]
             );
 
@@ -239,13 +254,15 @@ export async function POST(request) {
                 const deductAmount = (parseFloat(ing.quantity) || 0) * itemQty;
                 if (deductAmount === 0) continue;
 
-                const isAutoDeduct = ing.auto_deduct !== 0 && ing.auto_deduct !== '0' && ing.auto_deduct !== false;
+                const invName = (ing.inv_name || '').toLowerCase();
+                const isExplicitlyNonDeductible = NON_DEDUCTIBLE_KEYWORDS.some(kw => invName.includes(kw));
+                const isAutoDeduct = !isExplicitlyNonDeductible && ing.auto_deduct !== 0 && ing.auto_deduct !== '0' && ing.auto_deduct !== false;
 
                 const transId = `trans_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
                 if (!isAutoDeduct) {
                   // 📊 خامات لا تُخصم من الرصيد لكن يُحسب ويسجل أن الفرع استهلك منها عدد/كمية كذا
-                  const transNotes = `استهلاك خامة (${item.product_name || item.name || ''} ${item.size || ''}) - فرع ${targetBranchName} - طلب #${nextNum} (تسجيل استهلاك بدون خصم رصيد)`;
+                  const transNotes = `استهلاك خامة (${ing.inv_name || 'خامة'} لـ ${item.product_name || item.name || ''} ${item.size || ''}) - فرع ${targetBranchName} - طلب #${nextNum} (تسجيل استهلاك بدون خصم رصيد)`;
                   await query(
                     `INSERT INTO inventory_transactions (id, item_id, type, quantity, notes)
                      VALUES ($1, $2, 'usage', $3, $4)`,
@@ -270,8 +287,8 @@ export async function POST(request) {
                   const isDeduction = deductAmount > 0;
                   const transType = isDeduction ? 'out' : 'in';
                   const transNotes = isDeduction
-                    ? `خصم خامات (${item.product_name || item.name || ''} ${item.size || 'عادي'}) - فرع ${targetBranchName} - طلب #${nextNum}`
-                    : `إضافة خامات (${item.product_name || item.name || ''} ${item.size || 'عادي'}) - فرع ${targetBranchName} - طلب #${nextNum}`;
+                    ? `خصم خامات (${ing.inv_name || 'خامة'} لـ ${item.product_name || item.name || ''} ${item.size || 'عادي'}) - فرع ${targetBranchName} - طلب #${nextNum}`
+                    : `إضافة خامات (${ing.inv_name || 'خامة'} لـ ${item.product_name || item.name || ''} ${item.size || 'عادي'}) - فرع ${targetBranchName} - طلب #${nextNum}`;
 
                   await query(
                     `INSERT INTO inventory_transactions (id, item_id, type, quantity, notes)

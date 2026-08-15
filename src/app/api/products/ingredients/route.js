@@ -8,6 +8,17 @@ async function ensureIngredientColumns() {
   markSchemaChecked('ingCols');
 }
 
+const NON_DEDUCTIBLE_KEYWORDS = [
+  'بطاطس', 'بطاطا',
+  'روزبيف', 'روست',
+  'سلامى', 'سلامي',
+  'سوسيس', 'سويسويس', 'هوت دوج',
+  'تركى', 'تركي',
+  'بسطرمة', 'بسكرمه', 'بسترمة',
+  'مشروم', 'فطر',
+  'شيدر'
+];
+
 export async function GET(request) {
   try {
     await ensureIngredientColumns();
@@ -41,10 +52,15 @@ export async function GET(request) {
     sql += ` ORDER BY pi.created_at DESC`;
 
     const result = await query(sql, params);
-    const rows = (result.rows || []).map(r => ({
-      ...r,
-      auto_deduct: r.auto_deduct !== 0 && r.auto_deduct !== '0' && r.auto_deduct !== false
-    }));
+    const rows = (result.rows || []).map(r => {
+      const invName = (r.inventory_item_name || '').toLowerCase();
+      const isKeywordNonDeductible = NON_DEDUCTIBLE_KEYWORDS.some(kw => invName.includes(kw));
+      const autoDeduct = !isKeywordNonDeductible && r.auto_deduct !== 0 && r.auto_deduct !== '0' && r.auto_deduct !== false;
+      return {
+        ...r,
+        auto_deduct: autoDeduct
+      };
+    });
     return NextResponse.json(rows);
   } catch (error) {
     console.error('Error fetching product ingredients:', error);

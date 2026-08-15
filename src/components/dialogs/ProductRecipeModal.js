@@ -28,8 +28,25 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
   useEffect(() => {
     setUnitMode('base');
     setActionType('deduct');
-    setAutoDeductMode('deduct');
-  }, [selectedInventoryId]);
+    if (selectedInventoryId) {
+      const NON_DEDUCTIBLE_KEYWORDS = [
+        'بطاطس', 'بطاطا',
+        'روزبيف', 'روست',
+        'سلامى', 'سلامي',
+        'سوسيس', 'سويسويس', 'هوت دوج',
+        'تركى', 'تركي',
+        'بسطرمة', 'بسكرمه', 'بسترمة',
+        'مشروم', 'فطر',
+        'شيدر'
+      ];
+      const selectedItem = inventoryItems.find(i => i.id === selectedInventoryId);
+      const itemName = (selectedItem?.name || '').toLowerCase();
+      const isNonDeductible = NON_DEDUCTIBLE_KEYWORDS.some(kw => itemName.includes(kw));
+      setAutoDeductMode(isNonDeductible ? 'track_only' : 'deduct');
+    } else {
+      setAutoDeductMode('deduct');
+    }
+  }, [selectedInventoryId, inventoryItems]);
 
   // Load all products and inventory items when modal opens
   useEffect(() => {
