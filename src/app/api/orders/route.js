@@ -100,7 +100,7 @@ export async function POST(request) {
       branch_id, source_branch_name, notes, status, is_cash_collected
     } = body;
 
-    const targetBranch = branch_id || 'b1';
+    const targetBranch = (!branch_id || branch_id === 'all') ? 'b1' : branch_id;
     const isDelivery = order_type === 'delivery';
 
     // Default status: delivery orders start as 'preparing'
@@ -197,11 +197,22 @@ export async function POST(request) {
         const prodId = item.product_id || item.id || null;
         const itemQty = parseInt(item.quantity) || 1;
 
+        // Smart size detection
+        let detectedSize = (item.size || '').toString().trim();
+        if (!detectedSize) {
+          const itemText = `${item.id || ''} ${prodId || ''} ${item.product_name || ''} ${item.name || ''}`;
+          if (itemText.includes('صغير')) {
+            detectedSize = 'صغير';
+          } else if (itemText.includes('كبير')) {
+            detectedSize = 'كبير';
+          }
+        }
+
         await query(
           `INSERT INTO order_items (id, order_id, product_id, product_name, price, quantity, size, extras, notes)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
           [itemId, order.id, prodId, item.product_name || item.name || 'صنف',
-            parseFloat(item.price) || 0, itemQty, item.size || null, item.extras || null, item.notes || null]
+            parseFloat(item.price) || 0, itemQty, detectedSize || null, item.extras || null, item.notes || null]
         );
 
         // 🥩 Automatic Inventory Raw Material Deductions & Usage Tracking (خصم الخامات والمكونات المربوطة بالأحجام وحساب الاستهلاك)
@@ -241,7 +252,7 @@ export async function POST(request) {
             );
 
             if (ingRes.rows && ingRes.rows.length > 0) {
-              const itemSize = (item.size || '').toString().trim().toLowerCase();
+              const itemSize = detectedSize.toLowerCase();
 
               // Check if this product has multiple sizes - if not, match ALL ingredients
               let productHasSizes = false;

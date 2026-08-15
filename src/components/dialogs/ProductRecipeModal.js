@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography,
   FormControl, InputLabel, Select, MenuItem, TextField, Paper, Table, TableHead,
-  TableRow, TableCell, TableBody, TableContainer, IconButton, Tooltip, Chip, Alert, Grid, Divider, Autocomplete, InputAdornment
+  TableRow, TableCell, TableBody, TableContainer, IconButton, Tooltip, Chip, Alert, Grid, Divider, Autocomplete, InputAdornment, Tabs, Tab
 } from '@mui/material';
-import { Delete as DeleteIcon, Add as AddIcon, Science, AttachMoney, Inventory, CheckCircle } from '@mui/icons-material';
+import { Delete as DeleteIcon, Add as AddIcon, Science, AttachMoney, Inventory, CheckCircle, SwapHoriz } from '@mui/icons-material';
 
 export default function ProductRecipeModal({ open, onClose, initialProductId }) {
   const [products, setProducts] = useState([]);
@@ -15,13 +15,16 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
   const [ingredients, setIngredients] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // Active Size Tab for multi-size products: 'صغير', 'كبير', 'all', or 'show_all'
+  const [activeTab, setActiveTab] = useState('صغير');
+
   // New ingredient form
   const [selectedInventoryId, setSelectedInventoryId] = useState('');
-  const [quantity, setQuantity] = useState('0.15');
+  const [quantity, setQuantity] = useState('1');
   const [unitMode, setUnitMode] = useState('base'); // 'base' or 'gram'
   const [actionType, setActionType] = useState('deduct'); // 'deduct' or 'add'
   const [autoDeductMode, setAutoDeductMode] = useState('deduct'); // 'deduct' (خصم رصيد) or 'track_only' (استهلاك فقط)
-  const [selectedSize, setSelectedSize] = useState('all');
+  const [selectedSize, setSelectedSize] = useState('صغير');
   const [addSuccess, setAddSuccess] = useState(false);
 
   // Reset unit mode and action type when selected raw material changes
@@ -59,6 +62,14 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
   useEffect(() => {
     if (selectedProduct?.id) {
       loadProductIngredients(selectedProduct.id);
+      const hasSizes = Boolean(selectedProduct.hasMultipleSizes || selectedProduct.priceSmall || selectedProduct.has_sizes);
+      if (hasSizes) {
+        setActiveTab('صغير');
+        setSelectedSize('صغير');
+      } else {
+        setActiveTab('all');
+        setSelectedSize('all');
+      }
     } else {
       setIngredients([]);
     }
@@ -112,7 +123,7 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
       alert('برجاء اختيار المنتج والخامة المراد ربطها');
       return;
     }
-    const numQty = parseFloat(quantity) || 0.1;
+    const numQty = parseFloat(quantity) || 1;
     if (numQty <= 0) {
       alert('برجاء إدخال كمية صحيحة أكبر من الصفر');
       return;
@@ -149,7 +160,7 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
         setAddSuccess(true);
         setTimeout(() => setAddSuccess(false), 2500);
         setSelectedInventoryId('');
-        setQuantity('0.15');
+        setQuantity('1');
         setUnitMode('base');
         setActionType('deduct');
         setAutoDeductMode('deduct');
@@ -171,49 +182,30 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
     }
   };
 
-  // Generate expanded product options for sizes (Small/Large)
-  const productOptions = [];
-  (products || []).forEach(p => {
-    const hasSizes = Boolean(p.hasMultipleSizes || p.priceSmall || p.has_sizes);
-    if (hasSizes) {
-      const pSmall = p.priceSmall || 25;
-      const pLarge = p.priceLarge || p.price || 40;
-      productOptions.push({
-        ...p,
-        uniqueOptionId: `${p.id}_صغير`,
-        optionLabel: `${p.name} (حجم صغير) - ${pSmall} ج.م`,
-        targetSize: 'صغير',
-        displayPrice: pSmall
+  const handleUpdateIngredientSize = async (ingId, newSize) => {
+    try {
+      const res = await fetch(`/api/products/ingredients/${ingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ size: newSize })
       });
-      productOptions.push({
-        ...p,
-        uniqueOptionId: `${p.id}_كبير`,
-        optionLabel: `${p.name} (حجم كبير) - ${pLarge} ج.م`,
-        targetSize: 'كبير',
-        displayPrice: pLarge
-      });
-    } else {
-      productOptions.push({
-        ...p,
-        uniqueOptionId: p.id,
-        optionLabel: `${p.name} - ${p.price} ج.م`,
-        targetSize: 'all',
-        displayPrice: p.price
-      });
+      if (res.ok && selectedProduct?.id) {
+        loadProductIngredients(selectedProduct.id);
+      }
+    } catch (err) {
+      console.error('Error updating ingredient size:', err);
     }
-  });
+  };
 
-  const selectedOptionObj = productOptions.find(
-    opt => opt.id === selectedProduct?.id && (opt.targetSize === selectedSize || opt.targetSize === 'all')
-  ) || (selectedProduct ? { ...selectedProduct, optionLabel: selectedProduct.name } : null);
+  const isMultiSizeProduct = Boolean(
+    selectedProduct?.hasMultipleSizes || selectedProduct?.priceSmall || selectedProduct?.has_sizes
+  );
 
-  // Calculate summary stats for the selected product
-  const sellingPrice = parseFloat(selectedProduct?.price || 0);
-  const isMultiSizeProduct = Boolean(selectedProduct?.hasMultipleSizes || selectedProduct?.priceSmall);
   const pPriceSmall = parseFloat(selectedProduct?.priceSmall || 25);
   const pPriceLarge = parseFloat(selectedProduct?.priceLarge || selectedProduct?.price || 40);
+  const sellingPrice = parseFloat(selectedProduct?.price || 0);
 
-  // Small size cost
+  // Financial calculations
   const smallRecipeCost = ingredients.reduce((sum, ing) => {
     if (ing.size === 'كبير' || ing.size === 'large') return sum;
     const qty = parseFloat(ing.quantity || 0);
@@ -221,9 +213,14 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
     return sum + (qty * unitCost);
   }, 0);
 
-  // Large size cost
   const largeRecipeCost = ingredients.reduce((sum, ing) => {
     if (ing.size === 'صغير' || ing.size === 'small') return sum;
+    const qty = parseFloat(ing.quantity || 0);
+    const unitCost = parseFloat(ing.inventory_cost_per_unit || 0);
+    return sum + (qty * unitCost);
+  }, 0);
+
+  const totalRecipeCost = ingredients.reduce((sum, ing) => {
     const qty = parseFloat(ing.quantity || 0);
     const unitCost = parseFloat(ing.inventory_cost_per_unit || 0);
     return sum + (qty * unitCost);
@@ -233,14 +230,22 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
   const largeNetProfit = Math.max(0, pPriceLarge - largeRecipeCost);
   const smallProfitMargin = pPriceSmall > 0 ? Math.round((smallNetProfit / pPriceSmall) * 100) : 0;
   const largeProfitMargin = pPriceLarge > 0 ? Math.round((largeNetProfit / pPriceLarge) * 100) : 0;
-
-  const totalRecipeCost = ingredients.reduce((sum, ing) => {
-    const qty = parseFloat(ing.quantity || 0);
-    const unitCost = parseFloat(ing.inventory_cost_per_unit || 0);
-    return sum + (qty * unitCost);
-  }, 0);
   const netProfit = Math.max(0, sellingPrice - totalRecipeCost);
   const profitMarginPercent = sellingPrice > 0 ? Math.round((netProfit / sellingPrice) * 100) : 0;
+
+  // Filter ingredients according to active tab
+  const displayedIngredients = ingredients.filter(ing => {
+    if (!isMultiSizeProduct) return true;
+    if (activeTab === 'show_all') return true;
+    if (activeTab === 'صغير') return ing.size === 'صغير' || ing.size === 'small';
+    if (activeTab === 'كبير') return ing.size === 'كبير' || ing.size === 'large';
+    if (activeTab === 'all') return ing.size === 'all' || ing.size === 'عادي' || !ing.size;
+    return true;
+  });
+
+  const countSmall = ingredients.filter(i => i.size === 'صغير' || i.size === 'small').length;
+  const countLarge = ingredients.filter(i => i.size === 'كبير' || i.size === 'large').length;
+  const countShared = ingredients.filter(i => i.size === 'all' || i.size === 'عادي' || !i.size).length;
 
   const selectedInvItem = inventoryItems.find(item => item.id === selectedInventoryId);
   const itemUnit = selectedInvItem?.unit || '';
@@ -266,36 +271,27 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
         {/* Product Selection Bar */}
         <Paper sx={{ p: 2, borderRadius: '14px', bgcolor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
           <Grid container spacing={2} alignItems="center">
-            <Grid xs={12} sm={6}>
+            <Grid item xs={12} sm={6}>
               <Autocomplete
-                options={productOptions}
-                getOptionLabel={(opt) => opt.optionLabel || opt.name || ''}
-                value={selectedOptionObj}
+                options={products || []}
+                getOptionLabel={(opt) => `${opt.name} ${opt.hasMultipleSizes ? '(صغير وكبير)' : `- ${opt.price} ج.م`}`}
+                value={selectedProduct}
                 onChange={(e, val) => {
-                  if (val) {
-                    setSelectedProduct(val);
-                    setSelectedSize(val.targetSize || 'all');
-                  } else {
-                    setSelectedProduct(null);
-                  }
+                  setSelectedProduct(val || null);
                 }}
-                renderInput={(params) => <TextField {...params} label="اختر المنتج أو الحجم المراد ربطه *" size="small" />}
+                renderInput={(params) => <TextField {...params} label="اختر المنتج المراد تعديل مكوناته *" size="small" />}
               />
             </Grid>
-            <Grid xs={12} sm={6}>
+            <Grid item xs={12} sm={6}>
               {selectedProduct && (
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' } }}>
-                  {selectedSize === 'صغير' ? (
-                    <Chip label={`🟡 سعر الحجم الصغير: ${pPriceSmall} ج.م`} sx={{ bgcolor: '#F59E0B', color: '#FFF', fontWeight: 900, fontSize: '0.9rem' }} />
-                  ) : selectedSize === 'كبير' ? (
-                    <Chip label={`🔵 سعر الحجم الكبير: ${pPriceLarge} ج.م`} sx={{ bgcolor: '#3B82F6', color: '#FFF', fontWeight: 900, fontSize: '0.9rem' }} />
-                  ) : isMultiSizeProduct ? (
+                  {isMultiSizeProduct ? (
                     <>
-                      <Chip label={`📏 صغير: ${pPriceSmall} ج.م`} sx={{ bgcolor: '#FEF3C7', color: '#B45309', fontWeight: 800 }} />
-                      <Chip label={`📏 كبير: ${pPriceLarge} ج.م`} sx={{ bgcolor: '#DBEAFE', color: '#1E40AF', fontWeight: 800 }} />
+                      <Chip label={`📏 سعر الصغير: ${pPriceSmall} ج.م`} sx={{ bgcolor: '#FEF3C7', color: '#B45309', fontWeight: 800, border: '1px solid #FCD34D' }} />
+                      <Chip label={`📏 سعر الكبير: ${pPriceLarge} ج.م`} sx={{ bgcolor: '#DBEAFE', color: '#1E40AF', fontWeight: 800, border: '1px solid #93C5FD' }} />
                     </>
                   ) : (
-                    <Chip label={`السعر: ${sellingPrice} ج.م`} color="primary" sx={{ fontWeight: 800 }} />
+                    <Chip label={`سعر البيع: ${sellingPrice} ج.م`} color="primary" sx={{ fontWeight: 800 }} />
                   )}
                 </Box>
               )}
@@ -303,25 +299,66 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
           </Grid>
         </Paper>
 
+        {/* Size Selection Tabs for Multi-Size Products */}
+        {selectedProduct && isMultiSizeProduct && (
+          <Paper sx={{ borderRadius: '14px', bgcolor: '#FFF', border: '1.5px solid #E2E8F0', overflow: 'hidden' }}>
+            <Tabs
+              value={activeTab}
+              onChange={(e, newTab) => {
+                setActiveTab(newTab);
+                if (newTab !== 'show_all') {
+                  setSelectedSize(newTab);
+                }
+              }}
+              variant="fullWidth"
+              sx={{
+                '& .MuiTab-root': { fontWeight: 800, fontSize: '0.92rem', py: 1.5 },
+                '& .Mui-selected': { color: '#4F46E5 !important' },
+                bgcolor: '#F8FAFC'
+              }}
+            >
+              <Tab
+                value="صغير"
+                label={`🟡 خامات الحجم الصغير (${countSmall})`}
+                sx={{ '&.Mui-selected': { bgcolor: '#FEF3C7', color: '#B45309 !important' } }}
+              />
+              <Tab
+                value="كبير"
+                label={`🔵 خامات الحجم الكبير (${countLarge})`}
+                sx={{ '&.Mui-selected': { bgcolor: '#DBEAFE', color: '#1E40AF !important' } }}
+              />
+              <Tab
+                value="all"
+                label={`🌐 خامات مشتركة للكل (${countShared})`}
+                sx={{ '&.Mui-selected': { bgcolor: '#F3E8FF', color: '#6B21A8 !important' } }}
+              />
+              <Tab
+                value="show_all"
+                label={`📋 كل الخامات (${ingredients.length})`}
+              />
+            </Tabs>
+          </Paper>
+        )}
+
         {addSuccess && (
           <Alert severity="success" icon={<CheckCircle />} sx={{ borderRadius: '10px', fontWeight: 700 }}>
-            ✅ تم ربط الخامة بالمنتج بنجاح! سيتم الخصم من رصيد المخزن أوتوماتيكياً مع كل أوردر.
+            ✅ تم ربط الخامة بالمنتج بنجاح! سيتم الخصم من رصيد الفرع أوتوماتيكياً مع كل أوردر.
           </Alert>
         )}
 
         {/* Add Ingredient Form */}
         {selectedProduct && (
-          <Paper sx={{ p: 2.5, borderRadius: '14px', bgcolor: '#FFFBEB', border: '1.5px solid #FCD34D' }}>
-            <Typography variant="subtitle2" fontWeight={800} color="#B45309" sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <AddIcon sx={{ fontSize: 20 }} /> إضافة خامة جديدة لـ ({selectedProduct.name}):
+          <Paper sx={{ p: 2.5, borderRadius: '14px', bgcolor: isMultiSizeProduct && selectedSize === 'صغير' ? '#FFFBEB' : isMultiSizeProduct && selectedSize === 'كبير' ? '#F0F7FF' : '#F9FAFB', border: '1.5px solid', borderColor: isMultiSizeProduct && selectedSize === 'صغير' ? '#FCD34D' : isMultiSizeProduct && selectedSize === 'كبير' ? '#93C5FD' : '#E5E7EB' }}>
+            <Typography variant="subtitle2" fontWeight={800} color={isMultiSizeProduct && selectedSize === 'صغير' ? '#B45309' : isMultiSizeProduct && selectedSize === 'كبير' ? '#1E40AF' : '#374151'} sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <AddIcon sx={{ fontSize: 20 }} /> إضافة خامة جديدة لـ ({selectedProduct.name}) {isMultiSizeProduct ? `[ الحجم: ${selectedSize === 'صغير' ? '📏 صغير' : selectedSize === 'كبير' ? '📏 كبير' : '🌐 مشترك'} ]` : ''}:
             </Typography>
             <Grid container spacing={2} alignItems="center">
-              <Grid xs={12} sm={3}>
+              <Grid item xs={12} sm={3.5}>
                 <FormControl fullWidth size="small">
-                  <InputLabel>الخامة *</InputLabel>
+                  <InputLabel>الخامة من المخزن *</InputLabel>
                   <Select
                     value={selectedInventoryId}
-                    label="الخامة *"
+                    label="الخامة من المخزن *"
                     onChange={(e) => setSelectedInventoryId(e.target.value)}
                     sx={{ bgcolor: '#FFF' }}
                   >
@@ -334,7 +371,30 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
                 </FormControl>
               </Grid>
 
-              <Grid xs={12} sm={2}>
+              {isMultiSizeProduct && (
+                <Grid item xs={12} sm={2.5}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>تخصيص الحجم *</InputLabel>
+                    <Select
+                      value={selectedSize}
+                      label="تخصيص الحجم *"
+                      onChange={(e) => {
+                        setSelectedSize(e.target.value);
+                        if (activeTab !== 'show_all') {
+                          setActiveTab(e.target.value);
+                        }
+                      }}
+                      sx={{ bgcolor: '#FFF', fontWeight: 800 }}
+                    >
+                      <MenuItem value="صغير" sx={{ fontWeight: 800, color: '#B45309' }}>📏 حجم صغير فقط</MenuItem>
+                      <MenuItem value="كبير" sx={{ fontWeight: 800, color: '#1E40AF' }}>📏 حجم كبير فقط</MenuItem>
+                      <MenuItem value="all" sx={{ fontWeight: 800, color: '#6B21A8' }}>🌐 مشترك (كل الأحجام)</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              )}
+
+              <Grid item xs={12} sm={isMultiSizeProduct ? 2 : 2.5}>
                 <FormControl fullWidth size="small">
                   <InputLabel>طريقة الخصم *</InputLabel>
                   <Select
@@ -343,37 +403,21 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
                     onChange={(e) => setAutoDeductMode(e.target.value)}
                     sx={{ bgcolor: '#FFF' }}
                   >
-                    <MenuItem value="deduct">📉 خصم رصيد أوتوماتيكي</MenuItem>
-                    <MenuItem value="track_only">📊 حساب استهلاك فقط</MenuItem>
+                    <MenuItem value="deduct">📉 خصم رصيد</MenuItem>
+                    <MenuItem value="track_only">📊 استهلاك فقط</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
 
-              <Grid xs={12} sm={2}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>الحجم المخصص *</InputLabel>
-                  <Select
-                    value={selectedSize}
-                    label="الحجم المخصص *"
-                    onChange={(e) => setSelectedSize(e.target.value)}
-                    sx={{ bgcolor: '#FFF' }}
-                  >
-                    <MenuItem value="all">🌐 الكل / عادي</MenuItem>
-                    <MenuItem value="صغير">📏 صغير</MenuItem>
-                    <MenuItem value="كبير">📏 كبير</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              <Grid xs={12} sm={3}>
+              <Grid item xs={12} sm={isMultiSizeProduct ? 2.5 : 3.5}>
                 <TextField
                   fullWidth
                   size="small"
                   type="number"
-                  label="الكمية"
+                  label="الكمية المطلوبة"
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
-                  placeholder={supportsGrams && unitMode === 'gram' ? "مثال: 150" : "مثال: 0.150"}
+                  placeholder={supportsGrams && unitMode === 'gram' ? "مثال: 150" : "مثال: 1"}
                   InputProps={{
                     endAdornment: supportsGrams && (
                       <InputAdornment position="end">
@@ -394,13 +438,19 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
                 />
               </Grid>
 
-              <Grid xs={12} sm={2}>
+              <Grid item xs={12} sm={1.5}>
                 <Button
                   fullWidth
                   variant="contained"
                   onClick={handleAddIngredient}
                   startIcon={<AddIcon />}
-                  sx={{ bgcolor: '#D97706', color: '#FFF', fontWeight: 800, py: 1, '&:hover': { bgcolor: '#B45309' } }}
+                  sx={{
+                    bgcolor: selectedSize === 'صغير' ? '#D97706' : selectedSize === 'كبير' ? '#2563EB' : '#4F46E5',
+                    color: '#FFF',
+                    fontWeight: 800,
+                    py: 1,
+                    '&:hover': { bgcolor: selectedSize === 'صغير' ? '#B45309' : selectedSize === 'كبير' ? '#1D4ED8' : '#4338CA' }
+                  }}
                 >
                   إضافة
                 </Button>
@@ -412,53 +462,81 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
         {/* Current Linked Ingredients List */}
         {selectedProduct && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-            <Typography variant="subtitle1" fontWeight={800} color="#1A1A2E">
-              📋 الخامات المربوطة والمخصومة أوتوماتيكياً ({ingredients.length} خامة)
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="subtitle1" fontWeight={800} color="#1A1A2E">
+                📋 الخامات المربوطة والمخصومة {isMultiSizeProduct && activeTab !== 'show_all' ? `لـ [ ${activeTab === 'صغير' ? 'الحجم الصغير' : activeTab === 'كبير' ? 'الحجم الكبير' : 'المشترك'} ]` : ''} ({displayedIngredients.length} خامة)
+              </Typography>
+            </Box>
 
             <TableContainer component={Paper} sx={{ borderRadius: '14px', border: '1px solid #E2E8F0' }}>
               <Table size="small">
                 <TableHead sx={{ bgcolor: '#F1F5F9' }}>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 800 }}>اسم الخامة</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>الحجم</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>الكمية</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>الحجم المربوط به</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>الكمية المخصومة</TableCell>
                     <TableCell sx={{ fontWeight: 800 }}>طريقة الخصم</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>تكلفة</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 800 }}>إلغاء</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>التكلفة للقطعة</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 800 }}>تغيير الحجم / حذف</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {ingredients.map((ing) => {
+                  {displayedIngredients.map((ing) => {
                     const ingQty = parseFloat(ing.quantity || 0);
                     const unitCost = parseFloat(ing.inventory_cost_per_unit || 0);
                     const itemCost = ingQty * unitCost;
                     const isAutoDeduct = ing.auto_deduct !== false && ing.auto_deduct !== '0';
+                    const isSmallSize = ing.size === 'صغير' || ing.size === 'small';
+                    const isLargeSize = ing.size === 'كبير' || ing.size === 'large';
 
                     return (
-                      <TableRow key={ing.id} hover>
+                      <TableRow key={ing.id} hover sx={{ bgcolor: isSmallSize ? 'rgba(254, 243, 199, 0.25)' : isLargeSize ? 'rgba(219, 234, 254, 0.25)' : 'inherit' }}>
                         <TableCell sx={{ fontWeight: 800 }}>{ing.inventory_item_name}</TableCell>
-                        <TableCell>{ing.size === 'all' ? '🌐 الكل' : `📏 ${ing.size}`}</TableCell>
-                        <TableCell>{Math.abs(ingQty)}</TableCell>
+                        <TableCell>
+                          {isSmallSize ? (
+                            <Chip label="📏 حجم صغير فقط" size="small" sx={{ bgcolor: '#FEF3C7', color: '#B45309', fontWeight: 800 }} />
+                          ) : isLargeSize ? (
+                            <Chip label="📏 حجم كبير فقط" size="small" sx={{ bgcolor: '#DBEAFE', color: '#1E40AF', fontWeight: 800 }} />
+                          ) : (
+                            <Chip label="🌐 مشترك (الكل)" size="small" sx={{ bgcolor: '#F3E8FF', color: '#6B21A8', fontWeight: 800 }} />
+                          )}
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 800 }}>{Math.abs(ingQty)} {ing.inventory_item_unit || ''}</TableCell>
                         <TableCell>
                           <Chip label={isAutoDeduct ? "خصم رصيد" : "استهلاك فقط"} size="small" color={isAutoDeduct ? "success" : "warning"} />
                         </TableCell>
-                        <TableCell>{itemCost.toFixed(2)} ج.م</TableCell>
+                        <TableCell sx={{ fontWeight: 800, color: '#DC2626' }}>{itemCost.toFixed(2)} ج.م</TableCell>
                         <TableCell align="center">
-                          <Tooltip title="إلغاء ربط هذه الخامة بالمنتج">
-                            <IconButton color="error" size="small" onClick={() => handleDeleteIngredient(ing.id)}>
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                            {isMultiSizeProduct && (
+                              <Tooltip title="تحويل الحجم (صغير / كبير / مشترك)">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => {
+                                    const nextSize = isSmallSize ? 'كبير' : isLargeSize ? 'all' : 'صغير';
+                                    handleUpdateIngredientSize(ing.id, nextSize);
+                                  }}
+                                  sx={{ color: '#4F46E5', bgcolor: '#EEF2FF', width: 28, height: 28 }}
+                                >
+                                  <SwapHoriz fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            <Tooltip title="حذف الخامة">
+                              <IconButton color="error" size="small" onClick={() => handleDeleteIngredient(ing.id)}>
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
                         </TableCell>
                       </TableRow>
                     );
                   })}
 
-                  {ingredients.length === 0 && (
+                  {displayedIngredients.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} align="center" sx={{ py: 4, color: '#94A3B8', fontWeight: 700 }}>
-                        لا توجد خامات مربوطة بهذا المنتج بعد. أضف الخامات من الأعلى ليتم خصمها أوتوماتيكياً! 💡
+                      <TableCell colSpan={6} align="center" sx={{ py: 3, color: '#94A3B8', fontWeight: 700 }}>
+                        لا توجد خامات مخصصة لهذا التبويب حالياً. أضف الخامات من الأعلى! 💡
                       </TableCell>
                     </TableRow>
                   )}
@@ -468,10 +546,10 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
 
             {/* Financial & Profit Margin Summary Box */}
             {ingredients.length > 0 && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
                 {isMultiSizeProduct ? (
                   <Grid container spacing={2}>
-                    <Grid xs={12} sm={6}>
+                    <Grid item xs={12} sm={6}>
                       <Paper sx={{ p: 2, borderRadius: '14px', bgcolor: '#FFFBEB', border: '1.5px solid #FCD34D', textAlign: 'center' }}>
                         <Typography variant="subtitle2" fontWeight={800} color="#B45309">📏 حساب الحجم الصغير (السعر: {pPriceSmall} ج.م)</Typography>
                         <Box sx={{ display: 'flex', justifyContent: 'space-around', mt: 1 }}>
@@ -487,7 +565,7 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
                       </Paper>
                     </Grid>
 
-                    <Grid xs={12} sm={6}>
+                    <Grid item xs={12} sm={6}>
                       <Paper sx={{ p: 2, borderRadius: '14px', bgcolor: '#EFF6FF', border: '1.5px solid #93C5FD', textAlign: 'center' }}>
                         <Typography variant="subtitle2" fontWeight={800} color="#1E40AF">📏 حساب الحجم الكبير (السعر: {pPriceLarge} ج.م)</Typography>
                         <Box sx={{ display: 'flex', justifyContent: 'space-around', mt: 1 }}>
