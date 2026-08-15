@@ -58,7 +58,7 @@ export default function OrdersPage() {
   const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
   const { activeShift, fetchShifts, shifts: allShiftsList } = useShiftStore();
   const { user } = useAuthStore();
-  const isAdmin = user?.role === 'admin' || !user?.role;
+  const isAdmin = user?.role === 'admin' || user?.username === 'admin';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showPreviousShifts, setShowPreviousShifts] = useState(false);
@@ -537,19 +537,21 @@ export default function OrdersPage() {
 
                   <TableCell align="center">
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                      {/* Cancel Order Button */}
-                      {row.status !== 'cancelled' ? (
-                        <Tooltip title="إلغاء هذا الطلب وتخصيم المجموع من المبيعات" arrow>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleCancelOrder(row)}
-                            sx={{ color: '#EF4444', bgcolor: '#FEF2F2', '&:hover': { bgcolor: '#FEE2E2' } }}
-                          >
-                            <CancelOutlined fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      ) : (
-                        <Chip label="ملغي" size="small" color="error" variant="outlined" sx={{ fontWeight: 800 }} />
+                      {/* Cancel Order Button: Strictly for Admin only */}
+                      {isAdmin && (
+                        row.status !== 'cancelled' ? (
+                          <Tooltip title="إلغاء هذا الطلب وتخصيم المجموع من المبيعات" arrow>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleCancelOrder(row)}
+                              sx={{ color: '#EF4444', bgcolor: '#FEF2F2', '&:hover': { bgcolor: '#FEE2E2' } }}
+                            >
+                              <CancelOutlined fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        ) : (
+                          <Chip label="ملغي" size="small" color="error" variant="outlined" sx={{ fontWeight: 800 }} />
+                        )
                       )}
 
                       {/* Reprint Invoice Button */}
@@ -721,7 +723,7 @@ export default function OrdersPage() {
                     تعديل الطلب ✏️
                   </Button>
                 )}
-                {selectedOrder.status !== 'cancelled' && (
+                {isAdmin && selectedOrder.status !== 'cancelled' && (
                   <Button
                     variant="outlined"
                     color="error"
