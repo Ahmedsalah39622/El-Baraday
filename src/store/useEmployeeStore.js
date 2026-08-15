@@ -21,6 +21,8 @@ export const useEmployeeStore = create(
                 name: r.name,
                 role: r.role || 'موظف',
                 phone: r.phone || '',
+                salaryType: r.salary_type || 'monthly',
+                weeklyRate: parseFloat(r.weekly_rate || 0),
                 baseSalary: parseFloat(r.base_salary || 4000),
                 hourlyRate: parseFloat(r.hourly_rate || 0),
                 overtimeHours: parseFloat(r.overtime_hours || 0),
@@ -110,7 +112,9 @@ export const useEmployeeStore = create(
         const newId = `emp_${Date.now()}`;
         const newEmp = { 
           id: newId, 
-          hourlyRate: 0,
+          salaryType: emp.salaryType || 'monthly',
+          weeklyRate: emp.weeklyRate || 0,
+          hourlyRate: emp.hourlyRate || 0,
           overtimeHours: 0,
           deductionHours: 0,
           bonus: 0, 
@@ -128,7 +132,9 @@ export const useEmployeeStore = create(
               name: newEmp.name,
               phone: newEmp.phone,
               role: newEmp.role,
-              base_salary: newEmp.baseSalary,
+              salary_type: newEmp.salaryType || 'monthly',
+              weekly_rate: newEmp.weeklyRate || 0,
+              base_salary: newEmp.baseSalary || 0,
               hourly_rate: newEmp.hourlyRate || 0,
               overtime_hours: newEmp.overtimeHours || 0,
               deduction_hours: newEmp.deductionHours || 0,
@@ -159,6 +165,8 @@ export const useEmployeeStore = create(
               name: updates.name,
               phone: updates.phone,
               role: updates.role,
+              salary_type: updates.salaryType || updates.salary_type,
+              weekly_rate: updates.weeklyRate || updates.weekly_rate,
               base_salary: updates.baseSalary,
               hourly_rate: updates.hourlyRate,
               overtime_hours: updates.overtimeHours,
@@ -201,7 +209,7 @@ export const useEmployeeStore = create(
       }
     }),
     {
-      name: 'el-baraday-employees-v6',
+      name: 'el-baraday-employees-v7',
     }
   )
 );

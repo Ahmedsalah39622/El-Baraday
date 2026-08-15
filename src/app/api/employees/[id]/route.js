@@ -7,7 +7,8 @@ export async function PUT(request, { params }) {
     const body = await request.json();
     const { 
       name, phone, role, base_salary, hourly_rate, 
-      overtime_hours, deduction_hours, bonus, deductions, status, branch_id 
+      overtime_hours, deduction_hours, bonus, deductions, status, branch_id,
+      salary_type, weekly_rate
     } = body;
 
     const result = await query(
@@ -22,11 +23,14 @@ export async function PUT(request, { params }) {
         bonus=COALESCE($8,bonus), 
         deductions=COALESCE($9,deductions),
         status=COALESCE($10,status), 
-        branch_id=COALESCE($11,branch_id)
-       WHERE id=$12 RETURNING *`,
+        branch_id=COALESCE($11,branch_id),
+        salary_type=COALESCE($12,salary_type),
+        weekly_rate=COALESCE($13,weekly_rate)
+       WHERE id=$14 RETURNING *`,
       [
         name, phone, role, base_salary, hourly_rate, 
-        overtime_hours, deduction_hours, bonus, deductions, status, branch_id, id
+        overtime_hours, deduction_hours, bonus, deductions, status, branch_id,
+        salary_type, weekly_rate, id
       ]
     );
 

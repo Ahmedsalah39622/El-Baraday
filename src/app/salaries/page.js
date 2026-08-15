@@ -34,13 +34,24 @@ function TabPanel(props) {
 
 // Helper for exact hourly & net salary calculations
 export function calculateEmployeeSalary(emp) {
-  if (!emp) return { base: 0, hourlyRate: 0, overtimeHours: 0, overtimeAmount: 0, deductionHours: 0, deductionAmount: 0, directBonus: 0, directDeductions: 0, advances: 0, totalBonus: 0, totalDeductions: 0, net: 0 };
+  if (!emp) return { base: 0, hourlyRate: 0, weeklyRate: 0, salaryType: 'monthly', overtimeHours: 0, overtimeAmount: 0, deductionHours: 0, deductionAmount: 0, directBonus: 0, directDeductions: 0, advances: 0, totalBonus: 0, totalDeductions: 0, net: 0 };
 
-  const base = parseFloat(emp.baseSalary || 0);
-  // Default hourly rate = base / 240 (30 days * 8 hrs/day) if not explicitly set
-  const hourlyRate = (emp.hourlyRate && parseFloat(emp.hourlyRate) > 0) 
-    ? parseFloat(emp.hourlyRate) 
-    : (base > 0 ? base / 240 : 0);
+  const salaryType = emp.salaryType || emp.salary_type || 'monthly';
+  let base = parseFloat(emp.baseSalary || emp.base_salary || 0);
+  const weeklyRate = parseFloat(emp.weeklyRate || emp.weekly_rate || 0);
+  let hourlyRate = parseFloat(emp.hourlyRate || emp.hourly_rate || 0);
+
+  if (salaryType === 'weekly') {
+    if (weeklyRate > 0) {
+      if (base === 0) base = weeklyRate * 4;
+      if (hourlyRate === 0) hourlyRate = weeklyRate / 48; // 6 days * 8 hrs
+    }
+  } else if (salaryType === 'hourly') {
+    if (hourlyRate === 0 && base > 0) hourlyRate = base / 240;
+  } else {
+    // monthly
+    if (hourlyRate === 0 && base > 0) hourlyRate = base / 240;
+  }
 
   const overtimeHours = parseFloat(emp.overtimeHours || 0);
   const deductionHours = parseFloat(emp.deductionHours || 0);
@@ -55,10 +66,17 @@ export function calculateEmployeeSalary(emp) {
   const totalBonus = overtimeAmount + directBonus;
   const totalDeductions = deductionAmount + directDeductions;
   
-  const net = Math.max(0, base + totalBonus - totalDeductions - advances);
+  let net = 0;
+  if (salaryType === 'hourly' && base === 0) {
+    net = Math.max(0, (overtimeHours * hourlyRate) + directBonus - (deductionHours * hourlyRate) - directDeductions - advances);
+  } else {
+    net = Math.max(0, base + totalBonus - totalDeductions - advances);
+  }
 
   return {
     base,
+    weeklyRate,
+    salaryType,
     hourlyRate,
     overtimeHours,
     overtimeAmount,
@@ -102,6 +120,8 @@ export default function SalariesPage() {
     name: '',
     role: 'طيار دليفري',
     phone: '',
+    salaryType: 'monthly', // 'monthly', 'weekly', 'hourly'
+    weeklyRate: 1100,
     baseSalary: 4500,
     hourlyRate: 0,
     overtimeHours: 0,
@@ -263,11 +283,17 @@ export default function SalariesPage() {
       alert('رمز PIN مطلوب للكاشير ويجب أن يكون 4 أرقام على الأقل!');
       return;
     }
+    const sType = newEmpData.salaryType || 'monthly';
+    const wRate = parseFloat(newEmpData.weeklyRate) || 0;
+    const bSalary = sType === 'weekly' ? (wRate * 4) : (parseFloat(newEmpData.baseSalary) || 0);
+
     await addEmployee({
       name: newEmpData.name.trim(),
       role: newEmpData.role,
       phone: newEmpData.phone.trim(),
-      baseSalary: parseFloat(newEmpData.baseSalary) || 4000,
+      salaryType: sType,
+      weeklyRate: wRate,
+      baseSalary: bSalary,
       hourlyRate: parseFloat(newEmpData.hourlyRate) || 0,
       overtimeHours: parseFloat(newEmpData.overtimeHours) || 0,
       deductionHours: parseFloat(newEmpData.deductionHours) || 0,
@@ -301,6 +327,8 @@ export default function SalariesPage() {
       name: '',
       role: 'طيار دليفري',
       phone: '',
+      salaryType: 'monthly',
+      weeklyRate: 1100,
       baseSalary: 4500,
       hourlyRate: 0,
       overtimeHours: 0,
@@ -311,11 +339,16 @@ export default function SalariesPage() {
   };
 
   const handleOpenEdit = (emp) => {
+    const sType = emp.salaryType || 'monthly';
+    const wRate = emp.weeklyRate || (sType === 'weekly' ? (emp.baseSalary / 4) : 0);
+
     setEditEmpData({
       id: emp.id,
       name: emp.name || '',
       role: emp.role || 'طيار دليفري',
       phone: emp.phone || '',
+      salaryType: sType,
+      weeklyRate: wRate,
       baseSalary: emp.baseSalary || 4000,
       hourlyRate: emp.hourlyRate || 0,
       overtimeHours: emp.overtimeHours || 0,
@@ -898,7 +931,26 @@ export default function SalariesPage() {
                           {row.role}
                         </Typography>
                       </TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>{calc.base.toLocaleString()} ج.م</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, mb: 0.3 }}>
+                          {calc.salaryType === 'weekly' ? (
+                            <Chip label="🗓️ أسبوعي" size="small" sx={{ bgcolor: '#FEF3C7', color: '#92400E', fontWeight: 800, height: 20, fontSize: '0.7rem' }} />
+                          ) : calc.salaryType === 'hourly' ? (
+                            <Chip label="⏱️ بالساعة" size="small" sx={{ bgcolor: '#E0F2FE', color: '#0369A1', fontWeight: 800, height: 20, fontSize: '0.7rem' }} />
+                          ) : (
+                            <Chip label="📅 شهري" size="small" sx={{ bgcolor: '#DCFCE7', color: '#166534', fontWeight: 800, height: 20, fontSize: '0.7rem' }} />
+                          )}
+                        </Box>
+                        <Typography variant="body2" sx={{ fontWeight: 800, color: '#1E293B' }}>
+                          {calc.salaryType === 'weekly' && calc.weeklyRate > 0 ? (
+                            `${calc.weeklyRate.toLocaleString()} ج.م/أسبوع`
+                          ) : calc.salaryType === 'hourly' && calc.base === 0 ? (
+                            `${calc.hourlyRate.toFixed(1)} ج.م/ساعة`
+                          ) : (
+                            `${calc.base.toLocaleString()} ج.م`
+                          )}
+                        </Typography>
+                      </TableCell>
                       <TableCell sx={{ fontWeight: 700, color: '#0284C7' }}>
                         {calc.hourlyRate.toFixed(1)} ج.م/س
                       </TableCell>
@@ -1688,6 +1740,30 @@ export default function SalariesPage() {
               <MenuItem value="عمال نظافة وترتيب">عمال نظافة وترتيب</MenuItem>
             </Select>
           </FormControl>
+
+          {/* Salary System / Work Type Selection */}
+          <FormControl fullWidth size="small">
+            <InputLabel>نظام العمل وحساب الراتب *</InputLabel>
+            <Select
+              value={newEmpData.salaryType || 'monthly'}
+              label="نظام العمل وحساب الراتب *"
+              onChange={(e) => {
+                const sType = e.target.value;
+                setNewEmpData({
+                  ...newEmpData,
+                  salaryType: sType,
+                  baseSalary: sType === 'monthly' ? 4500 : (sType === 'weekly' ? 4400 : 0),
+                  weeklyRate: sType === 'weekly' ? 1100 : 0,
+                  hourlyRate: sType === 'hourly' ? 25 : 0
+                });
+              }}
+            >
+              <MenuItem value="monthly">📅 شهري (بالشهر)</MenuItem>
+              <MenuItem value="weekly">🗓️ أسبوعي (بالأسبوع)</MenuItem>
+              <MenuItem value="hourly">⏱️ بالساعة (أجر بالساعة)</MenuItem>
+            </Select>
+          </FormControl>
+
           <TextField
             fullWidth
             size="small"
@@ -1695,22 +1771,73 @@ export default function SalariesPage() {
             value={newEmpData.phone}
             onChange={(e) => setNewEmpData({ ...newEmpData, phone: e.target.value })}
           />
-          <TextField
-            fullWidth
-            type="number"
-            size="small"
-            label="المرتب الأساسي (ج.م)"
-            value={newEmpData.baseSalary}
-            onChange={(e) => setNewEmpData({ ...newEmpData, baseSalary: e.target.value })}
-          />
-          <TextField
-            fullWidth
-            type="number"
-            size="small"
-            label="أجر الساعة (اختياري - 0 للتحسب التلقائي)"
-            value={newEmpData.hourlyRate}
-            onChange={(e) => setNewEmpData({ ...newEmpData, hourlyRate: e.target.value })}
-          />
+
+          {newEmpData.salaryType === 'monthly' && (
+            <>
+              <TextField
+                fullWidth
+                type="number"
+                size="small"
+                label="المرتب الشهري الأساسي (ج.م) *"
+                value={newEmpData.baseSalary}
+                onChange={(e) => setNewEmpData({ ...newEmpData, baseSalary: e.target.value })}
+              />
+              <TextField
+                fullWidth
+                type="number"
+                size="small"
+                label="أجر الساعة (اختياري - 0 للتحسب التلقائي من الشهر)"
+                value={newEmpData.hourlyRate}
+                onChange={(e) => setNewEmpData({ ...newEmpData, hourlyRate: e.target.value })}
+              />
+            </>
+          )}
+
+          {newEmpData.salaryType === 'weekly' && (
+            <>
+              <TextField
+                fullWidth
+                type="number"
+                size="small"
+                label="الراتب الأسبوعي (ج.م) *"
+                value={newEmpData.weeklyRate}
+                onChange={(e) => setNewEmpData({ ...newEmpData, weeklyRate: e.target.value, baseSalary: parseFloat(e.target.value || 0) * 4 })}
+                helperText={`يعادل شهرياً حوالي ${(parseFloat(newEmpData.weeklyRate || 0) * 4.33).toFixed(0)} ج.م`}
+              />
+              <TextField
+                fullWidth
+                type="number"
+                size="small"
+                label="أجر الساعة (اختياري - 0 للتحسب التلقائي من الأسبوع)"
+                value={newEmpData.hourlyRate}
+                onChange={(e) => setNewEmpData({ ...newEmpData, hourlyRate: e.target.value })}
+              />
+            </>
+          )}
+
+          {newEmpData.salaryType === 'hourly' && (
+            <>
+              <TextField
+                fullWidth
+                type="number"
+                size="small"
+                label="أجر الساعة المباشر (ج.م/ساعة) *"
+                value={newEmpData.hourlyRate}
+                onChange={(e) => setNewEmpData({ ...newEmpData, hourlyRate: e.target.value })}
+                placeholder="مثال: 25 أو 30"
+              />
+              <TextField
+                fullWidth
+                type="number"
+                size="small"
+                label="مرتب أساسي ثابت إضافي (اختياري / 0)"
+                value={newEmpData.baseSalary}
+                onChange={(e) => setNewEmpData({ ...newEmpData, baseSalary: e.target.value })}
+                helperText="اتركه 0 إذا كان الموظف يحاسب على الساعات فقط"
+              />
+            </>
+          )}
+
           {newEmpData.role === 'كاشير' && (
             <TextField
               fullWidth
@@ -1733,7 +1860,7 @@ export default function SalariesPage() {
 
       {/* Edit Employee & Branch Transfer Dialog */}
       <Dialog open={editEmpDialog} onClose={() => setEditEmpDialog(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800 }}>✏️ تعديل بيانات ونقل فرع الموظف</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 800 }}>✏️ تعديل بيانات ونظام عمل الموظف</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1.5 }}>
           {editEmpData && (
             <>
@@ -1772,6 +1899,29 @@ export default function SalariesPage() {
                   <MenuItem value="عمال نظافة وترتيب">عمال نظافة وترتيب</MenuItem>
                 </Select>
               </FormControl>
+
+              {/* Salary System / Work Type Selection */}
+              <FormControl fullWidth size="small">
+                <InputLabel>نظام العمل وحساب الراتب *</InputLabel>
+                <Select
+                  value={editEmpData.salaryType || 'monthly'}
+                  label="نظام العمل وحساب الراتب *"
+                  onChange={(e) => {
+                    const sType = e.target.value;
+                    setEditEmpData({
+                      ...editEmpData,
+                      salaryType: sType,
+                      weeklyRate: sType === 'weekly' ? (editEmpData.weeklyRate || 1000) : 0,
+                      hourlyRate: sType === 'hourly' ? (editEmpData.hourlyRate || 25) : editEmpData.hourlyRate
+                    });
+                  }}
+                >
+                  <MenuItem value="monthly">📅 شهري (بالشهر)</MenuItem>
+                  <MenuItem value="weekly">🗓️ أسبوعي (بالأسبوع)</MenuItem>
+                  <MenuItem value="hourly">⏱️ بالساعة (أجر بالساعة)</MenuItem>
+                </Select>
+              </FormControl>
+
               <TextField
                 fullWidth
                 size="small"
@@ -1779,14 +1929,71 @@ export default function SalariesPage() {
                 value={editEmpData.phone}
                 onChange={(e) => setEditEmpData({ ...editEmpData, phone: e.target.value })}
               />
-              <TextField
-                fullWidth
-                type="number"
-                size="small"
-                label="المرتب الأساسي (ج.م)"
-                value={editEmpData.baseSalary}
-                onChange={(e) => setEditEmpData({ ...editEmpData, baseSalary: e.target.value })}
-              />
+
+              {editEmpData.salaryType === 'monthly' && (
+                <>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    size="small"
+                    label="المرتب الشهري الأساسي (ج.م) *"
+                    value={editEmpData.baseSalary}
+                    onChange={(e) => setEditEmpData({ ...editEmpData, baseSalary: e.target.value })}
+                  />
+                  <TextField
+                    fullWidth
+                    type="number"
+                    size="small"
+                    label="أجر الساعة (اختياري - 0 للتحسب التلقائي)"
+                    value={editEmpData.hourlyRate}
+                    onChange={(e) => setEditEmpData({ ...editEmpData, hourlyRate: e.target.value })}
+                  />
+                </>
+              )}
+
+              {editEmpData.salaryType === 'weekly' && (
+                <>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    size="small"
+                    label="الراتب الأسبوعي (ج.م) *"
+                    value={editEmpData.weeklyRate}
+                    onChange={(e) => setEditEmpData({ ...editEmpData, weeklyRate: e.target.value, baseSalary: parseFloat(e.target.value || 0) * 4 })}
+                    helperText={`يعادل شهرياً حوالي ${(parseFloat(editEmpData.weeklyRate || 0) * 4.33).toFixed(0)} ج.م`}
+                  />
+                  <TextField
+                    fullWidth
+                    type="number"
+                    size="small"
+                    label="أجر الساعة (اختياري - 0 للتحسب التلقائي)"
+                    value={editEmpData.hourlyRate}
+                    onChange={(e) => setEditEmpData({ ...editEmpData, hourlyRate: e.target.value })}
+                  />
+                </>
+              )}
+
+              {editEmpData.salaryType === 'hourly' && (
+                <>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    size="small"
+                    label="أجر الساعة المباشر (ج.م/ساعة) *"
+                    value={editEmpData.hourlyRate}
+                    onChange={(e) => setEditEmpData({ ...editEmpData, hourlyRate: e.target.value })}
+                  />
+                  <TextField
+                    fullWidth
+                    type="number"
+                    size="small"
+                    label="مرتب أساسي ثابت إضافي (اختياري / 0)"
+                    value={editEmpData.baseSalary}
+                    onChange={(e) => setEditEmpData({ ...editEmpData, baseSalary: e.target.value })}
+                    helperText="اتركه 0 إذا كان الموظف يحاسب على الساعات فقط"
+                  />
+                </>
+              )}
             </>
           )}
         </DialogContent>

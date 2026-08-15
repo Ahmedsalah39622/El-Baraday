@@ -13,6 +13,12 @@ async function ensureHourlyColumns() {
   try {
     await query(`ALTER TABLE employees ADD COLUMN deduction_hours DECIMAL(10, 2) DEFAULT 0.00`);
   } catch(e) {}
+  try {
+    await query(`ALTER TABLE employees ADD COLUMN salary_type VARCHAR(50) DEFAULT 'monthly'`);
+  } catch(e) {}
+  try {
+    await query(`ALTER TABLE employees ADD COLUMN weekly_rate DECIMAL(10, 2) DEFAULT 0.00`);
+  } catch(e) {}
   hourlyColumnsChecked = true;
 }
 
@@ -48,19 +54,24 @@ export async function POST(request) {
     const body = await request.json();
     const { 
       name, phone, role, base_salary, hourly_rate, 
-      overtime_hours, deduction_hours, bonus, deductions, branch_id 
+      overtime_hours, deduction_hours, bonus, deductions, branch_id,
+      salary_type, weekly_rate
     } = body;
     const empBranch = branch_id || 'b1';
+    const sType = salary_type || 'monthly';
+    const wRate = parseFloat(weekly_rate || 0);
 
     const result = await query(
       `INSERT INTO employees (
         id, name, phone, role, base_salary, hourly_rate, 
-        overtime_hours, deduction_hours, bonus, deductions, branch_id
+        overtime_hours, deduction_hours, bonus, deductions, branch_id,
+        salary_type, weekly_rate
       )
-      VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
       [
         name, phone, role || 'كاشير', base_salary || 0, hourly_rate || 0,
-        overtime_hours || 0, deduction_hours || 0, bonus || 0, deductions || 0, empBranch
+        overtime_hours || 0, deduction_hours || 0, bonus || 0, deductions || 0, empBranch,
+        sType, wRate
       ]
     );
 
