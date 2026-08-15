@@ -8,10 +8,23 @@ async function ensureCustomerCols() {
 }
 
 
-export async function GET() {
+export async function GET(request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get('search')?.trim();
+
+    if (search) {
+      const result = await query(
+        `SELECT * FROM customers 
+         WHERE phone ILIKE $1 OR name ILIKE $1 OR address ILIKE $1 
+         ORDER BY created_at DESC LIMIT 100`,
+        [`%${search}%`]
+      );
+      return NextResponse.json(result.rows || []);
+    }
+
     const result = await query('SELECT * FROM customers ORDER BY created_at DESC');
-    return NextResponse.json(result.rows);
+    return NextResponse.json(result.rows || []);
   } catch (error) {
     console.error('❌ Error fetching customers:', error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });

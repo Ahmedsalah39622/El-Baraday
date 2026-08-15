@@ -29,7 +29,7 @@ export default function OrderDetailsPanel({
   // tax and total are no longer used here; subtotal is the only source of truth
 }) {
   const { addInvoice, nextOrderNumber, fetchNextOrderNumber } = useInvoiceStore();
-  const { customers = [], drivers = [], activeQueue = [], saveOrUpdateCustomer } = useCustomerStore();
+  const { customers = [], drivers = [], activeQueue = [], fetchCustomers, saveOrUpdateCustomer } = useCustomerStore();
   const { user } = useAuthStore();
   const { branches, selectedBranchId, fetchBranches } = useBranchStore();
   const { activeShift, shifts } = useShiftStore();
@@ -54,6 +54,7 @@ export default function OrderDetailsPanel({
     setOrderBranchId(targetBranch);
     fetchNextOrderNumber(targetBranch);
     fetchBranches(); // Always refresh branches from DB on mount
+    fetchCustomers(); // Always refresh customer list from DB on mount
   }, [selectedBranchId, user]);
 
   const currentBranch = branches.find(b => b.id === orderBranchId);
@@ -144,17 +145,23 @@ export default function OrderDetailsPanel({
   // Handle selecting an existing customer from phone search
   const handleSelectCustomer = (selectedCust) => {
     if (!selectedCust) return;
+    let custObj = selectedCust;
     if (typeof selectedCust === 'string') {
       const cleanPhone = selectedCust.includes(' - ') ? selectedCust.split(' - ')[0].trim() : selectedCust.trim();
       setCustomerPhone(cleanPhone);
-      return;
+      const found = customers.find(c => {
+        const p = (c.phone || '').trim();
+        return p === cleanPhone || p.replace(/\D/g, '') === cleanPhone.replace(/\D/g, '');
+      });
+      if (!found) return;
+      custObj = found;
     }
 
-    const cleanPhone = (selectedCust.phone || '').includes(' - ') ? selectedCust.phone.split(' - ')[0].trim() : (selectedCust.phone || '').trim();
-    setCustomerName(selectedCust.name || '');
+    const cleanPhone = (custObj.phone || '').includes(' - ') ? custObj.phone.split(' - ')[0].trim() : (custObj.phone || '').trim();
+    setCustomerName(custObj.name || '');
     setCustomerPhone(cleanPhone);
 
-    const addrs = selectedCust.addresses || [];
+    const addrs = custObj.addresses || [];
     setSavedAddresses(addrs);
 
     if (addrs.length > 0) {
@@ -162,11 +169,14 @@ export default function OrderDetailsPanel({
       setCustomerAddress(firstAddr.address || '');
       setCustomerFloor(firstAddr.floor || '');
       setCustomerApartment(firstAddr.apartment || '');
-      const rawFee = firstAddr.deliveryFee ?? firstAddr.delivery_fee ?? selectedCust.deliveryFee ?? selectedCust.delivery_fee;
+      const rawFee = firstAddr.deliveryFee ?? firstAddr.delivery_fee ?? custObj.deliveryFee ?? custObj.delivery_fee;
       const savedFee = (rawFee !== undefined && rawFee !== null && !isNaN(parseFloat(rawFee))) ? parseFloat(rawFee) : 15;
       setDeliveryFee(savedFee);
-    } else if (selectedCust.deliveryFee !== undefined || selectedCust.delivery_fee !== undefined) {
-      const rawFee = selectedCust.deliveryFee ?? selectedCust.delivery_fee;
+    } else {
+      if (custObj.address) setCustomerAddress(custObj.address);
+      if (custObj.floor) setCustomerFloor(custObj.floor);
+      if (custObj.apartment) setCustomerApartment(custObj.apartment);
+      const rawFee = custObj.deliveryFee ?? custObj.delivery_fee;
       const savedFee = (rawFee !== undefined && rawFee !== null && !isNaN(parseFloat(rawFee))) ? parseFloat(rawFee) : 15;
       setDeliveryFee(savedFee);
     }
@@ -630,6 +640,26 @@ export default function OrderDetailsPanel({
                     const cleanPhone = (option.phone || '').includes(' - ') ? option.phone.split(' - ')[0].trim() : (option.phone || '');
                     return cleanPhone ? `${cleanPhone} - ${option.name || ''}` : (option.name || '');
                   }}
+                  filterOptions={(options, state) => {
+                    const rawInput = (state.inputValue || '').trim().toLowerCase();
+                    if (!rawInput) return options.slice(0, 30);
+                    const cleanDigits = rawInput.replace(/\D/g, '');
+
+                    return options.filter(opt => {
+                      const optPhone = (opt.phone || '').trim();
+                      const optDigits = optPhone.replace(/\D/g, '');
+                      const optName = (opt.name || '').toLowerCase();
+                      const optAddress = (opt.address || '').toLowerCase();
+
+                      const phoneMatch = cleanDigits
+                        ? (optDigits.includes(cleanDigits) || optPhone.includes(rawInput))
+                        : false;
+                      const nameMatch = optName.includes(rawInput);
+                      const addressMatch = optAddress.includes(rawInput);
+
+                      return phoneMatch || nameMatch || addressMatch;
+                    }).slice(0, 30);
+                  }}
                   inputValue={customerPhone}
                   onInputChange={(e, val) => {
                     const rawVal = val || '';
@@ -637,7 +667,16 @@ export default function OrderDetailsPanel({
                     setCustomerPhone(cleanVal);
 
                     if (cleanVal.length >= 3) {
-                      const match = customers.find(c => c.phone === cleanVal);
+                      const cleanDigits = cleanVal.replace(/\D/g, '');
+                      const match = customers.find(c => {
+                        const cPhone = (c.phone || '').trim();
+                        const cDigits = cPhone.replace(/\D/g, '');
+                        const cName = (c.name || '').trim().toLowerCase();
+                        return cPhone === cleanVal ||
+                               (cleanDigits.length >= 6 && (cDigits === cleanDigits || cDigits.endsWith(cleanDigits))) ||
+                               (cName && cName === cleanVal.toLowerCase());
+                      });
+
                       if (match) {
                         setCustomerName(match.name || '');
                         setSavedAddresses(match.addresses || []);
@@ -649,23 +688,44 @@ export default function OrderDetailsPanel({
                           const rawFee = firstAddr.deliveryFee ?? firstAddr.delivery_fee ?? match.deliveryFee ?? match.delivery_fee;
                           const savedFee = (rawFee !== undefined && rawFee !== null && !isNaN(parseFloat(rawFee))) ? parseFloat(rawFee) : 15;
                           setDeliveryFee(savedFee);
-                        } else if (match.deliveryFee !== undefined || match.delivery_fee !== undefined) {
+                        } else {
+                          if (match.address) setCustomerAddress(match.address);
+                          if (match.floor) setCustomerFloor(match.floor);
+                          if (match.apartment) setCustomerApartment(match.apartment);
                           const rawFee = match.deliveryFee ?? match.delivery_fee;
                           const savedFee = (rawFee !== undefined && rawFee !== null && !isNaN(parseFloat(rawFee))) ? parseFloat(rawFee) : 15;
                           setDeliveryFee(savedFee);
                         }
-                      } else {
-                        setSavedAddresses([]);
                       }
                     }
                   }}
                   onChange={(e, val) => handleSelectCustomer(val)}
+                  renderOption={(props, option) => {
+                    const { key, ...otherProps } = props;
+                    return (
+                      <Box component="li" key={option.id || option.phone || key} {...otherProps} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', py: 1, borderBottom: '1px solid #F1F5F9' }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                          <Typography variant="body2" fontWeight={800} color="#1E293B">
+                            📞 {option.phone} — {option.name || 'عميل'}
+                          </Typography>
+                          {option.deliveryFee && (
+                            <Chip label={`توصيل: ${option.deliveryFee} ج.م`} size="small" sx={{ height: 20, fontSize: '0.68rem', fontWeight: 800 }} />
+                          )}
+                        </Box>
+                        {option.address && (
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.3 }}>
+                            📍 {option.address} {option.floor ? `(د ${option.floor})` : ''}
+                          </Typography>
+                        )}
+                      </Box>
+                    );
+                  }}
                   renderInput={(params) => (
                     <TextField
                       {...params}
                       size="small"
-                      label="رقم الهاتف"
-                      placeholder=" "
+                      label="رقم الهاتف أو الاسم"
+                      placeholder="ابحث بالرقم أو اسم العميل..."
                       sx={{ bgcolor: '#FFF', '& input': { fontSize: '0.813rem' } }}
                     />
                   )}
@@ -673,7 +733,11 @@ export default function OrderDetailsPanel({
               </Box>
 
               {/* New Customer Indicator Banner */}
-              {customerPhone && !customers.some(c => c.phone === customerPhone) && (
+              {customerPhone && !customers.some(c => {
+                const p = (c.phone || '').replace(/\D/g, '');
+                const q = customerPhone.replace(/\D/g, '');
+                return p === q || (q.length >= 6 && p.endsWith(q));
+              }) && (
                 <Chip
                   label="✨ عميل جديد (سيتم إضافته وحفظه في النظام تلقائياً)"
                   size="small"

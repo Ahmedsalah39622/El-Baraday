@@ -30,6 +30,8 @@ export default function POSPage() {
 
   useEffect(() => {
     fetchBranches();
+    useCustomerStore.getState().fetchCustomers();
+    useCustomerStore.getState().fetchDrivers();
   }, []);
 
   const [selectedCategory, setSelectedCategory] = useState('all');
