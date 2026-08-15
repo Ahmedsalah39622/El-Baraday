@@ -204,7 +204,7 @@ export async function POST(request) {
             parseFloat(item.price) || 0, itemQty, item.size || null, item.extras || null, item.notes || null]
         );
 
-        // 🥩 Automatic Inventory Raw Material Deductions (خصم الخامات والمكونات المربوطة بالأحجام)
+        // 🥩 Automatic Inventory Raw Material Deductions & Usage Tracking (خصم الخامات والمكونات المربوطة بالأحجام وحساب الاستهلاك)
         let baseProdId = prodId;
         if (baseProdId && (baseProdId.endsWith('_صغير') || baseProdId.endsWith('_كبير'))) {
           baseProdId = baseProdId.replace(/_(صغير|كبير)$/, '');
@@ -212,8 +212,12 @@ export async function POST(request) {
 
         if (baseProdId) {
           try {
+            // Fetch branch name for transaction logs
+            const bRes = await query('SELECT name FROM branches WHERE id = $1', [targetBranch]);
+            const targetBranchName = (bRes.rows && bRes.rows[0]?.name) || (targetBranch === 'b_main' ? 'المخزن الرئيسي' : targetBranch);
+
             const ingRes = await query(
-              'SELECT inventory_item_id, quantity, size FROM product_ingredients WHERE product_id = $1 OR product_id = $2',
+              'SELECT inventory_item_id, quantity, size, COALESCE(auto_deduct, 1) AS auto_deduct FROM product_ingredients WHERE product_id = $1 OR product_id = $2',
               [baseProdId, prodId]
             );
 
@@ -233,20 +237,41 @@ export async function POST(request) {
                 if (!matchesSize) continue;
 
                 const deductAmount = (parseFloat(ing.quantity) || 0) * itemQty;
-                if (deductAmount !== 0) {
-                  // Deduct (or add) from/to inventory_items current_stock
-                  await query(
-                    'UPDATE inventory_items SET current_stock = GREATEST(0, current_stock - $1) WHERE id = $2',
-                    [deductAmount, ing.inventory_item_id]
-                  );
+                if (deductAmount === 0) continue;
 
-                  // Log transaction
-                  const transId = `trans_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+                const isAutoDeduct = ing.auto_deduct !== 0 && ing.auto_deduct !== '0' && ing.auto_deduct !== false;
+
+                const transId = `trans_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+                if (!isAutoDeduct) {
+                  // 📊 خامات لا تُخصم من الرصيد لكن يُحسب ويسجل أن الفرع استهلك منها عدد/كمية كذا
+                  const transNotes = `استهلاك خامة (${item.product_name || item.name || ''} ${item.size || ''}) - فرع ${targetBranchName} - طلب #${nextNum} (تسجيل استهلاك بدون خصم رصيد)`;
+                  await query(
+                    `INSERT INTO inventory_transactions (id, item_id, type, quantity, notes)
+                     VALUES ($1, $2, 'usage', $3, $4)`,
+                    [transId, ing.inventory_item_id, Math.abs(deductAmount), transNotes]
+                  );
+                } else {
+                  // 📉 خامات تخصم فعلياً من رصيد الفرع
+                  if (targetBranch === 'b_main') {
+                    await query(
+                      'UPDATE inventory_items SET current_stock = GREATEST(0, current_stock - $1) WHERE id = $2',
+                      [deductAmount, ing.inventory_item_id]
+                    );
+                  } else {
+                    await query(
+                      `INSERT INTO inventory_branch_stock (id, item_id, branch_id, current_stock)
+                       VALUES ($1, $2, $3, 0)
+                       ON DUPLICATE KEY UPDATE current_stock = GREATEST(0, current_stock - $4)`,
+                      [`obs_${Date.now()}_${Math.floor(Math.random() * 1000)}`, ing.inventory_item_id, targetBranch, deductAmount]
+                    );
+                  }
+
                   const isDeduction = deductAmount > 0;
                   const transType = isDeduction ? 'out' : 'in';
                   const transNotes = isDeduction
-                    ? `خصم أوتوماتيكي (${item.size || 'عادي'}) - طلب #${nextNum}`
-                    : `إضافة أوتوماتيكية وصفة (${item.size || 'عادي'}) - طلب #${nextNum}`;
+                    ? `خصم خامات (${item.product_name || item.name || ''} ${item.size || 'عادي'}) - فرع ${targetBranchName} - طلب #${nextNum}`
+                    : `إضافة خامات (${item.product_name || item.name || ''} ${item.size || 'عادي'}) - فرع ${targetBranchName} - طلب #${nextNum}`;
 
                   await query(
                     `INSERT INTO inventory_transactions (id, item_id, type, quantity, notes)

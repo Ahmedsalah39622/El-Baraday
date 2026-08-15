@@ -1,8 +1,47 @@
-import { query } from '@/lib/db';
+import { query, isSchemaChecked, markSchemaChecked } from '@/lib/db';
 import { NextResponse } from 'next/server';
+
+async function ensureTransferTables() {
+  if (isSchemaChecked('trfTables')) return;
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS inventory_transfers (
+        id VARCHAR(100) PRIMARY KEY,
+        from_branch_id VARCHAR(100) NOT NULL,
+        to_branch_id VARCHAR(100) NOT NULL,
+        item_id VARCHAR(100) NOT NULL,
+        quantity DECIMAL(10,3) NOT NULL,
+        unit VARCHAR(50),
+        sender_name VARCHAR(100),
+        receiver_name VARCHAR(100),
+        status VARCHAR(50) DEFAULT 'completed',
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_from_branch (from_branch_id),
+        INDEX idx_to_branch (to_branch_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } catch (e) { }
+
+  try {
+    await query(`
+      CREATE TABLE IF NOT EXISTS inventory_branch_stock (
+        id VARCHAR(100) PRIMARY KEY,
+        item_id VARCHAR(100) NOT NULL,
+        branch_id VARCHAR(100) NOT NULL,
+        current_stock DECIMAL(10,3) NOT NULL DEFAULT 0.000,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_item_branch (item_id, branch_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } catch (e) { }
+
+  markSchemaChecked('trfTables');
+}
 
 export async function GET(request) {
   try {
+    await ensureTransferTables();
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '100', 10);
 
@@ -31,6 +70,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    await ensureTransferTables();
     const body = await request.json();
     const itemId = body.item_id || body.itemId;
     const senderName = body.sender_name || body.senderName || 'المسؤول';
@@ -162,12 +202,12 @@ async function processSingleTransfer({ fromBranchId, toBranchId, itemId, quantit
   // Log audit transactions
   await query(
     `INSERT INTO inventory_transactions (id, item_id, type, quantity, notes) VALUES ($1, $2, 'transfer_out', $3, $4)`,
-    [`trans_out_${Date.now()}_${Math.floor(Math.random() * 1000)}`, itemId, quantity, `توزيع/تحويل إلى ${toBranchName} - ${notes}`]
+    [`trans_out_${Date.now()}_${Math.floor(Math.random() * 1000)}`, itemId, quantity, `توزيع/تحويل من ${fromBranchName} إلى ${toBranchName} - ${notes}`]
   );
 
   await query(
     `INSERT INTO inventory_transactions (id, item_id, type, quantity, notes) VALUES ($1, $2, 'transfer_in', $3, $4)`,
-    [`trans_in_${Date.now()}_${Math.floor(Math.random() * 1000)}`, itemId, quantity, `استلام خامة من ${fromBranchName} - ${notes}`]
+    [`trans_in_${Date.now()}_${Math.floor(Math.random() * 1000)}`, itemId, quantity, `استلام خامة في ${toBranchName} من ${fromBranchName} - ${notes}`]
   );
 
   const created = (transferResult.rows && transferResult.rows.length > 0) ? transferResult.rows[0] : {
