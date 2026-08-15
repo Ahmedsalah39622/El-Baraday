@@ -58,6 +58,14 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
     }
   }, [open]);
 
+  // Update selected product if initialProductId or products changes
+  useEffect(() => {
+    if (initialProductId && products.length > 0) {
+      const found = products.find(p => p.id === initialProductId);
+      if (found) setSelectedProduct(found);
+    }
+  }, [initialProductId, products]);
+
   // Load ingredients when selected product changes
   useEffect(() => {
     if (selectedProduct?.id) {
