@@ -20,7 +20,7 @@ import { useBranchStore } from '@/store/useBranchStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useShiftStore } from '@/store/useShiftStore';
 import DeliveryTimerBadge from '@/components/delivery/DeliveryTimerBadge';
-import { printThermalReceipt, playOrderNotificationSound, isOrderPrinted, markOrderAsPrinted } from '@/lib/printReceipt';
+import { printThermalReceipt, playOrderNotificationSound, isOrderPrinted, markOrderAsPrinted, printDriverCustodyReceipt } from '@/lib/printReceipt';
 import { sendDeliveryWhatsApp } from '@/lib/whatsapp';
 import { generateReportPDF } from '@/lib/reportPdfExport';
 import EditOrderModal from '@/components/dialogs/EditOrderModal';
@@ -557,7 +557,7 @@ export default function DeliveryPage() {
     return true;
   });
 
-  // Action: Print Driver Custody Report (A4 PDF)
+  // Action: Print Driver Custody Report (Compact Single Box 80mm & Thermal)
   const handlePrintCustodyPDF = () => {
     if (settlementFilteredOrders.length === 0) {
       alert('لا توجد طلبات لعرضها في الكشف!');
@@ -580,49 +580,17 @@ export default function DeliveryPage() {
     }, 0);
 
     const targetDriverName = selectedDriverForSettlement !== 'all' ? selectedDriverForSettlement : 'كافة الطيارين';
+    const activeBranchName = (branches || []).find(b => b.id === effectiveBranch)?.name || 'الفرع الرئيسي';
 
-    const stats = [
-      { title: 'الطيار / الفلتر', value: targetDriverName },
-      { title: 'إجمالي قيمة الأوردرات (صافي)', value: `${totalOrdersSubtotal.toLocaleString()} ج.م` },
-      { title: 'إجمالي خدمة الدليفري', value: `${totalDeliveryFeesSum.toLocaleString()} ج.م` },
-      { title: 'الإجمالي الكلي للعهدة', value: `${grandTotalSum.toLocaleString()} ج.م` }
-    ];
-
-    const columns = [
-      { label: '#', accessor: (_, idx) => idx + 1 },
-      { label: 'رقم الطلب', accessor: (o) => `#${o.order_number || o.orderNumber}` },
-      { label: 'الطيار', accessor: (o) => o.driver_name || o.driverName || '—' },
-      { label: 'العميل والفرع', accessor: (o) => `${o.customer_name || o.customerName || 'عميل'} (${o.branch_name || 'الرئيسي'})` },
-      {
-        label: 'قيمة الأوردر (صافي)', accessor: (o) => {
-          const tot = parseFloat(o.total || 0);
-          const fee = parseFloat(o.delivery_fee || o.deliveryFee || 0);
-          const sub = parseFloat(o.subtotal || 0) || Math.max(0, tot - fee);
-          return `${sub.toLocaleString()} ج.م`;
-        }
-      },
-      { label: 'خدمة الدليفري', accessor: (o) => `+${(parseFloat(o.delivery_fee || o.deliveryFee || 0)).toLocaleString()} ج.م` },
-      { label: 'الإجمالي الكلي', accessor: (o) => `${(parseFloat(o.total || 0)).toLocaleString()} ج.م` },
-      { label: 'حالة العهدة والنقدية', accessor: (o) => (o.is_cash_collected || o.isCashCollected || o.status === 'cash_collected') ? '🟢 تم التوريد للخزينة' : '🔴 عهدة معلقة مع الطيار' }
-    ];
-
-    generateReportPDF({
-      title: `كشف أوردرات العهدة والتسليمات - ${targetDriverName}`,
-      subtitle: 'تفصيل قيمة الأوردرات + رسوم خدمة الدليفري لكل طيار',
-      branchName: 'الفرع الرئيسي',
-      dateRangeStr: new Date().toLocaleDateString('ar-EG'),
-      stats,
-      columns,
-      data: settlementFilteredOrders,
-      totals: {
-        0: '',
-        1: 'إجمالي الكشف',
-        2: '',
-        3: '',
-        4: `${totalOrdersSubtotal.toLocaleString()} ج.م`,
-        5: `${totalDeliveryFeesSum.toLocaleString()} ج.م`,
-        6: `${grandTotalSum.toLocaleString()} ج.م`,
-      }
+    printDriverCustodyReceipt({
+      driverName: targetDriverName,
+      branchName: activeBranchName,
+      orders: settlementFilteredOrders,
+      totalOrdersSubtotal,
+      totalDeliveryFeesSum,
+      grandTotalSum,
+      filterStatus: settlementCashFilter,
+      dateStr: new Date().toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }),
     });
   };
 

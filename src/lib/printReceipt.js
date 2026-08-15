@@ -1289,4 +1289,274 @@ export function printReturnReceipt(returnData) {
   }, 250);
 }
 
+// Dedicated Ultra-Compact 80mm Thermal Driver Custody Receipt
+export function printDriverCustodyReceipt(custodyData) {
+  if (!custodyData) return;
+
+  const {
+    driverName = 'كافة الطيارين',
+    branchName = 'الفرع الرئيسي',
+    orders = [],
+    totalOrdersSubtotal = 0,
+    totalDeliveryFeesSum = 0,
+    grandTotalSum = 0,
+    filterStatus = 'all',
+    dateStr = new Date().toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }),
+  } = custodyData;
+
+  const rowsHtml = (orders || []).map((o, idx) => {
+    const orderNum = o.order_number || o.orderNumber || idx + 1;
+    const custName = o.customer_name || o.customerName || 'عميل';
+    const tot = parseFloat(o.total || 0);
+    const fee = parseFloat(o.delivery_fee || o.deliveryFee || 0);
+    const sub = parseFloat(o.subtotal || 0) || Math.max(0, tot - fee);
+
+    return `
+      <tr style="border-bottom: 1px solid #000; background-color: ${idx % 2 === 0 ? '#FFFFFF' : '#F9FAFB'};">
+        <td style="padding: 4px 2px; font-weight: 900; text-align: center; font-size: 9.5px; border-left: 1px solid #000;">${idx + 1}</td>
+        <td style="padding: 4px 2px; font-weight: 900; text-align: center; font-size: 9.5px; border-left: 1px solid #000;">#${orderNum}</td>
+        <td style="padding: 4px 3px; font-weight: 800; text-align: right; font-size: 9px; border-left: 1px solid #000; word-break: break-word;">${custName}</td>
+        <td style="padding: 4px 2px; font-weight: 800; text-align: center; font-size: 9px; border-left: 1px solid #000;">${sub.toFixed(0)}</td>
+        <td style="padding: 4px 2px; font-weight: 800; text-align: center; font-size: 9px; border-left: 1px solid #000;">+${fee.toFixed(0)}</td>
+        <td style="padding: 4px 2px; font-weight: 900; text-align: center; font-size: 9.5px;">${tot.toFixed(0)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="ar" dir="rtl">
+    <head>
+      <meta charset="UTF-8">
+      <title>كشف عهدة - ${driverName}</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&display=swap');
+        @page {
+          size: 80mm auto;
+          margin: 0mm !important;
+        }
+        @media print {
+          @page {
+            size: 80mm auto;
+            margin: 0mm !important;
+          }
+          html, body {
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 1mm !important;
+            background: #FFF !important;
+            color: #000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
+        * {
+          box-sizing: border-box !important;
+          margin: 0;
+          padding: 0;
+        }
+        body {
+          font-family: 'Cairo', 'Segoe UI', Arial, sans-serif;
+          color: #000000;
+          direction: rtl;
+          padding: 1.5mm;
+          width: 100%;
+          background-color: #FFFFFF;
+          font-size: 10px;
+        }
+        .center { text-align: center; }
+        .brand-name {
+          font-size: 16px;
+          font-weight: 900;
+          color: #000;
+        }
+        .report-badge {
+          display: inline-block;
+          font-size: 12px;
+          font-weight: 900;
+          border: 1.5px solid #000;
+          padding: 2px 8px;
+          border-radius: 4px;
+          margin: 3px 0;
+          background: #000;
+          color: #FFF;
+        }
+        .meta-text {
+          font-size: 9.5px;
+          font-weight: 800;
+          color: #111;
+          line-height: 1.4;
+        }
+        .double-sep {
+          border-bottom: 2px double #000;
+          margin: 4px 0;
+        }
+        .dashed-sep {
+          border-bottom: 1px dashed #000;
+          margin: 4px 0;
+        }
+
+        /* Unified Single Table Box */
+        .orders-box {
+          border: 1.5px solid #000;
+          border-radius: 4px;
+          overflow: hidden;
+          margin: 5px 0;
+        }
+        .orders-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        .orders-table th {
+          background-color: #000;
+          color: #FFF;
+          font-size: 9.5px;
+          font-weight: 900;
+          padding: 4px 2px;
+          text-align: center;
+          border-left: 1px solid #444;
+        }
+        .orders-table th:last-child {
+          border-left: none;
+        }
+
+        /* Unified Totals Box Directly Below Table */
+        .totals-box {
+          border: 2px solid #000;
+          border-radius: 4px;
+          padding: 6px;
+          background-color: #F8FAFC;
+          margin-top: 5px;
+        }
+        .total-row {
+          display: flex;
+          justify-content: space-between;
+          font-size: 10px;
+          font-weight: 800;
+          margin-bottom: 2px;
+        }
+        .grand-total-row {
+          border-top: 1.5px solid #000;
+          padding-top: 4px;
+          margin-top: 4px;
+          display: flex;
+          justify-content: space-between;
+          font-size: 13px;
+          font-weight: 900;
+          background: #000;
+          color: #FFF;
+          padding: 4px 6px;
+          border-radius: 3px;
+        }
+        .signatures {
+          margin-top: 12px;
+          display: flex;
+          justify-content: space-between;
+          text-align: center;
+          padding-bottom: 14mm;
+        }
+        .sign-title {
+          font-size: 9px;
+          font-weight: 800;
+        }
+        .sign-line {
+          margin-top: 22px;
+          border-top: 1px dashed #000;
+          width: 75px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="center">
+        <div class="brand-name">مطعم البرادعي</div>
+        <div class="report-badge">🛵 كشف عهدة وتسليمات طيار</div>
+        <div class="meta-text">الطيار: <strong>${driverName}</strong> | الفرع: ${branchName}</div>
+        <div class="meta-text">تاريخ الطباعة: ${dateStr}</div>
+        <div class="meta-text">عدد الطلبات بالكشف: <strong>${orders.length} طلب</strong></div>
+      </div>
+
+      <div class="double-sep"></div>
+
+      <!-- SINGLE CONCISE ORDERS BOX -->
+      <div class="orders-box">
+        <table class="orders-table">
+          <thead>
+            <tr>
+              <th style="width: 8%;">#</th>
+              <th style="width: 18%;">الطلب</th>
+              <th style="width: 34%; text-align: right; padding-right: 4px;">العميل</th>
+              <th style="width: 13%;">صافي</th>
+              <th style="width: 13%;">خدمة</th>
+              <th style="width: 14%;">الإجمالي</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- TOTALS BOX DIRECTLY UNDER ORDERS -->
+      <div class="totals-box">
+        <div class="total-row">
+          <span>عدد الأوردرات:</span>
+          <span>${orders.length} طلب</span>
+        </div>
+        <div class="total-row">
+          <span>إجمالي قيمة الأوردرات (صافي):</span>
+          <span>${totalOrdersSubtotal.toLocaleString()} ج.م</span>
+        </div>
+        <div class="total-row">
+          <span>إجمالي خدمة الدليفري:</span>
+          <span>+${totalDeliveryFeesSum.toLocaleString()} ج.م</span>
+        </div>
+        <div class="grand-total-row">
+          <span>الإجمالي الكلي للعهدة:</span>
+          <span>${grandTotalSum.toLocaleString()} ج.م</span>
+        </div>
+      </div>
+
+      <!-- SIGNATURES -->
+      <div class="signatures">
+        <div>
+          <div class="sign-title">توقيع الطيار المستلم</div>
+          <div class="sign-line"></div>
+        </div>
+        <div>
+          <div class="sign-title">توقيع الكاشير / الإدارة</div>
+          <div class="sign-line"></div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.style.visibility = 'hidden';
+
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  setTimeout(() => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => {
+      try {
+        document.body.removeChild(iframe);
+      } catch (e) { }
+    }, 2000);
+  }, 250);
+}
+
+
 
