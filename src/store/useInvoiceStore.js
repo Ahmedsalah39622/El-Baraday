@@ -322,11 +322,11 @@ export const useInvoiceStore = create((set, get) => ({
           customer_floor: invoice.customerFloor || invoice.floor || null,
           customer_apartment: invoice.customerApartment || invoice.apartment || null,
           items: invoice.items?.map((item) => ({
-            product_id: item.id || item.product_id,
+            product_id: item.product_id || item.id?.replace?.(/_\d{13,}$/, '')?.replace?.(/_(?:صغير|كبير)$/, '') || item.id,
             product_name: item.name || item.product_name,
             price: item.price,
             quantity: item.quantity,
-            size: item.size,
+            size: item.size || null,
             extras: item.extras,
             notes: item.notes,
           })),

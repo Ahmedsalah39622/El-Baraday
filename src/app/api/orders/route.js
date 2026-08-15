@@ -209,6 +209,10 @@ export async function POST(request) {
         if (baseProdId && (baseProdId.endsWith('_صغير') || baseProdId.endsWith('_كبير'))) {
           baseProdId = baseProdId.replace(/_(صغير|كبير)$/, '');
         }
+        // Strip timestamp suffixes from offer product IDs (e.g. "p15_1723741234567" → "p15")
+        if (baseProdId && /^.+_\d{13,}$/.test(baseProdId)) {
+          baseProdId = baseProdId.replace(/_\d{13,}$/, '');
+        }
 
         const NON_DEDUCTIBLE_KEYWORDS = [
           'بطاطس', 'بطاطا',

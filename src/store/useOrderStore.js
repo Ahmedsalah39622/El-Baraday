@@ -41,10 +41,12 @@ export const useOrderStore = create(
               ...state.items,
               {
                 id: product.id,
+                product_id: product.product_id || product.id,
                 name: product.name,
                 price: product.price,
                 image: product.image,
                 quantity: finalQuantity,
+                size: product.size || null,
                 extras: product.extras || extras,
                 notes: product.notes || notes,
               },

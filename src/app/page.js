@@ -145,6 +145,7 @@ export default function POSPage() {
 
     addItem({
       id: `${selectedOfferProduct.id}_${Date.now()}`,
+      product_id: selectedOfferProduct.id,
       name: `عرض ${selectedOfferProduct.name}`,
       price: selectedOfferProduct.price,
       image: selectedOfferProduct.image,
@@ -569,6 +570,7 @@ export default function POSPage() {
     } else {
       addItem({
         id: product.id,
+        product_id: product.id,
         name: product.name,
         price: product.price,
         image: product.image,
@@ -1067,6 +1069,7 @@ export default function POSPage() {
                         const finalQty = Math.max(1, parseInt(qtySmall) || 1);
                         addItem({
                           id: `${p.id}_صغير`,
+                          product_id: p.id,
                           name: `${p.name} (صغير)`,
                           price: pSmall,
                           image: p.image,
@@ -1175,6 +1178,7 @@ export default function POSPage() {
                         const finalQty = Math.max(1, parseInt(qtyLarge) || 1);
                         addItem({
                           id: `${p.id}_كبير`,
+                          product_id: p.id,
                           name: `${p.name} (كبير)`,
                           price: pLarge,
                           image: p.image,
