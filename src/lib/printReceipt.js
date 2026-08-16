@@ -1307,6 +1307,7 @@ export function printDriverCustodyReceipt(custodyData) {
   const rowsHtml = (orders || []).map((o, idx) => {
     const orderNum = o.order_number || o.orderNumber || idx + 1;
     const custName = o.customer_name || o.customerName || 'عميل';
+    const custAddress = o.customer_address || o.customerAddress || o.address || 'غير محدد';
     const tot = parseFloat(o.total || 0);
     const fee = parseFloat(o.delivery_fee || o.deliveryFee || 0);
     const sub = parseFloat(o.subtotal || 0) || Math.max(0, tot - fee);
@@ -1316,6 +1317,7 @@ export function printDriverCustodyReceipt(custodyData) {
         <td style="padding: 4px 2px; font-weight: 900; text-align: center; font-size: 9.5px; border-left: 1px solid #000;">${idx + 1}</td>
         <td style="padding: 4px 2px; font-weight: 900; text-align: center; font-size: 9.5px; border-left: 1px solid #000;">#${orderNum}</td>
         <td style="padding: 4px 3px; font-weight: 800; text-align: right; font-size: 9px; border-left: 1px solid #000; word-break: break-word;">${custName}</td>
+        <td style="padding: 4px 3px; font-weight: 700; text-align: right; font-size: 8.5px; border-left: 1px solid #000; word-break: break-word; line-height: 1.3;">${custAddress}</td>
         <td style="padding: 4px 2px; font-weight: 800; text-align: center; font-size: 9px; border-left: 1px solid #000;">${sub.toFixed(0)}</td>
         <td style="padding: 4px 2px; font-weight: 800; text-align: center; font-size: 9px; border-left: 1px solid #000;">+${fee.toFixed(0)}</td>
         <td style="padding: 4px 2px; font-weight: 900; text-align: center; font-size: 9.5px;">${tot.toFixed(0)}</td>
@@ -1482,12 +1484,13 @@ export function printDriverCustodyReceipt(custodyData) {
         <table class="orders-table">
           <thead>
             <tr>
-              <th style="width: 8%;">#</th>
-              <th style="width: 18%;">الطلب</th>
-              <th style="width: 34%; text-align: right; padding-right: 4px;">العميل</th>
-              <th style="width: 13%;">صافي</th>
-              <th style="width: 13%;">خدمة</th>
-              <th style="width: 14%;">الإجمالي</th>
+              <th style="width: 7%;">#</th>
+              <th style="width: 14%;">الطلب</th>
+              <th style="width: 22%; text-align: right; padding-right: 4px;">العميل</th>
+              <th style="width: 28%; text-align: right; padding-right: 4px;">العنوان</th>
+              <th style="width: 9%;">صافي</th>
+              <th style="width: 9%;">خدمة</th>
+              <th style="width: 11%;">الإجمالي</th>
             </tr>
           </thead>
           <tbody>
