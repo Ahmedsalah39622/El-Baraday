@@ -27,14 +27,8 @@ function TabPanel(props) {
 export default function BranchesInventoryPage() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || !user?.role;
   const branchId = user?.branch_id || user?.branchId || 'b1';
-
-  useEffect(() => {
-    if (user && !isAdmin) {
-      router.replace(`/branches-inventory/${branchId}`);
-    }
-  }, [user, isAdmin, branchId]);
 
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(false);
