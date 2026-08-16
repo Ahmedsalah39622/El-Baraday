@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Box, Typography,
   FormControl, InputLabel, Select, MenuItem, TextField, Paper, Table, TableHead,
-  TableRow, TableCell, TableBody, TableContainer, IconButton, Tooltip, Chip, Alert, Grid, Divider, Autocomplete, InputAdornment, Tabs, Tab
+  TableRow, TableCell, TableBody, TableContainer, IconButton, Tooltip, Chip, Alert, Grid, Divider, Autocomplete, InputAdornment, Card, CardContent
 } from '@mui/material';
-import { Delete as DeleteIcon, Add as AddIcon, Science, AttachMoney, Inventory, CheckCircle, SwapHoriz } from '@mui/icons-material';
+import { Delete as DeleteIcon, Add as AddIcon, Science, CheckCircle, Storefront, LocalOffer } from '@mui/icons-material';
 
 export default function ProductRecipeModal({ open, onClose, initialProductId }) {
   const [products, setProducts] = useState([]);
@@ -14,42 +14,46 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [ingredients, setIngredients] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [addSuccessMsg, setAddSuccessMsg] = useState('');
 
-  // Active Size Tab for multi-size products: 'صغير', 'كبير', 'all', or 'show_all'
-  const [activeTab, setActiveTab] = useState('صغير');
+  // Small size add form
+  const [smallInvId, setSmallInvId] = useState('');
+  const [smallQty, setSmallQty] = useState('1');
+  const [smallUnitMode, setSmallUnitMode] = useState('base');
+  const [smallAutoDeduct, setSmallAutoDeduct] = useState('deduct');
 
-  // New ingredient form
-  const [selectedInventoryId, setSelectedInventoryId] = useState('');
-  const [quantity, setQuantity] = useState('1');
-  const [unitMode, setUnitMode] = useState('base'); // 'base' or 'gram'
-  const [actionType, setActionType] = useState('deduct'); // 'deduct' or 'add'
-  const [autoDeductMode, setAutoDeductMode] = useState('deduct'); // 'deduct' (خصم رصيد) or 'track_only' (استهلاك فقط)
-  const [selectedSize, setSelectedSize] = useState('صغير');
-  const [addSuccess, setAddSuccess] = useState(false);
+  // Large size add form
+  const [largeInvId, setLargeInvId] = useState('');
+  const [largeQty, setLargeQty] = useState('1');
+  const [largeUnitMode, setLargeUnitMode] = useState('base');
+  const [largeAutoDeduct, setLargeAutoDeduct] = useState('deduct');
 
-  // Reset unit mode and action type when selected raw material changes
-  useEffect(() => {
-    setUnitMode('base');
-    setActionType('deduct');
-    if (selectedInventoryId) {
-      const NON_DEDUCTIBLE_KEYWORDS = [
-        'بطاطس', 'بطاطا',
-        'روزبيف', 'روست',
-        'سلامى', 'سلامي',
-        'سوسيس', 'سويسويس', 'هوت دوج',
-        'تركى', 'تركي',
-        'بسطرمة', 'بسكرمه', 'بسترمة',
-        'مشروم', 'فطر',
-        'شيدر'
-      ];
-      const selectedItem = inventoryItems.find(i => i.id === selectedInventoryId);
-      const itemName = (selectedItem?.name || '').toLowerCase();
-      const isNonDeductible = NON_DEDUCTIBLE_KEYWORDS.some(kw => itemName.includes(kw));
-      setAutoDeductMode(isNonDeductible ? 'track_only' : 'deduct');
-    } else {
-      setAutoDeductMode('deduct');
-    }
-  }, [selectedInventoryId, inventoryItems]);
+  // Single/Common size add form
+  const [commonInvId, setCommonInvId] = useState('');
+  const [commonQty, setCommonQty] = useState('1');
+  const [commonUnitMode, setCommonUnitMode] = useState('base');
+  const [commonAutoDeduct, setCommonAutoDeduct] = useState('deduct');
+
+  const NON_DEDUCTIBLE_KEYWORDS = [
+    'بطاطس', 'بطاطا',
+    'روزبيف', 'روست',
+    'سلامى', 'سلامي',
+    'سوسيس', 'سويسويس', 'هوت دوج',
+    'تركى', 'تركي',
+    'بسطرمة', 'بسكرمه', 'بسترمة',
+    'مشروم', 'فطر',
+    'شيدر'
+  ];
+
+  const isMultiSizeProduct = Boolean(
+    selectedProduct && (
+      selectedProduct.has_sizes === 1 ||
+      selectedProduct.has_sizes === true ||
+      selectedProduct.hasMultipleSizes ||
+      selectedProduct.price_small ||
+      selectedProduct.priceSmall
+    )
+  );
 
   // Load all products and inventory items when modal opens
   useEffect(() => {
@@ -70,14 +74,6 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
   useEffect(() => {
     if (selectedProduct?.id) {
       loadProductIngredients(selectedProduct.id);
-      const hasSizes = Boolean(selectedProduct.hasMultipleSizes || selectedProduct.priceSmall || selectedProduct.has_sizes);
-      if (hasSizes) {
-        setActiveTab('صغير');
-        setSelectedSize('صغير');
-      } else {
-        setActiveTab('all');
-        setSelectedSize('all');
-      }
     } else {
       setIngredients([]);
     }
@@ -126,18 +122,18 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
     }
   };
 
-  const handleAddIngredient = async () => {
-    if (!selectedProduct?.id || !selectedInventoryId) {
-      alert('برجاء اختيار المنتج والخامة المراد ربطها');
+  const handleAddIngredient = async (targetSize, invId, qtyStr, unitMode, autoDeductMode) => {
+    if (!selectedProduct?.id || !invId) {
+      alert('برجاء اختيار الخامة المراد إضافتها');
       return;
     }
-    const numQty = parseFloat(quantity) || 1;
+    const numQty = parseFloat(qtyStr) || 1;
     if (numQty <= 0) {
       alert('برجاء إدخال كمية صحيحة أكبر من الصفر');
       return;
     }
 
-    const selectedInvItem = inventoryItems.find(item => item.id === selectedInventoryId);
+    const selectedInvItem = inventoryItems.find(item => item.id === invId);
     const itemUnit = selectedInvItem?.unit || '';
     const supportsGrams = itemUnit === 'كجم' || itemUnit === 'لتر';
 
@@ -146,32 +142,35 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
       finalQty = numQty / 1000;
     }
 
-    // If actionType is add (+), we save the quantity as a negative number in the recipe table
-    if (actionType === 'add') {
-      finalQty = -finalQty;
-    }
-
     try {
       const res = await fetch('/api/products/ingredients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           product_id: selectedProduct.id,
-          inventory_item_id: selectedInventoryId,
+          inventory_item_id: invId,
           quantity: finalQty,
-          size: selectedSize,
+          size: targetSize, // 'صغير', 'كبير', or 'all'
           auto_deduct: autoDeductMode === 'deduct'
         })
       });
 
       if (res.ok) {
-        setAddSuccess(true);
-        setTimeout(() => setAddSuccess(false), 2500);
-        setSelectedInventoryId('');
-        setQuantity('1');
-        setUnitMode('base');
-        setActionType('deduct');
-        setAutoDeductMode('deduct');
+        const sizeLabel = targetSize === 'صغير' ? 'الحجم الصغير' : targetSize === 'كبير' ? 'الحجم الكبير' : 'المنتج';
+        setAddSuccessMsg(`✅ تم إضافة الخامة لـ (${sizeLabel}) بنجاح!`);
+        setTimeout(() => setAddSuccessMsg(''), 3000);
+
+        if (targetSize === 'صغير') {
+          setSmallInvId('');
+          setSmallQty('1');
+        } else if (targetSize === 'كبير') {
+          setLargeInvId('');
+          setLargeQty('1');
+        } else {
+          setCommonInvId('');
+          setCommonQty('1');
+        }
+
         loadProductIngredients(selectedProduct.id);
       }
     } catch (err) {
@@ -190,116 +189,123 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
     }
   };
 
-  const handleUpdateIngredientSize = async (ingId, newSize) => {
-    try {
-      const res = await fetch(`/api/products/ingredients/${ingId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ size: newSize })
-      });
-      if (res.ok && selectedProduct?.id) {
-        loadProductIngredients(selectedProduct.id);
-      }
-    } catch (err) {
-      console.error('Error updating ingredient size:', err);
-    }
-  };
-
-  const isMultiSizeProduct = Boolean(
-    selectedProduct?.hasMultipleSizes || selectedProduct?.priceSmall || selectedProduct?.has_sizes
-  );
-
-  const pPriceSmall = parseFloat(selectedProduct?.priceSmall || 25);
-  const pPriceLarge = parseFloat(selectedProduct?.priceLarge || selectedProduct?.price || 40);
+  const pPriceSmall = parseFloat(selectedProduct?.price_small || selectedProduct?.priceSmall || 25);
+  const pPriceLarge = parseFloat(selectedProduct?.price_large || selectedProduct?.priceLarge || selectedProduct?.price || 40);
   const sellingPrice = parseFloat(selectedProduct?.price || 0);
 
+  // Filter Ingredients by size
+  const smallIngredients = ingredients.filter(i => i.size === 'صغير' || i.size === 'small');
+  const largeIngredients = ingredients.filter(i => i.size === 'كبير' || i.size === 'large');
+  const commonIngredients = ingredients.filter(i => i.size === 'all' || i.size === 'عادي' || !i.size);
+
   // Financial calculations
-  const smallRecipeCost = ingredients.reduce((sum, ing) => {
-    if (ing.size === 'كبير' || ing.size === 'large') return sum;
-    const qty = parseFloat(ing.quantity || 0);
-    const unitCost = parseFloat(ing.inventory_cost_per_unit || 0);
-    return sum + (qty * unitCost);
-  }, 0);
+  const smallCost = smallIngredients.reduce((s, i) => s + (parseFloat(i.quantity || 0) * parseFloat(i.inventory_cost_per_unit || 0)), 0) +
+    commonIngredients.reduce((s, i) => s + (parseFloat(i.quantity || 0) * parseFloat(i.inventory_cost_per_unit || 0)), 0);
 
-  const largeRecipeCost = ingredients.reduce((sum, ing) => {
-    if (ing.size === 'صغير' || ing.size === 'small') return sum;
-    const qty = parseFloat(ing.quantity || 0);
-    const unitCost = parseFloat(ing.inventory_cost_per_unit || 0);
-    return sum + (qty * unitCost);
-  }, 0);
+  const largeCost = largeIngredients.reduce((s, i) => s + (parseFloat(i.quantity || 0) * parseFloat(i.inventory_cost_per_unit || 0)), 0) +
+    commonIngredients.reduce((s, i) => s + (parseFloat(i.quantity || 0) * parseFloat(i.inventory_cost_per_unit || 0)), 0);
 
-  const totalRecipeCost = ingredients.reduce((sum, ing) => {
-    const qty = parseFloat(ing.quantity || 0);
-    const unitCost = parseFloat(ing.inventory_cost_per_unit || 0);
-    return sum + (qty * unitCost);
-  }, 0);
+  const singleCost = ingredients.reduce((s, i) => s + (parseFloat(i.quantity || 0) * parseFloat(i.inventory_cost_per_unit || 0)), 0);
 
-  const smallNetProfit = Math.max(0, pPriceSmall - smallRecipeCost);
-  const largeNetProfit = Math.max(0, pPriceLarge - largeRecipeCost);
-  const smallProfitMargin = pPriceSmall > 0 ? Math.round((smallNetProfit / pPriceSmall) * 100) : 0;
-  const largeProfitMargin = pPriceLarge > 0 ? Math.round((largeNetProfit / pPriceLarge) * 100) : 0;
-  const netProfit = Math.max(0, sellingPrice - totalRecipeCost);
-  const profitMarginPercent = sellingPrice > 0 ? Math.round((netProfit / sellingPrice) * 100) : 0;
+  const smallProfit = Math.max(0, pPriceSmall - smallCost);
+  const largeProfit = Math.max(0, pPriceLarge - largeCost);
+  const singleProfit = Math.max(0, sellingPrice - singleCost);
 
-  // Filter ingredients according to active tab
-  const displayedIngredients = ingredients.filter(ing => {
-    if (!isMultiSizeProduct) return true;
-    if (activeTab === 'show_all') return true;
-    if (activeTab === 'صغير') return ing.size === 'صغير' || ing.size === 'small';
-    if (activeTab === 'كبير') return ing.size === 'كبير' || ing.size === 'large';
-    if (activeTab === 'all') return ing.size === 'all' || ing.size === 'عادي' || !ing.size;
-    return true;
-  });
+  // Helper render for an ingredients table
+  const renderIngredientsTable = (itemsList, emptyMsg) => (
+    <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #E2E8F0', borderRadius: '10px', bgcolor: '#FFF' }}>
+      <Table size="small">
+        <TableHead sx={{ bgcolor: '#F8FAFC' }}>
+          <TableRow>
+            <TableCell sx={{ fontWeight: 800 }}>الخامة</TableCell>
+            <TableCell sx={{ fontWeight: 800 }}>الكمية</TableCell>
+            <TableCell sx={{ fontWeight: 800 }}>الخصم</TableCell>
+            <TableCell sx={{ fontWeight: 800 }}>التكلفة</TableCell>
+            <TableCell align="center" sx={{ fontWeight: 800 }}>حذف</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {itemsList.map((ing) => {
+            const ingQty = parseFloat(ing.quantity || 0);
+            const unitCost = parseFloat(ing.inventory_cost_per_unit || 0);
+            const itemCost = ingQty * unitCost;
+            const isAutoDeduct = ing.auto_deduct !== false && ing.auto_deduct !== '0';
 
-  const countSmall = ingredients.filter(i => i.size === 'صغير' || i.size === 'small').length;
-  const countLarge = ingredients.filter(i => i.size === 'كبير' || i.size === 'large').length;
-  const countShared = ingredients.filter(i => i.size === 'all' || i.size === 'عادي' || !i.size).length;
+            return (
+              <TableRow key={ing.id} hover>
+                <TableCell sx={{ fontWeight: 800, color: '#1E293B' }}>{ing.inventory_item_name}</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>{Math.abs(ingQty)} {ing.inventory_item_unit || ''}</TableCell>
+                <TableCell>
+                  <Chip
+                    label={isAutoDeduct ? "خصم رصيد" : "استهلاك فقط"}
+                    size="small"
+                    color={isAutoDeduct ? "success" : "default"}
+                    sx={{ fontWeight: 700, fontSize: '0.72rem' }}
+                  />
+                </TableCell>
+                <TableCell sx={{ fontWeight: 800, color: '#DC2626' }}>{itemCost.toFixed(2)} ج.م</TableCell>
+                <TableCell align="center">
+                  <IconButton color="error" size="small" onClick={() => handleDeleteIngredient(ing.id)}>
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            );
+          })}
 
-  const selectedInvItem = inventoryItems.find(item => item.id === selectedInventoryId);
-  const itemUnit = selectedInvItem?.unit || '';
-  const supportsGrams = itemUnit === 'كجم' || itemUnit === 'لتر';
+          {itemsList.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={5} align="center" sx={{ py: 2.5, color: '#94A3B8', fontWeight: 600 }}>
+                {emptyMsg || 'لا توجد خامات مضافة حالياً'}
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth slotProps={{ paper: { sx: { borderRadius: '20px', p: 1 } } }}>
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pb: 1 }}>
-        <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#EEF2FF', color: '#4F46E5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Science sx={{ fontSize: 28 }} />
-        </Box>
-        <Box>
-          <Typography variant="h6" fontWeight={900} color="#1A1A2E">
-            🥩 إدارة خامات ومكونات المنتجات والمكسات (حسب الأحجام)
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            ربط الحجم الصغير والحجم الكبير بالخامات بالمخزن ليتم الخصم الأوتوماتيكي وحساب الربح لكل حجم
-          </Typography>
+    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth slotProps={{ paper: { sx: { borderRadius: '20px', p: 1 } } }}>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1, borderBottom: '1px solid #E2E8F0' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#EEF2FF', color: '#4F46E5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Science sx={{ fontSize: 28 }} />
+          </Box>
+          <Box>
+            <Typography variant="h6" fontWeight={900} color="#1A1A2E">
+              🥩 ضبط مكونات وخامات المنتجات (فصل الصغير عن الكبير)
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              تحديد الخامات المخصومة لكل حجم على حدة لضمان دقة جرد ومخزون الفروع بنسبة 100%
+            </Typography>
+          </Box>
         </Box>
       </DialogTitle>
 
-      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 1 }}>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 2 }}>
         {/* Product Selection Bar */}
         <Paper sx={{ p: 2, borderRadius: '14px', bgcolor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} md={6}>
               <Autocomplete
                 options={products || []}
-                getOptionLabel={(opt) => `${opt.name} ${opt.hasMultipleSizes ? '(صغير وكبير)' : `- ${opt.price} ج.م`}`}
+                getOptionLabel={(opt) => `${opt.name} ${(opt.has_sizes === 1 || opt.hasMultipleSizes) ? '(له حجم صغير وكبير 📏)' : `- ${opt.price || 0} ج.م`}`}
                 value={selectedProduct}
-                onChange={(e, val) => {
-                  setSelectedProduct(val || null);
-                }}
-                renderInput={(params) => <TextField {...params} label="اختر المنتج المراد تعديل مكوناته *" size="small" />}
+                onChange={(e, val) => setSelectedProduct(val || null)}
+                renderInput={(params) => <TextField {...params} label="اختر المنتج المراد ضبط مكوناته *" size="small" />}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} md={6}>
               {selectedProduct && (
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', sm: 'flex-end' } }}>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'flex-start', md: 'flex-end' } }}>
                   {isMultiSizeProduct ? (
                     <>
-                      <Chip label={`📏 سعر الصغير: ${pPriceSmall} ج.م`} sx={{ bgcolor: '#FEF3C7', color: '#B45309', fontWeight: 800, border: '1px solid #FCD34D' }} />
-                      <Chip label={`📏 سعر الكبير: ${pPriceLarge} ج.م`} sx={{ bgcolor: '#DBEAFE', color: '#1E40AF', fontWeight: 800, border: '1px solid #93C5FD' }} />
+                      <Chip icon={<Storefront />} label={`سعر الصغير: ${pPriceSmall} ج.م`} sx={{ bgcolor: '#FEF3C7', color: '#B45309', fontWeight: 800, border: '1.5px solid #FCD34D' }} />
+                      <Chip icon={<Storefront />} label={`سعر الكبير: ${pPriceLarge} ج.م`} sx={{ bgcolor: '#DBEAFE', color: '#1E40AF', fontWeight: 800, border: '1.5px solid #93C5FD' }} />
                     </>
                   ) : (
-                    <Chip label={`سعر البيع: ${sellingPrice} ج.م`} color="primary" sx={{ fontWeight: 800 }} />
+                    <Chip icon={<LocalOffer />} label={`سعر البيع: ${sellingPrice} ج.م`} color="primary" sx={{ fontWeight: 800 }} />
                   )}
                 </Box>
               )}
@@ -307,313 +313,328 @@ export default function ProductRecipeModal({ open, onClose, initialProductId }) 
           </Grid>
         </Paper>
 
-        {/* Size Selection Tabs for Multi-Size Products */}
-        {selectedProduct && isMultiSizeProduct && (
-          <Paper sx={{ borderRadius: '14px', bgcolor: '#FFF', border: '1.5px solid #E2E8F0', overflow: 'hidden' }}>
-            <Tabs
-              value={activeTab}
-              onChange={(e, newTab) => {
-                setActiveTab(newTab);
-                if (newTab !== 'show_all') {
-                  setSelectedSize(newTab);
-                }
-              }}
-              variant="fullWidth"
-              sx={{
-                '& .MuiTab-root': { fontWeight: 800, fontSize: '0.92rem', py: 1.5 },
-                '& .Mui-selected': { color: '#4F46E5 !important' },
-                bgcolor: '#F8FAFC'
-              }}
-            >
-              <Tab
-                value="صغير"
-                label={`🟡 خامات الحجم الصغير (${countSmall})`}
-                sx={{ '&.Mui-selected': { bgcolor: '#FEF3C7', color: '#B45309 !important' } }}
-              />
-              <Tab
-                value="كبير"
-                label={`🔵 خامات الحجم الكبير (${countLarge})`}
-                sx={{ '&.Mui-selected': { bgcolor: '#DBEAFE', color: '#1E40AF !important' } }}
-              />
-              <Tab
-                value="all"
-                label={`🌐 خامات مشتركة للكل (${countShared})`}
-                sx={{ '&.Mui-selected': { bgcolor: '#F3E8FF', color: '#6B21A8 !important' } }}
-              />
-              <Tab
-                value="show_all"
-                label={`📋 كل الخامات (${ingredients.length})`}
-              />
-            </Tabs>
-          </Paper>
-        )}
-
-        {addSuccess && (
+        {addSuccessMsg && (
           <Alert severity="success" icon={<CheckCircle />} sx={{ borderRadius: '10px', fontWeight: 700 }}>
-            ✅ تم ربط الخامة بالمنتج بنجاح! سيتم الخصم من رصيد الفرع أوتوماتيكياً مع كل أوردر.
+            {addSuccessMsg}
           </Alert>
         )}
 
-        {/* Add Ingredient Form */}
-        {selectedProduct && (
-          <Paper sx={{ p: 2.5, borderRadius: '14px', bgcolor: isMultiSizeProduct && selectedSize === 'صغير' ? '#FFFBEB' : isMultiSizeProduct && selectedSize === 'كبير' ? '#F0F7FF' : '#F9FAFB', border: '1.5px solid', borderColor: isMultiSizeProduct && selectedSize === 'صغير' ? '#FCD34D' : isMultiSizeProduct && selectedSize === 'كبير' ? '#93C5FD' : '#E5E7EB' }}>
-            <Typography variant="subtitle2" fontWeight={800} color={isMultiSizeProduct && selectedSize === 'صغير' ? '#B45309' : isMultiSizeProduct && selectedSize === 'كبير' ? '#1E40AF' : '#374151'} sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <AddIcon sx={{ fontSize: 20 }} /> إضافة خامة جديدة لـ ({selectedProduct.name}) {isMultiSizeProduct ? `[ الحجم: ${selectedSize === 'صغير' ? '📏 صغير' : selectedSize === 'كبير' ? '📏 كبير' : '🌐 مشترك'} ]` : ''}:
-            </Typography>
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} sm={3.5}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>الخامة من المخزن *</InputLabel>
-                  <Select
-                    value={selectedInventoryId}
-                    label="الخامة من المخزن *"
-                    onChange={(e) => setSelectedInventoryId(e.target.value)}
-                    sx={{ bgcolor: '#FFF' }}
-                  >
-                    {inventoryItems.map((inv) => (
-                      <MenuItem key={inv.id} value={inv.id}>
-                        {inv.name} ({inv.category || 'عام'}) - المتاح: {inv.currentStock || inv.current_stock || 0} {inv.unit}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
+        {/* If Product has sizes: SHOW 2 EXPLICIT SEPARATE CARDS (Small vs Large) */}
+        {selectedProduct && isMultiSizeProduct && (
+          <Grid container spacing={2.5}>
+            {/* 🟡 1. SMALL SIZE CARD */}
+            <Grid item xs={12} md={6}>
+              <Card sx={{ borderRadius: '16px', border: '2px solid #FCD34D', bgcolor: '#FFFDF5', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <Box sx={{ p: 2, bgcolor: '#FEF3C7', borderBottom: '1.5px solid #FCD34D', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="subtitle1" fontWeight={900} color="#92400E">
+                    🟡 خامات الحجم الصغير (تخصم فقط عند طلب صغير)
+                  </Typography>
+                  <Chip label={`${smallIngredients.length} خامات`} size="small" sx={{ bgcolor: '#B45309', color: '#FFF', fontWeight: 800 }} />
+                </Box>
 
-              {isMultiSizeProduct && (
-                <Grid item xs={12} sm={2.5}>
+                <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {/* Small Ingredients List */}
+                  {renderIngredientsTable(smallIngredients, 'لم يتم ربط خامات للحجم الصغير بعد (أضف من الأسفل 👇)')}
+
+                  {/* Add to Small Form */}
+                  <Paper sx={{ p: 1.5, borderRadius: '12px', border: '1px dashed #F59E0B', bgcolor: '#FFFBEB' }}>
+                    <Typography variant="caption" fontWeight={800} color="#B45309" display="block" sx={{ mb: 1 }}>
+                      ➕ إضافة خامة للحجم الصغير (مثل: ساده صغير أو لحمة صغير):
+                    </Typography>
+                    <Grid container spacing={1.5} alignItems="center">
+                      <Grid item xs={12} sm={6}>
+                        <FormControl fullWidth size="small">
+                          <InputLabel>اختر الخامة *</InputLabel>
+                          <Select
+                            value={smallInvId}
+                            label="اختر الخامة *"
+                            onChange={(e) => {
+                              setSmallInvId(e.target.value);
+                              const item = inventoryItems.find(i => i.id === e.target.value);
+                              const isNonDed = NON_DEDUCTIBLE_KEYWORDS.some(kw => (item?.name || '').toLowerCase().includes(kw));
+                              setSmallAutoDeduct(isNonDed ? 'track_only' : 'deduct');
+                            }}
+                            sx={{ bgcolor: '#FFF' }}
+                          >
+                            {inventoryItems.map((inv) => (
+                              <MenuItem key={inv.id} value={inv.id}>
+                                {inv.name} ({inv.currentStock || inv.current_stock || 0} {inv.unit})
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+
+                      <Grid item xs={6} sm={3}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          type="number"
+                          label="الكمية"
+                          value={smallQty}
+                          onChange={(e) => setSmallQty(e.target.value)}
+                          sx={{ bgcolor: '#FFF' }}
+                        />
+                      </Grid>
+
+                      <Grid item xs={6} sm={3}>
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          onClick={() => handleAddIngredient('صغير', smallInvId, smallQty, smallUnitMode, smallAutoDeduct)}
+                          startIcon={<AddIcon />}
+                          sx={{ bgcolor: '#D97706', color: '#FFF', fontWeight: 800, py: 0.9, '&:hover': { bgcolor: '#B45309' } }}
+                        >
+                          إضافة للصغير
+                        </Button>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+
+                  {/* Small Financial summary */}
+                  <Box sx={{ mt: 'auto', p: 1.5, borderRadius: '10px', bgcolor: '#FEF9C3', display: 'flex', justifyContent: 'space-around', border: '1px solid #FDE047' }}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="caption" color="text.secondary">تكلفة خامات الصغير</Typography>
+                      <Typography variant="subtitle2" fontWeight={900} color="#DC2626">{smallCost.toFixed(2)} ج.م</Typography>
+                    </Box>
+                    <Divider orientation="vertical" flexItem />
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="caption" color="text.secondary">صافي الربح المتوقع</Typography>
+                      <Typography variant="subtitle2" fontWeight={900} color="#15803D">{smallProfit.toFixed(2)} ج.م</Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* 🔵 2. LARGE SIZE CARD */}
+            <Grid item xs={12} md={6}>
+              <Card sx={{ borderRadius: '16px', border: '2px solid #93C5FD', bgcolor: '#F8FAFF', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <Box sx={{ p: 2, bgcolor: '#DBEAFE', borderBottom: '1.5px solid #93C5FD', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="subtitle1" fontWeight={900} color="#1E40AF">
+                    🔵 خامات الحجم الكبير (تخصم فقط عند طلب كبير)
+                  </Typography>
+                  <Chip label={`${largeIngredients.length} خامات`} size="small" sx={{ bgcolor: '#1E40AF', color: '#FFF', fontWeight: 800 }} />
+                </Box>
+
+                <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {/* Large Ingredients List */}
+                  {renderIngredientsTable(largeIngredients, 'لم يتم ربط خامات للحجم الكبير بعد (أضف من الأسفل 👇)')}
+
+                  {/* Add to Large Form */}
+                  <Paper sx={{ p: 1.5, borderRadius: '12px', border: '1px dashed #3B82F6', bgcolor: '#EFF6FF' }}>
+                    <Typography variant="caption" fontWeight={800} color="#1E40AF" display="block" sx={{ mb: 1 }}>
+                      ➕ إضافة خامة للحجم الكبير (مثل: ساده كبير أو لحمة كبير):
+                    </Typography>
+                    <Grid container spacing={1.5} alignItems="center">
+                      <Grid item xs={12} sm={6}>
+                        <FormControl fullWidth size="small">
+                          <InputLabel>اختر الخامة *</InputLabel>
+                          <Select
+                            value={largeInvId}
+                            label="اختر الخامة *"
+                            onChange={(e) => {
+                              setLargeInvId(e.target.value);
+                              const item = inventoryItems.find(i => i.id === e.target.value);
+                              const isNonDed = NON_DEDUCTIBLE_KEYWORDS.some(kw => (item?.name || '').toLowerCase().includes(kw));
+                              setLargeAutoDeduct(isNonDed ? 'track_only' : 'deduct');
+                            }}
+                            sx={{ bgcolor: '#FFF' }}
+                          >
+                            {inventoryItems.map((inv) => (
+                              <MenuItem key={inv.id} value={inv.id}>
+                                {inv.name} ({inv.currentStock || inv.current_stock || 0} {inv.unit})
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+
+                      <Grid item xs={6} sm={3}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          type="number"
+                          label="الكمية"
+                          value={largeQty}
+                          onChange={(e) => setLargeQty(e.target.value)}
+                          sx={{ bgcolor: '#FFF' }}
+                        />
+                      </Grid>
+
+                      <Grid item xs={6} sm={3}>
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          onClick={() => handleAddIngredient('كبير', largeInvId, largeQty, largeUnitMode, largeAutoDeduct)}
+                          startIcon={<AddIcon />}
+                          sx={{ bgcolor: '#2563EB', color: '#FFF', fontWeight: 800, py: 0.9, '&:hover': { bgcolor: '#1D4ED8' } }}
+                        >
+                          إضافة للكبير
+                        </Button>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+
+                  {/* Large Financial summary */}
+                  <Box sx={{ mt: 'auto', p: 1.5, borderRadius: '10px', bgcolor: '#DBEAFE', display: 'flex', justifyContent: 'space-around', border: '1px solid #BFDBFE' }}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="caption" color="text.secondary">تكلفة خامات الكبير</Typography>
+                      <Typography variant="subtitle2" fontWeight={900} color="#DC2626">{largeCost.toFixed(2)} ج.م</Typography>
+                    </Box>
+                    <Divider orientation="vertical" flexItem />
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="caption" color="text.secondary">صافي الربح المتوقع</Typography>
+                      <Typography variant="subtitle2" fontWeight={900} color="#1D4ED8">{largeProfit.toFixed(2)} ج.م</Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* 🌐 3. COMMON / SHARED INGREDIENTS (Optional) */}
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2, borderRadius: '14px', bgcolor: '#FAF5FF', border: '1.5px solid #E9D5FF' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                  <Typography variant="subtitle2" fontWeight={900} color="#6B21A8">
+                    🌐 خامات مشتركة (تُخصم مع الصغير والكبير معاً - مثل البهارات أو أكياس التغليف)
+                  </Typography>
+                  <Chip label={`${commonIngredients.length} خامات مشتركة`} size="small" sx={{ bgcolor: '#7E22CE', color: '#FFF', fontWeight: 800 }} />
+                </Box>
+
+                {commonIngredients.length > 0 && renderIngredientsTable(commonIngredients, '')}
+
+                <Box sx={{ mt: commonIngredients.length > 0 ? 1.5 : 0 }}>
+                  <Grid container spacing={1.5} alignItems="center">
+                    <Grid item xs={12} sm={5}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>خامة مشتركة *</InputLabel>
+                        <Select
+                          value={commonInvId}
+                          label="خامة مشتركة *"
+                          onChange={(e) => setCommonInvId(e.target.value)}
+                          sx={{ bgcolor: '#FFF' }}
+                        >
+                          {inventoryItems.map((inv) => (
+                            <MenuItem key={inv.id} value={inv.id}>
+                              {inv.name} ({inv.currentStock || inv.current_stock || 0} {inv.unit})
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={6} sm={4}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        type="number"
+                        label="الكمية"
+                        value={commonQty}
+                        onChange={(e) => setCommonQty(e.target.value)}
+                        sx={{ bgcolor: '#FFF' }}
+                      />
+                    </Grid>
+                    <Grid item xs={6} sm={3}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        onClick={() => handleAddIngredient('all', commonInvId, commonQty, commonUnitMode, commonAutoDeduct)}
+                        startIcon={<AddIcon />}
+                        sx={{ bgcolor: '#7E22CE', color: '#FFF', fontWeight: 800, py: 0.9, '&:hover': { bgcolor: '#6B21A8' } }}
+                      >
+                        إضافة كمشترك
+                      </Button>
+                    </Grid>
+                  </Grid>
+                </Box>
+              </Paper>
+            </Grid>
+          </Grid>
+        )}
+
+        {/* If Single Size Product */}
+        {selectedProduct && !isMultiSizeProduct && (
+          <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E2E8F0', bgcolor: '#FFF', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Typography variant="subtitle1" fontWeight={900} color="#1E293B">
+              📋 خامات ومكونات الصنف ({selectedProduct.name})
+            </Typography>
+
+            {renderIngredientsTable(ingredients, 'لم يتم إضافة خامات لهذا المنتج بعد')}
+
+            {/* Add ingredient form for single product */}
+            <Paper sx={{ p: 2, borderRadius: '12px', border: '1px dashed #CBD5E1', bgcolor: '#F8FAFC' }}>
+              <Grid container spacing={2} alignItems="center">
+                <Grid item xs={12} sm={6}>
                   <FormControl fullWidth size="small">
-                    <InputLabel>تخصيص الحجم *</InputLabel>
+                    <InputLabel>اختر الخامة *</InputLabel>
                     <Select
-                      value={selectedSize}
-                      label="تخصيص الحجم *"
+                      value={commonInvId}
+                      label="اختر الخامة *"
                       onChange={(e) => {
-                        setSelectedSize(e.target.value);
-                        if (activeTab !== 'show_all') {
-                          setActiveTab(e.target.value);
-                        }
+                        setCommonInvId(e.target.value);
+                        const item = inventoryItems.find(i => i.id === e.target.value);
+                        const isNonDed = NON_DEDUCTIBLE_KEYWORDS.some(kw => (item?.name || '').toLowerCase().includes(kw));
+                        setCommonAutoDeduct(isNonDed ? 'track_only' : 'deduct');
                       }}
-                      sx={{ bgcolor: '#FFF', fontWeight: 800 }}
+                      sx={{ bgcolor: '#FFF' }}
                     >
-                      <MenuItem value="صغير" sx={{ fontWeight: 800, color: '#B45309' }}>📏 حجم صغير فقط</MenuItem>
-                      <MenuItem value="كبير" sx={{ fontWeight: 800, color: '#1E40AF' }}>📏 حجم كبير فقط</MenuItem>
-                      <MenuItem value="all" sx={{ fontWeight: 800, color: '#6B21A8' }}>🌐 مشترك (كل الأحجام)</MenuItem>
+                      {inventoryItems.map((inv) => (
+                        <MenuItem key={inv.id} value={inv.id}>
+                          {inv.name} ({inv.currentStock || inv.current_stock || 0} {inv.unit})
+                        </MenuItem>
+                      ))}
                     </Select>
                   </FormControl>
                 </Grid>
-              )}
 
-              <Grid item xs={12} sm={isMultiSizeProduct ? 2 : 2.5}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>طريقة الخصم *</InputLabel>
-                  <Select
-                    value={autoDeductMode}
-                    label="طريقة الخصم *"
-                    onChange={(e) => setAutoDeductMode(e.target.value)}
+                <Grid item xs={6} sm={3}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    type="number"
+                    label="الكمية المخصومة"
+                    value={commonQty}
+                    onChange={(e) => setCommonQty(e.target.value)}
                     sx={{ bgcolor: '#FFF' }}
+                  />
+                </Grid>
+
+                <Grid item xs={6} sm={3}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    onClick={() => handleAddIngredient('all', commonInvId, commonQty, commonUnitMode, commonAutoDeduct)}
+                    startIcon={<AddIcon />}
+                    sx={{ bgcolor: '#4F46E5', color: '#FFF', fontWeight: 800, py: 1, '&:hover': { bgcolor: '#4338CA' } }}
                   >
-                    <MenuItem value="deduct">📉 خصم رصيد</MenuItem>
-                    <MenuItem value="track_only">📊 استهلاك فقط</MenuItem>
-                  </Select>
-                </FormControl>
+                    إضافة الخامة
+                  </Button>
+                </Grid>
               </Grid>
+            </Paper>
 
-              <Grid item xs={12} sm={isMultiSizeProduct ? 2.5 : 3.5}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  type="number"
-                  label="الكمية المطلوبة"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  placeholder={supportsGrams && unitMode === 'gram' ? "مثال: 150" : "مثال: 1"}
-                  InputProps={{
-                    endAdornment: supportsGrams && (
-                      <InputAdornment position="end">
-                        <Select
-                          value={unitMode}
-                          onChange={(e) => setUnitMode(e.target.value)}
-                          variant="standard"
-                          disableUnderline
-                          sx={{ fontSize: '0.85rem', fontWeight: 800, color: '#3B82F6', cursor: 'pointer', mr: 0.5 }}
-                        >
-                          <MenuItem value="base" sx={{ fontWeight: 700 }}>{itemUnit}</MenuItem>
-                          <MenuItem value="gram" sx={{ fontWeight: 700 }}>{itemUnit === 'كجم' ? 'جرام' : 'ملّي'}</MenuItem>
-                        </Select>
-                      </InputAdornment>
-                    )
-                  }}
-                  sx={{ bgcolor: '#FFF' }}
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={1.5}>
-                <Button
-                  fullWidth
-                  variant="contained"
-                  onClick={handleAddIngredient}
-                  startIcon={<AddIcon />}
-                  sx={{
-                    bgcolor: selectedSize === 'صغير' ? '#D97706' : selectedSize === 'كبير' ? '#2563EB' : '#4F46E5',
-                    color: '#FFF',
-                    fontWeight: 800,
-                    py: 1,
-                    '&:hover': { bgcolor: selectedSize === 'صغير' ? '#B45309' : selectedSize === 'كبير' ? '#1D4ED8' : '#4338CA' }
-                  }}
-                >
-                  إضافة
-                </Button>
-              </Grid>
-            </Grid>
-          </Paper>
-        )}
-
-        {/* Current Linked Ingredients List */}
-        {selectedProduct && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="subtitle1" fontWeight={800} color="#1A1A2E">
-                📋 الخامات المربوطة والمخصومة {isMultiSizeProduct && activeTab !== 'show_all' ? `لـ [ ${activeTab === 'صغير' ? 'الحجم الصغير' : activeTab === 'كبير' ? 'الحجم الكبير' : 'المشترك'} ]` : ''} ({displayedIngredients.length} خامة)
-              </Typography>
-            </Box>
-
-            <TableContainer component={Paper} sx={{ borderRadius: '14px', border: '1px solid #E2E8F0' }}>
-              <Table size="small">
-                <TableHead sx={{ bgcolor: '#F1F5F9' }}>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 800 }}>اسم الخامة</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>الحجم المربوط به</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>الكمية المخصومة</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>طريقة الخصم</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>التكلفة للقطعة</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 800 }}>تغيير الحجم / حذف</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {displayedIngredients.map((ing) => {
-                    const ingQty = parseFloat(ing.quantity || 0);
-                    const unitCost = parseFloat(ing.inventory_cost_per_unit || 0);
-                    const itemCost = ingQty * unitCost;
-                    const isAutoDeduct = ing.auto_deduct !== false && ing.auto_deduct !== '0';
-                    const isSmallSize = ing.size === 'صغير' || ing.size === 'small';
-                    const isLargeSize = ing.size === 'كبير' || ing.size === 'large';
-
-                    return (
-                      <TableRow key={ing.id} hover sx={{ bgcolor: isSmallSize ? 'rgba(254, 243, 199, 0.25)' : isLargeSize ? 'rgba(219, 234, 254, 0.25)' : 'inherit' }}>
-                        <TableCell sx={{ fontWeight: 800 }}>{ing.inventory_item_name}</TableCell>
-                        <TableCell>
-                          {isSmallSize ? (
-                            <Chip label="📏 حجم صغير فقط" size="small" sx={{ bgcolor: '#FEF3C7', color: '#B45309', fontWeight: 800 }} />
-                          ) : isLargeSize ? (
-                            <Chip label="📏 حجم كبير فقط" size="small" sx={{ bgcolor: '#DBEAFE', color: '#1E40AF', fontWeight: 800 }} />
-                          ) : (
-                            <Chip label="🌐 مشترك (الكل)" size="small" sx={{ bgcolor: '#F3E8FF', color: '#6B21A8', fontWeight: 800 }} />
-                          )}
-                        </TableCell>
-                        <TableCell sx={{ fontWeight: 800 }}>{Math.abs(ingQty)} {ing.inventory_item_unit || ''}</TableCell>
-                        <TableCell>
-                          <Chip label={isAutoDeduct ? "خصم رصيد" : "استهلاك فقط"} size="small" color={isAutoDeduct ? "success" : "warning"} />
-                        </TableCell>
-                        <TableCell sx={{ fontWeight: 800, color: '#DC2626' }}>{itemCost.toFixed(2)} ج.م</TableCell>
-                        <TableCell align="center">
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                            {isMultiSizeProduct && (
-                              <Tooltip title="تحويل الحجم (صغير / كبير / مشترك)">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => {
-                                    const nextSize = isSmallSize ? 'كبير' : isLargeSize ? 'all' : 'صغير';
-                                    handleUpdateIngredientSize(ing.id, nextSize);
-                                  }}
-                                  sx={{ color: '#4F46E5', bgcolor: '#EEF2FF', width: 28, height: 28 }}
-                                >
-                                  <SwapHoriz fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            <Tooltip title="حذف الخامة">
-                              <IconButton color="error" size="small" onClick={() => handleDeleteIngredient(ing.id)}>
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-
-                  {displayedIngredients.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} align="center" sx={{ py: 3, color: '#94A3B8', fontWeight: 700 }}>
-                        لا توجد خامات مخصصة لهذا التبويب حالياً. أضف الخامات من الأعلى! 💡
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-
-            {/* Financial & Profit Margin Summary Box */}
-            {ingredients.length > 0 && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
-                {isMultiSizeProduct ? (
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
-                      <Paper sx={{ p: 2, borderRadius: '14px', bgcolor: '#FFFBEB', border: '1.5px solid #FCD34D', textAlign: 'center' }}>
-                        <Typography variant="subtitle2" fontWeight={800} color="#B45309">📏 حساب الحجم الصغير (السعر: {pPriceSmall} ج.م)</Typography>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-around', mt: 1 }}>
-                          <Box>
-                            <Typography variant="caption" color="text.secondary">تكلفة الخامات</Typography>
-                            <Typography variant="body1" fontWeight={900} color="#DC2626">{smallRecipeCost.toFixed(2)} ج.م</Typography>
-                          </Box>
-                          <Box>
-                            <Typography variant="caption" color="text.secondary">الربح الصافي</Typography>
-                            <Typography variant="body1" fontWeight={900} color="#166534">{smallNetProfit.toFixed(2)} ج.م ({smallProfitMargin}%)</Typography>
-                          </Box>
-                        </Box>
-                      </Paper>
-                    </Grid>
-
-                    <Grid item xs={12} sm={6}>
-                      <Paper sx={{ p: 2, borderRadius: '14px', bgcolor: '#EFF6FF', border: '1.5px solid #93C5FD', textAlign: 'center' }}>
-                        <Typography variant="subtitle2" fontWeight={800} color="#1E40AF">📏 حساب الحجم الكبير (السعر: {pPriceLarge} ج.م)</Typography>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-around', mt: 1 }}>
-                          <Box>
-                            <Typography variant="caption" color="text.secondary">تكلفة الخامات</Typography>
-                            <Typography variant="body1" fontWeight={900} color="#DC2626">{largeRecipeCost.toFixed(2)} ج.م</Typography>
-                          </Box>
-                          <Box>
-                            <Typography variant="caption" color="text.secondary">الربح الصافي</Typography>
-                            <Typography variant="body1" fontWeight={900} color="#1D4ED8">{largeNetProfit.toFixed(2)} ج.م ({largeProfitMargin}%)</Typography>
-                          </Box>
-                        </Box>
-                      </Paper>
-                    </Grid>
-                  </Grid>
-                ) : (
-                  <Paper sx={{ p: 2, borderRadius: '14px', bgcolor: '#F0FDF4', border: '1px solid #BBF7D0', display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: 2 }}>
-                    <Box sx={{ textAlign: 'center' }}>
-                      <Typography variant="caption" color="#166534">سعر البيع للعميل</Typography>
-                      <Typography variant="h6" fontWeight={900} color="#15803D">{sellingPrice} ج.م</Typography>
-                    </Box>
-                    <Divider orientation="vertical" flexItem />
-                    <Box sx={{ textAlign: 'center' }}>
-                      <Typography variant="caption" color="#991B1B">تكلفة الخامات الإجمالية</Typography>
-                      <Typography variant="h6" fontWeight={900} color="#DC2626">{totalRecipeCost.toFixed(2)} ج.م</Typography>
-                    </Box>
-                    <Divider orientation="vertical" flexItem />
-                    <Box sx={{ textAlign: 'center' }}>
-                      <Typography variant="caption" color="#1E40AF">الربح الصافي المتوقع</Typography>
-                      <Typography variant="h6" fontWeight={900} color="#1D4ED8">{netProfit.toFixed(2)} ج.م ({profitMarginPercent}%)</Typography>
-                    </Box>
-                  </Paper>
-                )}
+            {/* Profit margin summary */}
+            <Paper sx={{ p: 2, borderRadius: '12px', bgcolor: '#F0FDF4', border: '1px solid #BBF7D0', display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="caption" color="#166534">سعر البيع</Typography>
+                <Typography variant="h6" fontWeight={900} color="#15803D">{sellingPrice} ج.م</Typography>
               </Box>
-            )}
-          </Box>
+              <Divider orientation="vertical" flexItem />
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="caption" color="#991B1B">إجمالي تكلفة الخامات</Typography>
+                <Typography variant="h6" fontWeight={900} color="#DC2626">{singleCost.toFixed(2)} ج.م</Typography>
+              </Box>
+              <Divider orientation="vertical" flexItem />
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="caption" color="#1E40AF">صافي الربح المتوقع</Typography>
+                <Typography variant="h6" fontWeight={900} color="#1D4ED8">{singleProfit.toFixed(2)} ج.م</Typography>
+              </Box>
+            </Paper>
+          </Paper>
         )}
       </DialogContent>
 
-      <DialogActions sx={{ p: 2.5, bgcolor: '#FAFCFF' }}>
+      <DialogActions sx={{ p: 2, bgcolor: '#FAFCFF', borderTop: '1px solid #E2E8F0' }}>
         <Button onClick={onClose} variant="contained" sx={{ bgcolor: '#4F46E5', borderRadius: '10px', px: 4, fontWeight: 800 }}>
           إغلاق ومتابعة العمل
         </Button>
