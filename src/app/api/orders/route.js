@@ -263,16 +263,22 @@ export async function POST(request) {
 
               for (const ing of ingRes.rows) {
                 const ingSize = (ing.size || 'all').toString().trim().toLowerCase();
+                let matchesSize = false;
 
-                // Match size logic:
-                // - If product doesn't have multiple sizes, match ALL ingredients (single product = everything)
-                // - If ingredient size is 'all' or 'عادي', always match
-                // - Otherwise match exact size
-                const matchesSize = !productHasSizes || ingSize === 'all' || ingSize === 'عادي' ||
-                  ingSize === itemSize ||
-                  (itemSize.includes('صغير') && (ingSize.includes('صغير') || ingSize === 'small')) ||
-                  (itemSize.includes('كبير') && (ingSize.includes('كبير') || ingSize === 'large')) ||
-                  (!itemSize && ingSize === 'all');
+                if (ingSize === 'all' || ingSize === 'عادي' || !ingSize) {
+                  matchesSize = true;
+                } else if (productHasSizes) {
+                  if (itemSize.includes('صغير') || itemSize === 'small') {
+                    matchesSize = ingSize.includes('صغير') || ingSize === 'small';
+                  } else if (itemSize.includes('كبير') || itemSize === 'large') {
+                    matchesSize = ingSize.includes('كبير') || ingSize === 'large';
+                  } else {
+                    // Default to small size only if size was not specified for multi-size product (never deduct large!)
+                    matchesSize = ingSize.includes('صغير') || ingSize === 'small';
+                  }
+                } else {
+                  matchesSize = true;
+                }
 
                 if (!matchesSize) continue;
 

@@ -91,11 +91,22 @@ export async function POST(request) {
         if (!isAutoDeduct) return; // Skip non-deductible
 
         const ingSize = (ing.size || 'all').toString().trim().toLowerCase();
-        const matchesSize = !hasMultipleSizes || ingSize === 'all' || ingSize === 'عادي' ||
-          ingSize === itemSize ||
-          (itemSize.includes('صغير') && (ingSize.includes('صغير') || ingSize === 'small')) ||
-          (itemSize.includes('كبير') && (ingSize.includes('كبير') || ingSize === 'large')) ||
-          (!itemSize && ingSize === 'all');
+        let matchesSize = false;
+
+        if (ingSize === 'all' || ingSize === 'عادي' || !ingSize) {
+          matchesSize = true;
+        } else if (hasMultipleSizes) {
+          if (itemSize.includes('صغير') || itemSize === 'small') {
+            matchesSize = ingSize.includes('صغير') || ingSize === 'small';
+          } else if (itemSize.includes('كبير') || itemSize === 'large') {
+            matchesSize = ingSize.includes('كبير') || ingSize === 'large';
+          } else {
+            // Default to small size only if order size was not specified for multi-size product (never deduct large!)
+            matchesSize = ingSize.includes('صغير') || ingSize === 'small';
+          }
+        } else {
+          matchesSize = true;
+        }
 
         if (!matchesSize) return;
 
