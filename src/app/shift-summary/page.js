@@ -89,6 +89,57 @@ export default function ShiftSummaryPage() {
   const [shiftsHistory, setShiftsHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  // Shift Raw Materials Inventory State
+  const [shiftInventory, setShiftInventory] = useState([]);
+  const [loadingShiftInv, setLoadingShiftInv] = useState(false);
+  const [returningStock, setReturningStock] = useState(false);
+  const [invReturnSuccess, setInvReturnSuccess] = useState('');
+  const [autoReturnOnClose, setAutoReturnOnClose] = useState(true);
+
+  const fetchShiftInventory = async () => {
+    const targetBId = effectiveBranchId === 'all' ? 'b1' : effectiveBranchId;
+    setLoadingShiftInv(true);
+    try {
+      const res = await fetch(`/api/inventory/shift-return?branch_id=${targetBId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setShiftInventory(data?.items || []);
+      }
+    } catch (e) {
+      console.error('Error fetching shift inventory:', e);
+    } finally {
+      setLoadingShiftInv(false);
+    }
+  };
+
+  const handleReturnRemainingStock = async () => {
+    const targetBId = effectiveBranchId === 'all' ? 'b1' : effectiveBranchId;
+    setReturningStock(true);
+    try {
+      const res = await fetch('/api/inventory/shift-return', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branch_id: targetBId,
+          cashier_name: user?.name || 'مسؤول الشيفت',
+          notes: 'إرجاع الخامات المتبقية عند إغلاق الشيفت'
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setInvReturnSuccess(data.message || '✅ تم إرجاع الخامات المتبقية للمخزن الرئيسي بنجاح!');
+        setTimeout(() => setInvReturnSuccess(''), 5000);
+        fetchShiftInventory();
+      } else {
+        alert(`❌ خطأ: ${data.error || 'فشلت عملية الإرجاع'}`);
+      }
+    } catch (e) {
+      alert('❌ حدث خطأ أثناء إرجاع الخامات للمخزن');
+    } finally {
+      setReturningStock(false);
+    }
+  };
+
   const fetchPastShifts = async () => {
     setLoadingHistory(true);
     try {
@@ -112,6 +163,7 @@ export default function ShiftSummaryPage() {
     fetchShifts(effectiveBranchId);
     fetchPastShifts();
     fetchReturns(effectiveBranchId);
+    fetchShiftInventory();
 
     // Auto-refresh every 10 seconds for real-time data (only when tab is visible)
     const refreshInterval = setInterval(() => {
@@ -119,6 +171,7 @@ export default function ShiftSummaryPage() {
         fetchInvoices(500, effectiveBranchId, true);
         fetchShifts(effectiveBranchId);
         fetchReturns(effectiveBranchId);
+        fetchShiftInventory();
       }
     }, 10000);
 
@@ -500,6 +553,96 @@ export default function ShiftSummaryPage() {
         </Paper>
       </Box>
 
+      {/* 🥩 LIVE SHIFT RAW MATERIALS INVENTORY & WAREHOUSE RETURN CARD */}
+      <Paper sx={{ p: 2.5, borderRadius: '16px', border: '2px solid #E0E7FF', bgcolor: '#F8FAFF' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1.5 }}>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 900, color: '#1E1B4B', display: 'flex', alignItems: 'center', gap: 1 }}>
+              📦 جرد واستهلاك خامات الشيفت بـ ({branchDisplayName})
+            </Typography>
+            <Typography variant="caption" sx={{ color: '#4B5563', fontWeight: 600 }}>
+              عرض ما تم توريده للفرع، وما تم استهلاكه في المبيعات، والرصيد المتبقي لإرجاعه للمخزن الرئيسي
+            </Typography>
+          </Box>
+
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<Refresh />}
+              onClick={fetchShiftInventory}
+              sx={{ borderRadius: '10px', fontWeight: 700, borderColor: '#CBD5E1' }}
+            >
+              تحديث الجرد
+            </Button>
+            
+            <Button
+              variant="contained"
+              disabled={returningStock || shiftInventory.filter(i => i.current_stock > 0).length === 0}
+              onClick={handleReturnRemainingStock}
+              sx={{
+                bgcolor: '#4F46E5',
+                '&:hover': { bgcolor: '#4338CA' },
+                borderRadius: '10px',
+                fontWeight: 800,
+                px: 2.5
+              }}
+            >
+              {returningStock ? 'جاري التحويل...' : 'نقل وإرجاع الخامات المتبقية للمخزن 🚚'}
+            </Button>
+          </Box>
+        </Box>
+
+        {invReturnSuccess && (
+          <Alert severity="success" sx={{ mb: 2, borderRadius: '10px', fontWeight: 800 }}>
+            {invReturnSuccess}
+          </Alert>
+        )}
+
+        {loadingShiftInv ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={32} /></Box>
+        ) : shiftInventory.length === 0 ? (
+          <Alert severity="info" sx={{ borderRadius: '10px', fontWeight: 700 }}>
+            لا توجد خامات نشطة أو متبقية في هذا الفرع حالياً.
+          </Alert>
+        ) : (
+          <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #CBD5E1', borderRadius: '12px' }}>
+            <Table size="small">
+              <TableHead sx={{ bgcolor: '#EEF2FF' }}>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 800 }}>الخامة</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>الفئة</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: '#4338CA' }}>الوارد للفرع (المستلم)</TableCell>
+                  <TableCell sx={{ fontWeight: 800, color: '#D97706' }}>المستهلك في المبيعات</TableCell>
+                  <TableCell sx={{ fontWeight: 900, color: '#16A34A', bgcolor: '#ECFDF5' }}>الرصيد المتبقي بالفرع حالياً</TableCell>
+                  <TableCell sx={{ fontWeight: 800 }}>حالة الرصيد</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {shiftInventory.map((item) => (
+                  <TableRow key={item.item_id} hover>
+                    <TableCell sx={{ fontWeight: 900, color: '#1E293B' }}>{item.item_name}</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: '#64748B' }}>{item.category || 'عام'}</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: '#4338CA' }}>{item.received_qty} {item.unit}</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: '#D97706' }}>{item.consumed_qty} {item.unit}</TableCell>
+                    <TableCell sx={{ fontWeight: 900, color: item.current_stock > 0 ? '#15803D' : '#94A3B8', bgcolor: item.current_stock > 0 ? '#F0FDF4' : 'inherit' }}>
+                      {item.current_stock} {item.unit}
+                    </TableCell>
+                    <TableCell>
+                      {item.current_stock > 0 ? (
+                        <Chip label={`جاهز للإرجاع (${item.current_stock} ${item.unit})`} size="small" color="primary" sx={{ fontWeight: 800, fontSize: '0.72rem' }} />
+                      ) : (
+                        <Chip label="تم الاستهلاك بالكامل" size="small" sx={{ fontWeight: 700, fontSize: '0.72rem', bgcolor: '#F1F5F9' }} />
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Paper>
+
       {/* CLOSED SHIFTS AUDIT HISTORY TABLE */}
       <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1.5px solid #CBD5E1', bgcolor: '#FFFFFF' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
@@ -714,6 +857,36 @@ export default function ShiftSummaryPage() {
             value={deficitNotes}
             onChange={(e) => setDeficitNotes(e.target.value)}
           />
+
+          {/* Shift Raw Materials Return Option */}
+          {shiftInventory.filter(i => i.current_stock > 0).length > 0 && (
+            <Paper variant="outlined" sx={{ p: 1.5, bgcolor: '#EEF2FF', borderRadius: '10px', border: '1.5px solid #C7D2FE' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                <Box>
+                  <Typography variant="subtitle2" fontWeight={800} color="#3730A3">
+                    🚚 نقل وإرجاع خامات الفرع المتبقية للمخزن الرئيسي
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    يوجد ({shiftInventory.filter(i => i.current_stock > 0).length} خامة) متبقية برصيد موجب سيتم إرجاعها للمستودع
+                  </Typography>
+                </Box>
+                <Button
+                  size="small"
+                  variant={autoReturnOnClose ? "contained" : "outlined"}
+                  onClick={() => setAutoReturnOnClose(!autoReturnOnClose)}
+                  sx={{
+                    bgcolor: autoReturnOnClose ? '#4F46E5' : 'transparent',
+                    color: autoReturnOnClose ? '#FFF' : '#4F46E5',
+                    borderRadius: '8px',
+                    fontWeight: 800,
+                    minWidth: 80
+                  }}
+                >
+                  {autoReturnOnClose ? 'تأكيد النقل ✅' : 'إلغاء ❌'}
+                </Button>
+              </Box>
+            </Paper>
+          )}
         </DialogContent>
         <DialogActions sx={{ p: 2, justifyContent: 'space-between' }}>
           <Button onClick={() => setCloseDialogOpen(false)} variant="outlined">إلغاء</Button>
