@@ -32,6 +32,7 @@ export default function BranchesInventoryPage() {
 
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [isSyncingSales, setIsSyncingSales] = useState(false);
   const [rawItems, setRawItems] = useState([]);
   const [transfers, setTransfers] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -113,6 +114,34 @@ export default function BranchesInventoryPage() {
 
   const showToast = (msg, type = 'success') => {
     setToast({ open: true, msg, type });
+  };
+
+  const handleSyncSales = async () => {
+    if (isSyncingSales) return;
+
+    setIsSyncingSales(true);
+    try {
+      const response = await fetch('/api/inventory/sync-sales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branch_id: isAdmin ? 'all' : branchId
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'فشل في مزامنة الرصيد مع المبيعات');
+      }
+
+      showToast(data?.message || '✅ تم تحديث أرصدة الفروع مع المبيعات بنجاح', 'success');
+      await loadData();
+    } catch (error) {
+      showToast(`❌ ${error?.message || 'حدث خطأ أثناء المزامنة'}`, 'error');
+    } finally {
+      setIsSyncingSales(false);
+    }
   };
 
   const handleTabChange = (event, newValue) => setTabValue(newValue);
