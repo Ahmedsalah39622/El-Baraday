@@ -256,6 +256,16 @@ export default function BranchesInventoryPage() {
 
           <Button
             variant="contained"
+            startIcon={<Refresh className={isSyncingSales ? 'spin-animation' : ''} />}
+            onClick={handleSyncSales}
+            disabled={isSyncingSales}
+            sx={{ bgcolor: '#4F46E5', borderRadius: '12px', px: 2.5, py: 1.2, fontWeight: 800, '&:hover': { bgcolor: '#4338CA' } }}
+          >
+            مزامنة الرصيد مع المبيعات 🔄
+          </Button>
+
+          <Button
+            variant="contained"
             startIcon={<LocalShipping />}
             onClick={() => setTransferModalOpen(true)}
             sx={{ bgcolor: '#D97706', borderRadius: '12px', px: 2.5, py: 1.2, fontWeight: 800, '&:hover': { bgcolor: '#B45309' } }}

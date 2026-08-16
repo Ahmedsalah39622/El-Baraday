@@ -297,14 +297,14 @@ export async function POST(request) {
                   // 📉 خامات تخصم فعلياً من رصيد الفرع
                   if (targetBranch === 'b_main') {
                     await query(
-                      'UPDATE inventory_items SET current_stock = GREATEST(0, current_stock - $1) WHERE id = $2',
+                      'UPDATE inventory_items SET current_stock = current_stock - $1 WHERE id = $2',
                       [deductAmount, ing.inventory_item_id]
                     );
                   } else {
                     await query(
                       `INSERT INTO inventory_branch_stock (id, item_id, branch_id, current_stock)
-                       VALUES ($1, $2, $3, 0)
-                       ON DUPLICATE KEY UPDATE current_stock = GREATEST(0, current_stock - $4)`,
+                       VALUES ($1, $2, $3, -$4)
+                       ON DUPLICATE KEY UPDATE current_stock = current_stock - $4`,
                       [`obs_${Date.now()}_${Math.floor(Math.random() * 1000)}`, ing.inventory_item_id, targetBranch, deductAmount]
                     );
                   }
