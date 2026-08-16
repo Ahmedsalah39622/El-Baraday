@@ -252,32 +252,26 @@ export async function POST(request) {
             );
 
             if (ingRes.rows && ingRes.rows.length > 0) {
-              const itemSize = detectedSize.toLowerCase();
-
-              // Check if this product has multiple sizes - if not, match ALL ingredients
-              let productHasSizes = false;
-              try {
-                const prodCheck = await query('SELECT has_sizes FROM products WHERE id = $1', [baseProdId]);
-                productHasSizes = prodCheck.rows && prodCheck.rows[0] && (prodCheck.rows[0].has_sizes === 1 || prodCheck.rows[0].has_sizes === true);
-              } catch(e) { }
+              const cleanItemSize = detectedSize.toLowerCase();
 
               for (const ing of ingRes.rows) {
-                const ingSize = (ing.size || 'all').toString().trim().toLowerCase();
+                const cleanIngSize = (ing.size || 'all').toString().trim().toLowerCase();
                 let matchesSize = false;
 
-                if (ingSize === 'all' || ingSize === 'عادي' || !ingSize) {
+                // 1. Common ingredient for all sizes (مشترك للكل)
+                if (cleanIngSize === 'all' || cleanIngSize === 'عادي' || !cleanIngSize) {
                   matchesSize = true;
-                } else if (productHasSizes) {
-                  if (itemSize.includes('صغير') || itemSize === 'small') {
-                    matchesSize = ingSize.includes('صغير') || ingSize === 'small';
-                  } else if (itemSize.includes('كبير') || itemSize === 'large') {
-                    matchesSize = ingSize.includes('كبير') || ingSize === 'large';
-                  } else {
-                    // Default to small size only if size was not specified for multi-size product (never deduct large!)
-                    matchesSize = ingSize.includes('صغير') || ingSize === 'small';
-                  }
-                } else {
-                  matchesSize = true;
+                }
+                // 2. Ingredient specifically for SMALL size (خامة مخصصة للصغير فقط)
+                else if (cleanIngSize.includes('صغير') || cleanIngSize === 'small') {
+                  matchesSize = cleanItemSize.includes('صغير') || cleanItemSize === 'small' || !cleanItemSize;
+                }
+                // 3. Ingredient specifically for LARGE size (خامة مخصصة للكبير فقط)
+                else if (cleanIngSize.includes('كبير') || cleanIngSize === 'large') {
+                  matchesSize = cleanItemSize.includes('كبير') || cleanItemSize === 'large';
+                }
+                else {
+                  matchesSize = cleanIngSize === cleanItemSize;
                 }
 
                 if (!matchesSize) continue;
