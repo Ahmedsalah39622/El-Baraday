@@ -274,6 +274,32 @@ export default function BranchesInventoryPage() {
     }
   };
 
+  // Direct Inline Stock Editor
+  const handleInlineStockChange = async (itemId, branchId, val) => {
+    const qty = parseFloat(val) || 0;
+    setRawItems(prev => prev.map(item => {
+      if (item.id !== itemId) return item;
+      const updatedStocks = { ...(item.branch_stocks || {}) };
+      if (branchId === 'b_main') {
+        item.current_stock = qty;
+        updatedStocks.b_main = qty;
+      } else {
+        updatedStocks[branchId] = qty;
+      }
+      return { ...item, current_stock: branchId === 'b_main' ? qty : item.current_stock, branch_stocks: updatedStocks };
+    }));
+
+    try {
+      await fetch(`/api/inventory/${itemId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_stock: qty, currentStock: qty, branch_id: branchId })
+      });
+    } catch (e) {
+      console.error('Error updating stock inline:', e);
+    }
+  };
+
   // Filter Items
   const filteredItems = (rawItems || []).filter(item => {
     const nameMatch = (item.name || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -542,20 +568,38 @@ export default function BranchesInventoryPage() {
                       <TableCell sx={{ fontWeight: 700, color: '#64748B' }}>{row.unit}</TableCell>
 
                       {/* Main Warehouse stock status */}
-                      <TableCell align="center" sx={{ bgcolor: '#F5F3FF', fontWeight: 900, color: isMainLow ? '#B91C1C' : '#4F46E5' }}>
-                        {mainStock} {row.unit}
+                      <TableCell align="center" sx={{ bgcolor: '#F5F3FF' }}>
+                        <TextField
+                          type="number"
+                          size="small"
+                          value={mainStock}
+                          onChange={(e) => handleInlineStockChange(row.id, 'b_main', e.target.value)}
+                          sx={{ width: 85, bgcolor: '#FFFFFF', borderRadius: '8px', '& input': { fontWeight: 900, textAlign: 'center', p: 0.8, color: isMainLow ? '#B91C1C' : '#4F46E5' } }}
+                        />
                         {isMainLow && <Typography variant="caption" display="block" sx={{ color: '#EF4444', fontWeight: 700 }}>⚠️ منخفض</Typography>}
                       </TableCell>
 
                       {/* Branch 1 Stock */}
-                      <TableCell align="center" sx={{ bgcolor: '#FFFBEB', fontWeight: 900, color: isB1Low ? '#B45309' : '#D97706' }}>
-                        {b1Stock} {row.unit}
+                      <TableCell align="center" sx={{ bgcolor: '#FFFBEB' }}>
+                        <TextField
+                          type="number"
+                          size="small"
+                          value={b1Stock}
+                          onChange={(e) => handleInlineStockChange(row.id, 'b1', e.target.value)}
+                          sx={{ width: 85, bgcolor: '#FFFFFF', borderRadius: '8px', '& input': { fontWeight: 900, textAlign: 'center', p: 0.8, color: isB1Low ? '#B45309' : '#D97706' } }}
+                        />
                         {isB1Low && <Typography variant="caption" display="block" sx={{ color: '#F59E0B', fontWeight: 700 }}>⚠️ منخفض</Typography>}
                       </TableCell>
 
                       {/* Branch 2 Stock */}
-                      <TableCell align="center" sx={{ bgcolor: '#F0FDF4', fontWeight: 900, color: isB2Low ? '#047857' : '#059669' }}>
-                        {b2Stock} {row.unit}
+                      <TableCell align="center" sx={{ bgcolor: '#F0FDF4' }}>
+                        <TextField
+                          type="number"
+                          size="small"
+                          value={b2Stock}
+                          onChange={(e) => handleInlineStockChange(row.id, 'b2', e.target.value)}
+                          sx={{ width: 85, bgcolor: '#FFFFFF', borderRadius: '8px', '& input': { fontWeight: 900, textAlign: 'center', p: 0.8, color: isB2Low ? '#047857' : '#059669' } }}
+                        />
                         {isB2Low && <Typography variant="caption" display="block" sx={{ color: '#10B981', fontWeight: 700 }}>⚠️ منخفض</Typography>}
                       </TableCell>
 

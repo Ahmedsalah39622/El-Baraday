@@ -14,7 +14,19 @@ export async function PUT(request, { params }) {
       ? parseFloat(body.min_stock ?? body.minStock) : null;
     const cost_per_unit = (body.cost_per_unit !== undefined ? body.cost_per_unit : body.costPerUnit) !== undefined 
       ? parseFloat(body.cost_per_unit ?? body.costPerUnit) : null;
-    const category = body.category !== undefined ? body.category : null;
+    const branch_id = body.branch_id || body.branchId;
+
+    // If a specific branch stock is targeted (e.g. b1 or b2)
+    if (branch_id && branch_id !== 'b_main') {
+      if (current_stock !== null) {
+        await query(`
+          INSERT INTO inventory_branch_stock (id, item_id, branch_id, current_stock)
+          VALUES ($1, $2, $3, $4)
+          ON DUPLICATE KEY UPDATE current_stock = $4
+        `, [`obs_${Date.now()}_${Math.floor(Math.random() * 1000)}`, id, branch_id, current_stock]);
+      }
+      return NextResponse.json({ success: true, id, branch_id, current_stock });
+    }
 
     const result = await query(
       `UPDATE inventory_items SET

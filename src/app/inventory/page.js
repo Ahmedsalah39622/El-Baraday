@@ -23,7 +23,7 @@ function TabPanel(props) {
 
 export default function InventoryPage() {
   const [tabValue, setTabValue] = useState(0);
-  const { items, fetchInventory, updateStock, addItem, updateItem, deleteItem } = useInventoryStore();
+  const { items, fetchInventory, updateStock, updateBranchStock, addItem, updateItem, deleteItem } = useInventoryStore();
 
   // Recipe, Transfer & Supply Modal States
   const [recipeModalOpen, setRecipeModalOpen] = useState(false);
@@ -59,9 +59,13 @@ export default function InventoryPage() {
 
   const handleTabChange = (event, newValue) => setTabValue(newValue);
 
-  const handleStockChange = (id, val) => {
+  const handleBranchStockChange = (id, branchId, val) => {
     const qty = parseFloat(val) || 0;
-    updateStock(id, qty);
+    if (branchId === 'b_main') {
+      updateStock(id, qty);
+    } else {
+      updateBranchStock(id, branchId, qty);
+    }
   };
 
   const handleAddItem = async () => {
@@ -316,24 +320,36 @@ export default function InventoryPage() {
                     <TableCell sx={{ color: '#6B7280', fontWeight: 700 }}>{row.unit}</TableCell>
                     
                     {/* Main Warehouse Stock */}
-                    <TableCell sx={{ bgcolor: '#F5F3FF' }}>
+                    <TableCell sx={{ bgcolor: '#F5F3FF', textAlign: 'center' }}>
                       <TextField
                         type="number"
                         size="small"
                         value={mainStock}
-                        onChange={(e) => handleStockChange(row.id, e.target.value)}
-                        sx={{ width: 100, '& input': { fontWeight: 900, textAlign: 'center', p: 0.8, color: '#4F46E5' } }}
+                        onChange={(e) => handleBranchStockChange(row.id, 'b_main', e.target.value)}
+                        sx={{ width: 85, bgcolor: '#FFFFFF', borderRadius: '8px', '& input': { fontWeight: 900, textAlign: 'center', p: 0.8, color: '#4F46E5' } }}
                       />
                     </TableCell>
 
                     {/* Branch 1 Stock */}
-                    <TableCell sx={{ bgcolor: '#FFFBEB', fontWeight: 800, color: '#D97706' }}>
-                      {b1Stock} {row.unit}
+                    <TableCell sx={{ bgcolor: '#FFFBEB', textAlign: 'center' }}>
+                      <TextField
+                        type="number"
+                        size="small"
+                        value={b1Stock}
+                        onChange={(e) => handleBranchStockChange(row.id, 'b1', e.target.value)}
+                        sx={{ width: 85, bgcolor: '#FFFFFF', borderRadius: '8px', '& input': { fontWeight: 900, textAlign: 'center', p: 0.8, color: '#D97706' } }}
+                      />
                     </TableCell>
 
                     {/* Branch 2 Stock */}
-                    <TableCell sx={{ bgcolor: '#F0FDF4', fontWeight: 800, color: '#059669' }}>
-                      {b2Stock} {row.unit}
+                    <TableCell sx={{ bgcolor: '#F0FDF4', textAlign: 'center' }}>
+                      <TextField
+                        type="number"
+                        size="small"
+                        value={b2Stock}
+                        onChange={(e) => handleBranchStockChange(row.id, 'b2', e.target.value)}
+                        sx={{ width: 85, bgcolor: '#FFFFFF', borderRadius: '8px', '& input': { fontWeight: 900, textAlign: 'center', p: 0.8, color: '#059669' } }}
+                      />
                     </TableCell>
 
                     {/* Total System Stock */}

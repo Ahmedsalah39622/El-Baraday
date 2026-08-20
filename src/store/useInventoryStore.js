@@ -56,13 +56,36 @@ export const useInventoryStore = create(
 
       updateStock: async (id, newQty) => {
         set((state) => ({
-          items: state.items.map(item => item.id === id ? { ...item, currentStock: newQty } : item)
+          items: state.items.map(item => item.id === id ? { 
+            ...item, 
+            currentStock: newQty,
+            branchStocks: { ...(item.branchStocks || {}), b_main: newQty }
+          } : item)
         }));
         try {
           await fetch(`/api/inventory/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ current_stock: newQty, currentStock: newQty })
+            body: JSON.stringify({ current_stock: newQty, currentStock: newQty, branch_id: 'b_main' })
+          });
+        } catch (e) {}
+      },
+
+      updateBranchStock: async (id, branchId, newQty) => {
+        set((state) => ({
+          items: state.items.map(item => item.id === id ? {
+            ...item,
+            branchStocks: {
+              ...(item.branchStocks || {}),
+              [branchId]: newQty
+            }
+          } : item)
+        }));
+        try {
+          await fetch(`/api/inventory/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ current_stock: newQty, branch_id: branchId })
           });
         } catch (e) {}
       },
