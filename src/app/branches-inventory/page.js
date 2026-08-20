@@ -11,7 +11,7 @@ import {
 } from '@mui/material';
 import {
   WarningAmber, History, LocalShipping, AddBusiness, Store, Warehouse,
-  Refresh, AttachMoney
+  Refresh, AttachMoney, DeleteSweep, RestartAlt
 } from '@mui/icons-material';
 
 // TabPanel Helper Component
@@ -45,6 +45,16 @@ export default function BranchesInventoryPage() {
   // Modal States
   const [adjustModalOpen, setAdjustModalOpen] = useState(false);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+
+  // Reset Form State
+  const [resetForm, setResetForm] = useState({
+    branch_id: 'all', // 'all', 'b1', 'b2'
+    mode: 'all', // 'all' (كل الخامات) or 'single' (خامة محددة)
+    item_id: '',
+    notes: 'تصفير رصيد خامات الفروع'
+  });
 
   // Adjustment Form State
   const [adjustForm, setAdjustForm] = useState({
@@ -69,6 +79,47 @@ export default function BranchesInventoryPage() {
 
   // Notifications
   const [toast, setToast] = useState({ open: false, msg: '', type: 'success' });
+
+  const handleExecuteReset = async () => {
+    if (resetForm.mode === 'single' && !resetForm.item_id) {
+      setToast({ open: true, msg: '⚠️ برجاء اختيار الخامة المراد تصفير رصيدها بالفرع', type: 'warning' });
+      return;
+    }
+
+    const branchName = resetForm.branch_id === 'all' ? 'كافة الفروع' : (resetForm.branch_id === 'b2' ? 'فرع المسلة' : 'فرع عزت');
+    const itemObj = rawItems.find(i => i.id === resetForm.item_id);
+    const itemName = resetForm.mode === 'single' ? (itemObj?.name || 'الخامة المحددة') : 'كافة الخامات';
+
+    const confirmMsg = `هل أنت متأكد من تصفير رصيد (${itemName}) في (${branchName}) إلى 0؟\n\n(ملاحظة: هذا لن يؤثر على كميات المخزن الرئيسي)`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setResetLoading(true);
+    try {
+      const res = await fetch('/api/inventory/reset-branch-stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branch_id: resetForm.branch_id,
+          item_id: resetForm.mode === 'all' ? 'all' : resetForm.item_id,
+          notes: resetForm.notes,
+          executor_name: user?.name || 'المسؤول'
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setToast({ open: true, msg: data.message || '✅ تم تصفير الرصيد بنجاح', type: 'success' });
+        setResetModalOpen(false);
+        loadData();
+      } else {
+        setToast({ open: true, msg: `❌ خطأ: ${data.error || 'فشلت عملية التصفير'}`, type: 'error' });
+      }
+    } catch (e) {
+      setToast({ open: true, msg: '❌ حدث خطأ أثناء تنفيذ عملية التصفير', type: 'error' });
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   // Initial load and live auto-refresh polling
   useEffect(() => {
@@ -304,6 +355,23 @@ export default function BranchesInventoryPage() {
           >
             تسوية جرد / هالك / توريد 📥
           </Button>
+
+          <Button
+            variant="contained"
+            startIcon={<DeleteSweep />}
+            onClick={() => {
+              setResetForm({
+                branch_id: 'all',
+                mode: 'all',
+                item_id: '',
+                notes: 'تصفير رصيد خامات الفروع'
+              });
+              setResetModalOpen(true);
+            }}
+            sx={{ bgcolor: '#DC2626', borderRadius: '12px', px: 2.5, py: 1.2, fontWeight: 800, '&:hover': { bgcolor: '#B91C1C' } }}
+          >
+            تصفير أرصدة الفروع 🔄 0
+          </Button>
         </Box>
       </Box>
 
@@ -495,7 +563,7 @@ export default function BranchesInventoryPage() {
                       <TableCell align="center" sx={{ fontWeight: 800, color: '#2563EB' }}>{row.cost_per_unit || 0} ج.م</TableCell>
 
                       <TableCell align="center">
-                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, alignItems: 'center' }}>
                           <Tooltip title="تعديل جرد فرع عزت">
                             <Button
                               size="small"
@@ -515,6 +583,23 @@ export default function BranchesInventoryPage() {
                             >
                               جرد المسلة
                             </Button>
+                          </Tooltip>
+                          <Tooltip title={`تصفير رصيد (${row.name}) في الفروع إلى 0`}>
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                setResetForm({
+                                  branch_id: 'all',
+                                  mode: 'single',
+                                  item_id: row.id,
+                                  notes: `تصفير سريع لخامة ${row.name}`
+                                });
+                                setResetModalOpen(true);
+                              }}
+                              sx={{ color: '#DC2626', bgcolor: '#FEF2F2', border: '1px solid #FEE2E2', '&:hover': { bgcolor: '#FEE2E2' }, p: 0.5 }}
+                            >
+                              <RestartAlt sx={{ fontSize: 18 }} />
+                            </IconButton>
                           </Tooltip>
                         </Box>
                       </TableCell>
@@ -983,6 +1068,96 @@ export default function BranchesInventoryPage() {
         <DialogActions sx={{ p: 2.5, borderTop: '1px solid #E2E8F0', justifyContent: 'space-between' }}>
           <Button onClick={() => setTransferModalOpen(false)} variant="outlined" sx={{ fontWeight: 800 }}>إلغاء ❌</Button>
           <Button onClick={handleExecuteTransfer} variant="contained" color="warning" sx={{ fontWeight: 800 }}>تنفيذ التحويل 🚚</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog 3: Zero-Out Branch Stock Modal */}
+      <Dialog open={resetModalOpen} onClose={() => !resetLoading && setResetModalOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 900, borderBottom: '1px solid #FEE2E2', display: 'flex', alignItems: 'center', gap: 1, color: '#B91C1C', bgcolor: '#FEF2F2' }}>
+          <DeleteSweep sx={{ color: '#DC2626' }} /> تصفير أرصدة خامات الفروع (إلى 0)
+        </DialogTitle>
+        <DialogContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5, mt: 2 }}>
+          
+          <Alert severity="warning" sx={{ fontWeight: 700, borderRadius: '10px' }}>
+            ⚠️ <strong>تنبيه هام:</strong> هذا الإجراء يقوم بتصفير أرصدة خامات الفرع المختار أو كافة الفروع إلى (0) فقط، <strong>ولا يؤثر نهائياً على أرصدة المخزن الرئيسي</strong>.
+          </Alert>
+
+          {/* Branch Selector */}
+          <FormControl fullWidth size="small">
+            <InputLabel sx={{ fontWeight: 700 }}>الفرع المستهدف بالتصفير</InputLabel>
+            <Select
+              value={resetForm.branch_id}
+              label="الفرع المستهدف بالتصفير"
+              onChange={(e) => setResetForm(p => ({ ...p, branch_id: e.target.value }))}
+              sx={{ fontWeight: 800 }}
+            >
+              <MenuItem value="all">🌐 كافة الفروع (فرع عزت + فرع المسلة)</MenuItem>
+              <MenuItem value="b1">🏛️ فرع عزت فقط</MenuItem>
+              <MenuItem value="b2">🏢 فرع المسلة فقط</MenuItem>
+            </Select>
+          </FormControl>
+
+          {/* Reset Mode Selector */}
+          <FormControl fullWidth size="small">
+            <InputLabel sx={{ fontWeight: 700 }}>نوع عملية التصفير</InputLabel>
+            <Select
+              value={resetForm.mode}
+              label="نوع عملية التصفير"
+              onChange={(e) => setResetForm(p => ({ ...p, mode: e.target.value }))}
+              sx={{ fontWeight: 800 }}
+            >
+              <MenuItem value="all">🧹 تصفير شامل (كل الخامات بالفرع تصبح 0)</MenuItem>
+              <MenuItem value="single">🎯 تصفير خامة محددة فقط</MenuItem>
+            </Select>
+          </FormControl>
+
+          {/* Specific Item Selector (Only when mode === 'single') */}
+          {resetForm.mode === 'single' && (
+            <FormControl fullWidth size="small">
+              <InputLabel sx={{ fontWeight: 700 }}>اختر الخامة المراد تصفيرها *</InputLabel>
+              <Select
+                value={resetForm.item_id}
+                label="اختر الخامة المراد تصفيرها *"
+                onChange={(e) => setResetForm(p => ({ ...p, item_id: e.target.value }))}
+                sx={{ fontWeight: 800 }}
+              >
+                {rawItems.map(item => {
+                  const b1Val = item.branch_stocks?.b1 ?? 0;
+                  const b2Val = item.branch_stocks?.b2 ?? 0;
+                  return (
+                    <MenuItem key={item.id} value={item.id}>
+                      🥩 {item.name} — [عزت: {b1Val} {item.unit} | المسلة: {b2Val} {item.unit}]
+                    </MenuItem>
+                  );
+                })}
+              </Select>
+            </FormControl>
+          )}
+
+          <TextField
+            fullWidth
+            size="small"
+            label="ملاحظات وسبب التصفير"
+            multiline
+            rows={2}
+            value={resetForm.notes}
+            onChange={(e) => setResetForm(p => ({ ...p, notes: e.target.value }))}
+            sx={{ '& textarea': { fontWeight: 700 } }}
+          />
+
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5, borderTop: '1px solid #E2E8F0', justifyContent: 'space-between' }}>
+          <Button onClick={() => setResetModalOpen(false)} disabled={resetLoading} variant="outlined" sx={{ fontWeight: 800 }}>
+            إلغاء ❌
+          </Button>
+          <Button
+            onClick={handleExecuteReset}
+            disabled={resetLoading}
+            variant="contained"
+            sx={{ bgcolor: '#DC2626', '&:hover': { bgcolor: '#B91C1C' }, fontWeight: 900, px: 3 }}
+          >
+            {resetLoading ? 'جاري التصفير...' : 'تأكيد تصفير الرصيد إلى 0 🔄'}
+          </Button>
         </DialogActions>
       </Dialog>
 
