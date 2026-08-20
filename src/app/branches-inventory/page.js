@@ -11,7 +11,7 @@ import {
 } from '@mui/material';
 import {
   WarningAmber, History, LocalShipping, AddBusiness, Store, Warehouse,
-  Refresh, AttachMoney, DeleteSweep, RestartAlt
+  Refresh, AttachMoney, DeleteSweep, RestartAlt, CheckCircle, Save
 } from '@mui/icons-material';
 
 // TabPanel Helper Component
@@ -21,6 +21,83 @@ function TabPanel(props) {
     <div role="tabpanel" hidden={value !== index} {...other}>
       {value === index && <Box sx={{ py: 2.5 }}>{children}</Box>}
     </div>
+  );
+}
+
+// Inline Stock Cell with Instant Confirm/Save Button
+function InlineStockCell({ initialValue, itemId, branchId, onSave, color = '#4F46E5', bgColor = '#F5F3FF', isLow = false }) {
+  const [val, setVal] = useState(initialValue);
+  const [isSaved, setIsSaved] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setVal(initialValue);
+  }, [initialValue]);
+
+  const isDirty = parseFloat(val) !== parseFloat(initialValue);
+
+  const handleConfirmSave = async () => {
+    setLoading(true);
+    await onSave(itemId, branchId, val);
+    setLoading(false);
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2000);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      handleConfirmSave();
+    }
+  };
+
+  return (
+    <TableCell align="center" sx={{ bgcolor: bgColor, p: 0.8 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+        <TextField
+          type="number"
+          size="small"
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={handleKeyDown}
+          sx={{
+            width: 70,
+            bgcolor: '#FFFFFF',
+            borderRadius: '8px',
+            '& input': {
+              fontWeight: 900,
+              textAlign: 'center',
+              p: 0.6,
+              color: isLow ? '#B91C1C' : color,
+              fontSize: '0.95rem'
+            }
+          }}
+        />
+        <Tooltip title={isDirty ? "تأكيد وحفظ التعديل الآن" : "تأكيد الرصيد"}>
+          <span>
+            <IconButton
+              size="small"
+              onClick={handleConfirmSave}
+              disabled={loading}
+              sx={{
+                bgcolor: isSaved ? '#10B981' : (isDirty ? '#2563EB' : '#F1F5F9'),
+                color: (isSaved || isDirty) ? '#FFFFFF' : '#64748B',
+                border: '1px solid',
+                borderColor: (isSaved || isDirty) ? 'transparent' : '#CBD5E1',
+                borderRadius: '8px',
+                p: 0.6,
+                '&:hover': {
+                  bgcolor: isSaved ? '#059669' : (isDirty ? '#1D4ED8' : '#E2E8F0')
+                },
+                transition: 'all 0.2s ease'
+              }}
+            >
+              {isSaved ? <CheckCircle sx={{ fontSize: 18 }} /> : <Save sx={{ fontSize: 18 }} />}
+            </IconButton>
+          </span>
+        </Tooltip>
+      </Box>
+      {isLow && <Typography variant="caption" display="block" sx={{ color: '#EF4444', fontWeight: 700, mt: 0.3 }}>⚠️ منخفض</Typography>}
+    </TableCell>
   );
 }
 
@@ -568,40 +645,37 @@ export default function BranchesInventoryPage() {
                       <TableCell sx={{ fontWeight: 700, color: '#64748B' }}>{row.unit}</TableCell>
 
                       {/* Main Warehouse stock status */}
-                      <TableCell align="center" sx={{ bgcolor: '#F5F3FF' }}>
-                        <TextField
-                          type="number"
-                          size="small"
-                          value={mainStock}
-                          onChange={(e) => handleInlineStockChange(row.id, 'b_main', e.target.value)}
-                          sx={{ width: 85, bgcolor: '#FFFFFF', borderRadius: '8px', '& input': { fontWeight: 900, textAlign: 'center', p: 0.8, color: isMainLow ? '#B91C1C' : '#4F46E5' } }}
-                        />
-                        {isMainLow && <Typography variant="caption" display="block" sx={{ color: '#EF4444', fontWeight: 700 }}>⚠️ منخفض</Typography>}
-                      </TableCell>
+                      <InlineStockCell
+                        initialValue={mainStock}
+                        itemId={row.id}
+                        branchId="b_main"
+                        onSave={handleInlineStockChange}
+                        color="#4F46E5"
+                        bgColor="#F5F3FF"
+                        isLow={isMainLow}
+                      />
 
                       {/* Branch 1 Stock */}
-                      <TableCell align="center" sx={{ bgcolor: '#FFFBEB' }}>
-                        <TextField
-                          type="number"
-                          size="small"
-                          value={b1Stock}
-                          onChange={(e) => handleInlineStockChange(row.id, 'b1', e.target.value)}
-                          sx={{ width: 85, bgcolor: '#FFFFFF', borderRadius: '8px', '& input': { fontWeight: 900, textAlign: 'center', p: 0.8, color: isB1Low ? '#B45309' : '#D97706' } }}
-                        />
-                        {isB1Low && <Typography variant="caption" display="block" sx={{ color: '#F59E0B', fontWeight: 700 }}>⚠️ منخفض</Typography>}
-                      </TableCell>
+                      <InlineStockCell
+                        initialValue={b1Stock}
+                        itemId={row.id}
+                        branchId="b1"
+                        onSave={handleInlineStockChange}
+                        color="#D97706"
+                        bgColor="#FFFBEB"
+                        isLow={isB1Low}
+                      />
 
                       {/* Branch 2 Stock */}
-                      <TableCell align="center" sx={{ bgcolor: '#F0FDF4' }}>
-                        <TextField
-                          type="number"
-                          size="small"
-                          value={b2Stock}
-                          onChange={(e) => handleInlineStockChange(row.id, 'b2', e.target.value)}
-                          sx={{ width: 85, bgcolor: '#FFFFFF', borderRadius: '8px', '& input': { fontWeight: 900, textAlign: 'center', p: 0.8, color: isB2Low ? '#047857' : '#059669' } }}
-                        />
-                        {isB2Low && <Typography variant="caption" display="block" sx={{ color: '#10B981', fontWeight: 700 }}>⚠️ منخفض</Typography>}
-                      </TableCell>
+                      <InlineStockCell
+                        initialValue={b2Stock}
+                        itemId={row.id}
+                        branchId="b2"
+                        onSave={handleInlineStockChange}
+                        color="#059669"
+                        bgColor="#F0FDF4"
+                        isLow={isB2Low}
+                      />
 
                       <TableCell align="center" sx={{ fontWeight: 700, color: '#64748B' }}>{minStock} {row.unit}</TableCell>
                       <TableCell align="center" sx={{ fontWeight: 800, color: '#2563EB' }}>{row.cost_per_unit || 0} ج.م</TableCell>

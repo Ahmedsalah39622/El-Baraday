@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react';
 import { 
   Box, Typography, Tabs, Tab, Paper, Table, TableBody, TableCell, 
   TableContainer, TableHead, TableRow, TextField, Button, Chip, Dialog,
-  DialogTitle, DialogContent, DialogActions, IconButton, Tooltip, MenuItem, Select, FormControl, InputLabel, Grid
+  DialogTitle, DialogContent, DialogActions, IconButton, Tooltip, MenuItem, Select, FormControl, InputLabel, Grid,
+  Snackbar, Alert
 } from '@mui/material';
-import { Add, WarningAmber, Edit as EditIcon, Delete as DeleteIcon, Science, LocalShipping, AddBusiness, Store, Warehouse } from '@mui/icons-material';
+import { Add, WarningAmber, Edit as EditIcon, Delete as DeleteIcon, Science, LocalShipping, AddBusiness, Store, Warehouse, CheckCircle, Save } from '@mui/icons-material';
 import { useInventoryStore } from '@/store/useInventoryStore';
 import ProductRecipeModal from '@/components/dialogs/ProductRecipeModal';
 import BranchTransferModal from '@/components/dialogs/BranchTransferModal';
@@ -18,6 +19,82 @@ function TabPanel(props) {
     <div role="tabpanel" hidden={value !== index} {...other}>
       {value === index && <Box sx={{ py: 2.5 }}>{children}</Box>}
     </div>
+  );
+}
+
+// Inline Stock Cell with instant Confirmation Save Button
+function InlineStockCell({ initialValue, itemId, branchId, onSave, color = '#4F46E5', bgColor = '#F5F3FF' }) {
+  const [val, setVal] = useState(initialValue);
+  const [isSaved, setIsSaved] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setVal(initialValue);
+  }, [initialValue]);
+
+  const isDirty = parseFloat(val) !== parseFloat(initialValue);
+
+  const handleConfirmSave = async () => {
+    setLoading(true);
+    await onSave(itemId, branchId, val);
+    setLoading(false);
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 2000);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      handleConfirmSave();
+    }
+  };
+
+  return (
+    <TableCell sx={{ bgcolor: bgColor, textAlign: 'center', p: 0.8 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+        <TextField
+          type="number"
+          size="small"
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={handleKeyDown}
+          sx={{
+            width: 70,
+            bgcolor: '#FFFFFF',
+            borderRadius: '8px',
+            '& input': {
+              fontWeight: 900,
+              textAlign: 'center',
+              p: 0.6,
+              color: color,
+              fontSize: '0.95rem'
+            }
+          }}
+        />
+        <Tooltip title={isDirty ? "تأكيد وحفظ التعديل الآن" : "تأكيد الرصيد"}>
+          <span>
+            <IconButton
+              size="small"
+              onClick={handleConfirmSave}
+              disabled={loading}
+              sx={{
+                bgcolor: isSaved ? '#10B981' : (isDirty ? '#2563EB' : '#F1F5F9'),
+                color: (isSaved || isDirty) ? '#FFFFFF' : '#64748B',
+                border: '1px solid',
+                borderColor: (isSaved || isDirty) ? 'transparent' : '#CBD5E1',
+                borderRadius: '8px',
+                p: 0.6,
+                '&:hover': {
+                  bgcolor: isSaved ? '#059669' : (isDirty ? '#1D4ED8' : '#E2E8F0')
+                },
+                transition: 'all 0.2s ease'
+              }}
+            >
+              {isSaved ? <CheckCircle sx={{ fontSize: 18 }} /> : <Save sx={{ fontSize: 18 }} />}
+            </IconButton>
+          </span>
+        </Tooltip>
+      </Box>
+    </TableCell>
   );
 }
 
@@ -320,37 +397,34 @@ export default function InventoryPage() {
                     <TableCell sx={{ color: '#6B7280', fontWeight: 700 }}>{row.unit}</TableCell>
                     
                     {/* Main Warehouse Stock */}
-                    <TableCell sx={{ bgcolor: '#F5F3FF', textAlign: 'center' }}>
-                      <TextField
-                        type="number"
-                        size="small"
-                        value={mainStock}
-                        onChange={(e) => handleBranchStockChange(row.id, 'b_main', e.target.value)}
-                        sx={{ width: 85, bgcolor: '#FFFFFF', borderRadius: '8px', '& input': { fontWeight: 900, textAlign: 'center', p: 0.8, color: '#4F46E5' } }}
-                      />
-                    </TableCell>
+                    <InlineStockCell
+                      initialValue={mainStock}
+                      itemId={row.id}
+                      branchId="b_main"
+                      onSave={handleBranchStockChange}
+                      color="#4F46E5"
+                      bgColor="#F5F3FF"
+                    />
 
                     {/* Branch 1 Stock */}
-                    <TableCell sx={{ bgcolor: '#FFFBEB', textAlign: 'center' }}>
-                      <TextField
-                        type="number"
-                        size="small"
-                        value={b1Stock}
-                        onChange={(e) => handleBranchStockChange(row.id, 'b1', e.target.value)}
-                        sx={{ width: 85, bgcolor: '#FFFFFF', borderRadius: '8px', '& input': { fontWeight: 900, textAlign: 'center', p: 0.8, color: '#D97706' } }}
-                      />
-                    </TableCell>
+                    <InlineStockCell
+                      initialValue={b1Stock}
+                      itemId={row.id}
+                      branchId="b1"
+                      onSave={handleBranchStockChange}
+                      color="#D97706"
+                      bgColor="#FFFBEB"
+                    />
 
                     {/* Branch 2 Stock */}
-                    <TableCell sx={{ bgcolor: '#F0FDF4', textAlign: 'center' }}>
-                      <TextField
-                        type="number"
-                        size="small"
-                        value={b2Stock}
-                        onChange={(e) => handleBranchStockChange(row.id, 'b2', e.target.value)}
-                        sx={{ width: 85, bgcolor: '#FFFFFF', borderRadius: '8px', '& input': { fontWeight: 900, textAlign: 'center', p: 0.8, color: '#059669' } }}
-                      />
-                    </TableCell>
+                    <InlineStockCell
+                      initialValue={b2Stock}
+                      itemId={row.id}
+                      branchId="b2"
+                      onSave={handleBranchStockChange}
+                      color="#059669"
+                      bgColor="#F0FDF4"
+                    />
 
                     {/* Total System Stock */}
                     <TableCell sx={{ fontWeight: 900, color: '#1E293B' }}>
