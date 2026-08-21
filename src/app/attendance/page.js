@@ -11,12 +11,14 @@ import {
 import {
   HowToReg, DeliveryDining, AccessTime, CheckCircle, Warning,
   PersonAdd, Logout, Refresh, SwapVert, BadgeOutlined, Check, Clear,
-  EditCalendar, AccountBalanceWallet, Timer, Schedule, History, PlayArrow
+  EditCalendar, AccountBalanceWallet, Timer, Schedule, History, PlayArrow,
+  Print, PictureAsPdf
 } from '@mui/icons-material';
 import { useBranchStore } from '@/store/useBranchStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useRouter } from 'next/navigation';
 import DeliveryTimerBadge from '@/components/delivery/DeliveryTimerBadge';
+import { printSalaryReceipt } from '@/lib/printReceipt';
 
 export default function AttendancePage() {
   const router = useRouter();
@@ -33,6 +35,7 @@ export default function AttendancePage() {
   const [unpaidSummary, setUnpaidSummary] = useState([]);
   const [recentLogs, setRecentLogs] = useState([]);
   const [deliveryTimerMinutes, setDeliveryTimerMinutes] = useState(30);
+  const [companySettings, setCompanySettings] = useState({});
 
   // Quick Check-in Modal
   const [checkInOpen, setCheckInOpen] = useState(false);
@@ -80,8 +83,11 @@ export default function AttendancePage() {
       const setRes = await fetch('/api/settings');
       if (setRes.ok) {
         const setObj = await setRes.json();
-        if (setObj.delivery_timer_minutes) {
-          setDeliveryTimerMinutes(parseInt(setObj.delivery_timer_minutes) || 30);
+        if (setObj) {
+          setCompanySettings(setObj);
+          if (setObj.delivery_timer_minutes) {
+            setDeliveryTimerMinutes(parseInt(setObj.delivery_timer_minutes) || 30);
+          }
         }
       }
     } catch (err) {
@@ -220,6 +226,58 @@ export default function AttendancePage() {
     }
   };
 
+  // Auto-calculate lateness & working hours whenever times change in the modal
+  const handleModalTimeChange = (field, value) => {
+    setManualForm(prev => {
+      const updated = { ...prev, [field]: value };
+      const emp = employees.find(e => e.id === updated.employeeId);
+      const scheduledStart = updated.shiftStartTime || emp?.shift_start_time || '12:00';
+      const shiftHours = parseFloat(updated.scheduledHours || emp?.shift_hours || 8.0);
+      const graceM = parseInt(emp?.grace_period_minutes || 15);
+
+      // 1. Compute Lateness (التأخير التلقائي)
+      if (updated.checkInTime && scheduledStart) {
+        try {
+          const [sH, sM] = scheduledStart.split(':').map(Number);
+          const [cH, cM] = updated.checkInTime.split(':').map(Number);
+          const startMin = sH * 60 + sM;
+          const checkMin = cH * 60 + cM;
+          const diffMin = checkMin - startMin;
+
+          if (diffMin > graceM) {
+            updated.lateMinutes = String(diffMin);
+            updated.lateHours = String((diffMin / 60).toFixed(2));
+          } else {
+            updated.lateMinutes = '0';
+            updated.lateHours = '0';
+          }
+        } catch (e) {
+          updated.lateMinutes = '0';
+          updated.lateHours = '0';
+        }
+      }
+
+      // 2. Compute Working Hours (ساعات العمل التلقائية)
+      if (updated.checkInTime && updated.checkOutTime) {
+        try {
+          const [cH, cM] = updated.checkInTime.split(':').map(Number);
+          const [oH, oM] = updated.checkOutTime.split(':').map(Number);
+          let durationMin = (oH * 60 + oM) - (cH * 60 + cM);
+          if (durationMin < 0) durationMin += 24 * 60; // Overnight shift
+          const workedH = parseFloat((durationMin / 60).toFixed(2));
+          updated.workingHours = String(workedH);
+        } catch (e) {
+          updated.workingHours = String(shiftHours);
+        }
+      } else {
+        const lateH = parseFloat(updated.lateHours || 0);
+        updated.workingHours = String(Math.max(0, shiftHours - lateH).toFixed(2));
+      }
+
+      return updated;
+    });
+  };
+
   // Open HR Manual Attendance Dialog
   const handleOpenManualModal = (emp = null, existingAtt = null) => {
     const defaultEmp = emp || (employees && employees.length > 0 ? employees[0] : null);
@@ -244,16 +302,18 @@ export default function AttendancePage() {
         notes: existingAtt.notes || 'تعديل تمام وحضور من الإدارة'
       });
     } else {
+      const startT = defaultEmp?.shift_start_time || '12:00';
+      const sH = String(defaultEmp?.shift_hours || 8);
       setManualForm({
         attendanceId: null,
         employeeId: defaultEmp?.id || '',
         employeeName: defaultEmp?.name || '',
         date: new Date().toISOString().split('T')[0],
-        checkInTime: defaultEmp?.shift_start_time || '12:00',
+        checkInTime: startT,
         checkOutTime: '',
-        shiftStartTime: defaultEmp?.shift_start_time || '12:00',
-        scheduledHours: String(defaultEmp?.shift_hours || 8),
-        workingHours: String(defaultEmp?.shift_hours || 8),
+        shiftStartTime: startT,
+        scheduledHours: sH,
+        workingHours: sH,
         lateMinutes: '0',
         lateHours: '0',
         notes: 'تسجيل تمام وحضور يدوي من الإدارة'
@@ -309,6 +369,102 @@ export default function AttendancePage() {
       });
       fetchAttendance();
     } catch (e) {}
+  };
+
+  // Comprehensive Payroll Metrics Calculation for Attendance Board
+  const calculateEmpPayrollMetrics = (emp) => {
+    const summaryObj = unpaidSummary.find(s => s.employee_id === emp.id);
+    const todayRecord = todayAttendance.find(a => a.employee_id === emp.id);
+
+    const sType = emp.salary_type || emp.salaryType || 'weekly';
+    const wRate = parseFloat(emp.weekly_rate || emp.weeklyRate || 0);
+    const bSal = parseFloat(emp.base_salary || emp.baseSalary || wRate || 0);
+    const wDays = parseInt(emp.work_days_per_week || emp.workDaysPerWeek || 6);
+    const sHours = parseFloat(emp.shift_hours || emp.shiftHours || 8.0);
+    const dRate = parseFloat(emp.daily_rate || emp.dailyRate || (sType === 'weekly' && wDays > 0 ? (wRate / wDays) : (bSal / 30)));
+    const hRate = parseFloat(emp.hourly_rate || emp.hourlyRate || (dRate > 0 && sHours > 0 ? (dRate / sHours) : 0));
+    const lateDeductionRate = parseFloat(emp.late_deduction_rate || emp.lateDeductionRate || 1.0);
+
+    // Attended Days & Hours in current cycle
+    const attendedDays = parseInt(summaryObj?.days_attended ?? emp.unpaid_days_count ?? emp.unpaidDaysCount ?? (todayRecord ? 1 : 0));
+    const workingHours = parseFloat(summaryObj?.total_working_hours ?? emp.unpaid_working_hours ?? emp.unpaidWorkingHours ?? (todayRecord ? (todayRecord.working_hours || sHours) : 0));
+    const lateHours = parseFloat(summaryObj?.total_late_hours ?? emp.unpaid_late_hours ?? emp.unpaidLateHours ?? (todayRecord ? todayRecord.late_hours : 0));
+    const lateMinutes = parseInt(summaryObj?.total_late_minutes ?? emp.unpaid_late_minutes ?? emp.unpaidLateMinutes ?? (todayRecord ? todayRecord.late_minutes : 0));
+    const overtimeHours = parseFloat(summaryObj?.total_overtime_hours ?? emp.unpaid_overtime_hours ?? emp.unpaidOvertimeHours ?? emp.overtime_hours ?? emp.overtimeHours ?? 0);
+
+    // Absent Days in standard weekly cycle
+    const absentDays = Math.max(0, wDays - attendedDays);
+
+    // Earned Wages
+    const earnedSoFar = sType === 'hourly'
+      ? (workingHours * hRate)
+      : (attendedDays > 0 ? (attendedDays * dRate) : 0);
+
+    const lateDeductionAmount = lateHours * hRate * lateDeductionRate;
+    const overtimeAmount = overtimeHours * hRate * 1.5;
+    const directBonus = parseFloat(emp.bonus || 0);
+    const directDeductions = parseFloat(emp.deductions || 0);
+    const advances = parseFloat(emp.total_advances ?? emp.advances ?? 0);
+
+    const totalBonus = overtimeAmount + directBonus;
+    const totalDeductions = lateDeductionAmount + directDeductions;
+    const netPayable = Math.max(0, (earnedSoFar > 0 ? earnedSoFar : (sType === 'weekly' ? wRate : bSal)) + totalBonus - totalDeductions - advances);
+
+    return {
+      sType,
+      wRate,
+      bSal,
+      wDays,
+      sHours,
+      dRate,
+      hRate,
+      attendedDays,
+      workingHours,
+      lateHours,
+      lateMinutes,
+      overtimeHours,
+      absentDays,
+      earnedSoFar,
+      lateDeductionAmount,
+      overtimeAmount,
+      directBonus,
+      directDeductions,
+      advances,
+      totalBonus,
+      totalDeductions,
+      netPayable
+    };
+  };
+
+  // Immediate Print Attendance / Salary Slip Report
+  const handlePrintEmployeeReport = (emp) => {
+    const metrics = calculateEmpPayrollMetrics(emp);
+    const slipPayload = {
+      employee_id: emp.id,
+      employee_name: emp.name,
+      employee_role: emp.role,
+      branch_name: emp.branch_name || 'الفرع الرئيسي',
+      salary_type: metrics.sType,
+      daily_rate: metrics.dRate,
+      days_attended: metrics.attendedDays,
+      hours_worked: metrics.workingHours,
+      late_hours: metrics.lateHours,
+      late_deduction_amount: metrics.lateDeductionAmount,
+      earned_amount: metrics.earnedSoFar,
+      base_salary: metrics.bSal,
+      hourly_rate: metrics.hRate,
+      overtime_hours: metrics.overtimeHours,
+      overtime_amount: metrics.overtimeAmount,
+      deduction_hours: metrics.lateHours,
+      deduction_amount: metrics.lateDeductionAmount,
+      bonus_amount: metrics.directBonus,
+      direct_deductions: metrics.directDeductions,
+      advances_amount: metrics.advances,
+      net_paid: metrics.netPayable,
+      notes: `كشف حضور ومستحقات (حضر: ${metrics.attendedDays} يوم | غياب: ${metrics.absentDays} يوم | تأخير: ${metrics.lateMinutes} دقيقة)`,
+      payment_date: new Date()
+    };
+    printSalaryReceipt(slipPayload, companySettings);
   };
 
   const readyCount = activeQueue.filter(q => q.status === 'ready').length;
@@ -491,20 +647,22 @@ export default function AttendancePage() {
                 <TableHead sx={{ bgcolor: '#F8FAFC' }}>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 900 }}>الموظف والفرع</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>الوظيفة ونظام الراتب</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>ميعاد الشيفت الرسمي</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>تمام اليوم والتأخير</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>أيام وساعات الدورة الحالية</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }} align="center">إجراءات التمام السريعة</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>نظام الراتب واليومية</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>ميعاد الشيفت وتمام اليوم</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>أيام وساعات الحضور المكتسبة</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>الغياب والتأخيرات والخصومات</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>المرتب الصافي الجاهز للصرف</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }} align="center">إجراءات التمام والطباعة</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {employees.map((emp) => {
+                    const metrics = calculateEmpPayrollMetrics(emp);
                     const todayRecord = todayAttendance.find(a => a.employee_id === emp.id);
                     const isClockedIn = emp.isClockedIn || emp.status === 'active';
                     const isDriver = emp.role?.includes('طيار') || emp.role?.includes('دليفري') || emp.role?.toLowerCase()?.includes('driver');
 
-                    // Lateness display
+                    // Lateness display for today
                     let lateDisplay = null;
                     if (todayRecord) {
                       const lateM = parseInt(todayRecord.late_minutes || 0);
@@ -513,9 +671,9 @@ export default function AttendancePage() {
                         lateDisplay = (
                           <Chip
                             icon={<Warning sx={{ fontSize: '14px !important' }} />}
-                            label={`تأخير ${lateM} دقيقة (-${lateH} س)`}
+                            label={`تأخير اليوم: ${lateM} دقيقة (-${lateH} س)`}
                             size="small"
-                            sx={{ bgcolor: '#FEF2F2', color: '#DC2626', fontWeight: 900, height: 22, fontSize: '0.75rem' }}
+                            sx={{ bgcolor: '#FEF2F2', color: '#DC2626', fontWeight: 900, height: 22, fontSize: '0.72rem' }}
                           />
                         );
                       } else {
@@ -524,7 +682,7 @@ export default function AttendancePage() {
                             icon={<CheckCircle sx={{ fontSize: '14px !important' }} />}
                             label="في الميعاد 🟢"
                             size="small"
-                            sx={{ bgcolor: '#ECFDF5', color: '#059669', fontWeight: 900, height: 22, fontSize: '0.75rem' }}
+                            sx={{ bgcolor: '#ECFDF5', color: '#059669', fontWeight: 900, height: 22, fontSize: '0.72rem' }}
                           />
                         );
                       }
@@ -536,6 +694,7 @@ export default function AttendancePage() {
 
                     return (
                       <TableRow key={emp.id} hover>
+                        {/* 1. Employee Info */}
                         <TableCell sx={{ fontWeight: 800 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Box sx={{ width: 34, height: 34, borderRadius: '10px', bgcolor: isClockedIn ? '#D1FAE5' : '#F1F5F9', color: isClockedIn ? '#059669' : '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>
@@ -552,81 +711,124 @@ export default function AttendancePage() {
                           </Box>
                         </TableCell>
 
+                        {/* 2. Salary System & Daily Rate */}
                         <TableCell>
                           <Typography variant="body2" fontWeight={700}>
                             {emp.role}
                           </Typography>
-                          <Box sx={{ display: 'flex', gap: 0.5, mt: 0.3 }}>
+                          <Box sx={{ display: 'flex', gap: 0.5, mt: 0.3, alignItems: 'center', flexWrap: 'wrap' }}>
                             <Chip
-                              label={emp.salaryType === 'weekly' ? '🗓️ أسبوعي' : (emp.salaryType === 'hourly' ? '⏱️ بالساعة' : '📅 شهري')}
+                              label={metrics.sType === 'weekly' ? '🗓️ أسبوعي' : (metrics.sType === 'hourly' ? '⏱️ بالساعة' : '📅 شهري')}
                               size="small"
-                              sx={{ height: 20, fontSize: '0.7rem', fontWeight: 800, bgcolor: emp.salaryType === 'weekly' ? '#FEF3C7' : '#EFF6FF', color: emp.salaryType === 'weekly' ? '#92400E' : '#1E40AF' }}
+                              sx={{ height: 20, fontSize: '0.7rem', fontWeight: 800, bgcolor: metrics.sType === 'weekly' ? '#FEF3C7' : '#EFF6FF', color: metrics.sType === 'weekly' ? '#92400E' : '#1E40AF' }}
                             />
-                            {emp.salaryType === 'weekly' && emp.weeklyRate > 0 && (
+                            {metrics.sType === 'weekly' && metrics.wRate > 0 && (
                               <Typography variant="caption" color="text.secondary" fontWeight="bold">
-                                {emp.weeklyRate} ج.م/أسبوع
+                                {metrics.wRate} ج.م/أسبوع
                               </Typography>
                             )}
                           </Box>
+                          {metrics.dRate > 0 && (
+                            <Typography variant="caption" color="#0369A1" fontWeight="bold" display="block">
+                              اليومية: {metrics.dRate.toFixed(1)} ج ({metrics.hRate.toFixed(1)} ج/س)
+                            </Typography>
+                          )}
                         </TableCell>
 
+                        {/* 3. Official Shift & Today Check-in */}
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <Schedule sx={{ fontSize: 16, color: '#3B82F6' }} />
+                            <Schedule sx={{ fontSize: 15, color: '#3B82F6' }} />
                             <Typography variant="body2" fontWeight={800}>
-                              {emp.shiftStartTime || '12:00'} (شيفت {emp.shiftHours || 8} ساعات)
+                              {metrics.sHours} س (ميعاد {emp.shift_start_time || emp.shiftStartTime || '12:00'})
                             </Typography>
                           </Box>
-                          <Typography variant="caption" color="text.secondary">
-                            سماح: {emp.gracePeriodMinutes || 15} دقيقة
-                          </Typography>
-                        </TableCell>
-
-                        <TableCell>
                           {isClockedIn ? (
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
-                                <Chip label="🟢 حاضر بالشيفت" size="small" color="success" sx={{ fontWeight: 800, height: 22 }} />
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3, mt: 0.5 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Chip label="حاضر بالشيفت" size="small" color="success" sx={{ fontWeight: 800, height: 20, fontSize: '0.68rem' }} />
                                 <Typography variant="caption" fontWeight={800}>
-                                  تمام: {checkInFormatted}
+                                  {checkInFormatted}
                                 </Typography>
                               </Box>
                               {lateDisplay}
                             </Box>
                           ) : todayRecord ? (
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                              <Chip label="انتهى الشيفت / منصرف" size="small" variant="outlined" sx={{ fontWeight: 700, height: 22 }} />
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3, mt: 0.5 }}>
+                              <Chip label="انتهى الشيفت / منصرف" size="small" variant="outlined" sx={{ fontWeight: 700, height: 20, fontSize: '0.68rem' }} />
                               {lateDisplay}
                             </Box>
                           ) : (
-                            <Chip label="⚪ لم يحضر اليوم بعد" size="small" sx={{ bgcolor: '#F1F5F9', color: '#64748B', fontWeight: 700 }} />
+                            <Chip label="⚪ لم يحضر اليوم بعد" size="small" sx={{ bgcolor: '#F1F5F9', color: '#64748B', fontWeight: 700, mt: 0.5, height: 20, fontSize: '0.68rem' }} />
                           )}
                         </TableCell>
 
+                        {/* 4. Attended Days & Hours in Current Cycle */}
                         <TableCell>
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
-                            <Box sx={{ display: 'flex', gap: 0.8, alignItems: 'center' }}>
+                            <Box sx={{ display: 'flex', gap: 0.6, alignItems: 'center' }}>
                               <Chip
-                                label={`🗓️ ${emp.unpaidDaysCount || 0} يوم`}
+                                label={`🗓️ حضر: ${metrics.attendedDays} يوم`}
                                 size="small"
                                 sx={{ bgcolor: '#EFF6FF', color: '#1D4ED8', fontWeight: 900, height: 22 }}
                               />
                               <Chip
-                                label={`⏱️ ${parseFloat(emp.unpaidWorkingHours || 0).toFixed(1)} ساعة`}
+                                label={`⏱️ ${metrics.workingHours.toFixed(1)} س`}
                                 size="small"
                                 sx={{ bgcolor: '#F0FDF4', color: '#15803D', fontWeight: 900, height: 22 }}
                               />
                             </Box>
-                            {parseFloat(emp.unpaidLateHours || 0) > 0 && (
+                            <Typography variant="caption" color="text.secondary" fontWeight="bold">
+                              المستحق للأيام: <strong>{(metrics.earnedSoFar > 0 ? metrics.earnedSoFar : (metrics.sType === 'weekly' ? metrics.wRate : metrics.bSal)).toFixed(1)} ج.م</strong>
+                            </Typography>
+                          </Box>
+                        </TableCell>
+
+                        {/* 5. Absent Days & Lateness Deductions */}
+                        <TableCell>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
+                            <Box sx={{ display: 'flex', gap: 0.6, alignItems: 'center' }}>
+                              <Chip
+                                label={`❌ غياب: ${metrics.absentDays} يوم`}
+                                size="small"
+                                sx={{ bgcolor: metrics.absentDays > 0 ? '#FFF1F2' : '#F8FAFC', color: metrics.absentDays > 0 ? '#E11D48' : '#64748B', fontWeight: 800, height: 22 }}
+                              />
+                              {metrics.lateHours > 0 && (
+                                <Chip
+                                  label={`⚠️ تأخير ${metrics.lateHours} س`}
+                                  size="small"
+                                  sx={{ bgcolor: '#FEF2F2', color: '#DC2626', fontWeight: 900, height: 22 }}
+                                />
+                              )}
+                            </Box>
+                            {metrics.lateDeductionAmount > 0 && (
                               <Typography variant="caption" color="error.main" fontWeight="bold">
-                                ⚠️ إجمالي التأخير: {emp.unpaidLateHours} ساعة ({emp.unpaidLateMinutes} دقيقة)
+                                خصم التأخيرات: -{metrics.lateDeductionAmount.toFixed(1)} ج.م ({metrics.lateMinutes} د)
+                              </Typography>
+                            )}
+                            {metrics.advances > 0 && (
+                              <Typography variant="caption" color="error.main" fontWeight="bold">
+                                سلف مسحوبة: -{metrics.advances} ج.م
                               </Typography>
                             )}
                           </Box>
                         </TableCell>
 
+                        {/* 6. Net Payable Salary */}
+                        <TableCell sx={{ fontWeight: 900, color: '#059669' }}>
+                          <Box sx={{ bgcolor: '#ECFDF5', p: 0.8, borderRadius: '10px', border: '1.5px solid #A7F3D0', textAlign: 'center' }}>
+                            <Typography variant="caption" color="#047857" fontWeight={800} display="block">
+                              الصافي الجاهز:
+                            </Typography>
+                            <Typography variant="body2" fontWeight={900} color="#065F46">
+                              {metrics.netPayable.toLocaleString()} ج.م
+                            </Typography>
+                          </Box>
+                        </TableCell>
+
+                        {/* 7. Action Buttons */}
                         <TableCell align="center">
-                          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
+                          <Box sx={{ display: 'flex', gap: 0.8, justifyContent: 'center', flexWrap: 'wrap', alignItems: 'center' }}>
                             {isClockedIn ? (
                               <Button
                                 size="small"
@@ -634,9 +836,9 @@ export default function AttendancePage() {
                                 color="error"
                                 startIcon={<Logout />}
                                 onClick={() => handleCheckOut(todayRecord?.id, emp.id, emp.name)}
-                                sx={{ borderRadius: '8px', fontWeight: 800, fontSize: '0.75rem' }}
+                                sx={{ borderRadius: '8px', fontWeight: 800, fontSize: '0.72rem', py: 0.4 }}
                               >
-                                تسجيل انصراف
+                                انصراف
                               </Button>
                             ) : (
                               <Button
@@ -645,20 +847,31 @@ export default function AttendancePage() {
                                 color="success"
                                 startIcon={<PlayArrow />}
                                 onClick={() => handleQuickCheckIn(emp.id, emp.name, isDriver)}
-                                sx={{ borderRadius: '8px', fontWeight: 900, fontSize: '0.75rem', bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' } }}
+                                sx={{ borderRadius: '8px', fontWeight: 900, fontSize: '0.72rem', bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' }, py: 0.4 }}
                               >
-                                إثبات تمام (حضور)
+                                إثبات تمام
                               </Button>
                             )}
 
-                            <Tooltip title="تعديل تمام / إضافة عذر أو إجازة">
+                            <Tooltip title="تعديل تمام / إضافة عذر أو إجازة مع احتساب ساعات العمل والتأخير">
                               <IconButton
                                 size="small"
                                 color="primary"
                                 onClick={() => handleOpenManualModal(emp, todayRecord)}
-                                sx={{ border: '1px solid #CBD5E1', borderRadius: '8px' }}
+                                sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', p: 0.6 }}
                               >
                                 <EditCalendar fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+
+                            <Tooltip title="طباعة كشف التمام والمستحقات فوراً (إيصال حراري)">
+                              <IconButton
+                                size="small"
+                                color="secondary"
+                                onClick={() => handlePrintEmployeeReport(emp)}
+                                sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', p: 0.6, bgcolor: '#F5F3FF', color: '#7C3AED' }}
+                              >
+                                <Print fontSize="small" />
                               </IconButton>
                             </Tooltip>
                           </Box>
@@ -976,13 +1189,19 @@ export default function AttendancePage() {
               onChange={(e) => {
                 const empId = e.target.value;
                 const emp = employees.find(x => x.id === empId);
+                const sStart = emp?.shift_start_time || emp?.shiftStartTime || '12:00';
+                const sH = String(emp?.shift_hours || emp?.shiftHours || 8);
                 setManualForm(prev => ({
                   ...prev,
                   employeeId: empId,
                   employeeName: emp?.name || '',
-                  shiftStartTime: emp?.shiftStartTime || '12:00',
-                  scheduledHours: String(emp?.shiftHours || 8),
-                  workingHours: String(emp?.shiftHours || 8)
+                  shiftStartTime: sStart,
+                  checkInTime: sStart,
+                  checkOutTime: '',
+                  scheduledHours: sH,
+                  workingHours: sH,
+                  lateMinutes: '0',
+                  lateHours: '0'
                 }));
               }}
             >
@@ -1013,7 +1232,7 @@ export default function AttendancePage() {
                 type="time"
                 label="موعد بداية الشيفت المقرر"
                 value={manualForm.shiftStartTime}
-                onChange={(e) => setManualForm(prev => ({ ...prev, shiftStartTime: e.target.value }))}
+                onChange={(e) => handleModalTimeChange('shiftStartTime', e.target.value)}
                 slotProps={{ inputLabel: { shrink: true } }}
               />
             </Grid>
@@ -1024,7 +1243,7 @@ export default function AttendancePage() {
                 type="time"
                 label="وقت إثبات الحضور الفعلي"
                 value={manualForm.checkInTime}
-                onChange={(e) => setManualForm(prev => ({ ...prev, checkInTime: e.target.value }))}
+                onChange={(e) => handleModalTimeChange('checkInTime', e.target.value)}
                 slotProps={{ inputLabel: { shrink: true } }}
               />
             </Grid>
@@ -1035,8 +1254,9 @@ export default function AttendancePage() {
                 type="time"
                 label="وقت الانصراف (اختياري)"
                 value={manualForm.checkOutTime}
-                onChange={(e) => setManualForm(prev => ({ ...prev, checkOutTime: e.target.value }))}
+                onChange={(e) => handleModalTimeChange('checkOutTime', e.target.value)}
                 slotProps={{ inputLabel: { shrink: true } }}
+                helperText="عند تحديده تُحسب ساعات العمل تلقائياً"
               />
             </Grid>
             <Grid xs={6}>
@@ -1048,6 +1268,7 @@ export default function AttendancePage() {
                 value={manualForm.workingHours}
                 onChange={(e) => setManualForm(prev => ({ ...prev, workingHours: e.target.value }))}
                 inputProps={{ step: '0.5', min: '0' }}
+                helperText="تُحسب تلقائياً من الشيفت والانصراف"
               />
             </Grid>
             <Grid xs={6}>
@@ -1062,10 +1283,62 @@ export default function AttendancePage() {
                   setManualForm(prev => ({ ...prev, lateHours: e.target.value, lateMinutes: String(Math.round(lH * 60)) }));
                 }}
                 inputProps={{ step: '0.25', min: '0' }}
-                helperText={`${manualForm.lateMinutes || 0} دقيقة تأخير`}
+                helperText={`${manualForm.lateMinutes || 0} دقيقة تأخير (محسوبة تلقائياً)`}
               />
             </Grid>
           </Grid>
+
+          {/* Live Calculation Preview Card */}
+          {(() => {
+            const selectedEmp = employees.find(e => e.id === manualForm.employeeId);
+            const sType = selectedEmp?.salary_type || selectedEmp?.salaryType || 'weekly';
+            const wRate = parseFloat(selectedEmp?.weekly_rate || selectedEmp?.weeklyRate || 0);
+            const bSal = parseFloat(selectedEmp?.base_salary || selectedEmp?.baseSalary || wRate || 0);
+            const wDays = parseInt(selectedEmp?.work_days_per_week || selectedEmp?.workDaysPerWeek || 6);
+            const sHours = parseFloat(manualForm.scheduledHours || selectedEmp?.shift_hours || 8.0);
+            const dRate = parseFloat(selectedEmp?.daily_rate || selectedEmp?.dailyRate || (sType === 'weekly' && wDays > 0 ? (wRate / wDays) : (bSal / 30)));
+            const hRate = parseFloat(selectedEmp?.hourly_rate || selectedEmp?.hourlyRate || (dRate > 0 && sHours > 0 ? (dRate / sHours) : 0));
+
+            const lateH = parseFloat(manualForm.lateHours || 0);
+            const lateM = parseInt(manualForm.lateMinutes || 0);
+            const workH = parseFloat(manualForm.workingHours || sHours);
+            const lateDeduction = lateH * hRate;
+            const netDayEarned = Math.max(0, (workH * hRate) - lateDeduction);
+
+            return (
+              <Paper sx={{ p: 2, bgcolor: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="subtitle2" fontWeight={900} color="#166534">
+                    📊 الحسبة التلقائية لليوم الحالي:
+                  </Typography>
+                  <Chip label={`اليومية المعتمدة: ${dRate.toFixed(1)} ج.م`} size="small" sx={{ bgcolor: '#DCFCE7', color: '#15803D', fontWeight: 900 }} />
+                </Box>
+                <Divider sx={{ my: 0.5 }} />
+                <Grid container spacing={1}>
+                  <Grid xs={6}>
+                    <Typography variant="caption" color="text.secondary" fontWeight={700}>أجر الساعة المقدر:</Typography>
+                    <Typography variant="body2" fontWeight={800} color="#1E293B">{hRate.toFixed(2)} ج.م / ساعة</Typography>
+                  </Grid>
+                  <Grid xs={6}>
+                    <Typography variant="caption" color="text.secondary" fontWeight={700}>ساعات العمل المحتسبة:</Typography>
+                    <Typography variant="body2" fontWeight={800} color="#059669">{workH.toFixed(2)} ساعة</Typography>
+                  </Grid>
+                  <Grid xs={6}>
+                    <Typography variant="caption" color="text.secondary" fontWeight={700}>خصم التأخير التلقائي:</Typography>
+                    <Typography variant="body2" fontWeight={900} color={lateDeduction > 0 ? '#DC2626' : '#059669'}>
+                      {lateDeduction > 0 ? `-${lateDeduction.toFixed(2)} ج.م (${lateM} د)` : 'لا يوجد تأخير 🟢'}
+                    </Typography>
+                  </Grid>
+                  <Grid xs={6}>
+                    <Typography variant="caption" color="text.secondary" fontWeight={700}>صافي مستحق اليومية:</Typography>
+                    <Typography variant="body2" fontWeight={900} color="#166534">
+                      {netDayEarned.toFixed(2)} ج.م
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Paper>
+            );
+          })()}
 
           <TextField
             fullWidth
