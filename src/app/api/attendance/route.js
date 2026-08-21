@@ -76,14 +76,15 @@ function calculateLateness(checkInDate, shiftStartTimeStr = '12:00', graceMinute
     let shiftHour = parseInt(parts[0], 10) || 12;
     let shiftMinute = parseInt(parts[1] || '0', 10) || 0;
 
-    const shiftDate = new Date(checkIn);
-    shiftDate.setHours(shiftHour, shiftMinute, 0, 0);
+    const checkHour = checkIn.getHours();
+    const checkMinute = checkIn.getMinutes();
 
-    const graceMs = (graceMinutes || 15) * 60 * 1000;
-    const diffMs = checkIn.getTime() - shiftDate.getTime();
+    const startMin = shiftHour * 60 + shiftMinute;
+    const checkMin = checkHour * 60 + checkMinute;
+    const diffMin = checkMin - startMin;
 
-    if (diffMs > graceMs) {
-      const lateMinutes = Math.floor(diffMs / (60 * 1000));
+    if (diffMin > (graceMinutes || 15)) {
+      const lateMinutes = diffMin;
       const lateHours = parseFloat((lateMinutes / 60).toFixed(2));
       return { lateMinutes, lateHours };
     }
@@ -97,8 +98,16 @@ export async function GET(req) {
   try {
     await ensureAttendanceTables();
 
-    // 0. Auto-clean non-drivers from active driver_attendance and drivers table
+    // 0. Auto-clean duplicates and non-drivers
     try {
+      await query(`
+        DELETE ea1 FROM employee_attendance ea1
+        INNER JOIN employee_attendance ea2 
+          ON ea1.employee_id = ea2.employee_id 
+          AND DATE(ea1.attendance_date) = DATE(ea2.attendance_date)
+          AND ea1.created_at < ea2.created_at
+      `);
+
       await query(`
         UPDATE driver_attendance da
         INNER JOIN employees e ON (da.driver_id = e.id OR da.driver_name = e.name)
@@ -117,7 +126,7 @@ export async function GET(req) {
         AND LOWER(e.role) NOT LIKE '%driver%'
       `);
     } catch (cleanErr) {
-      console.warn('Driver cleanup warning:', cleanErr.message);
+      console.warn('Attendance cleanup warning:', cleanErr.message);
     }
 
     // 1. Sync ONLY delivery drivers from employees to drivers table
@@ -319,16 +328,16 @@ export async function POST(req) {
         computedLateHours = lateness.lateHours;
       }
 
-      // Check if there is already an open session today for this employee
+      // Check if there is already an attendance record for this date for this employee
       const openSessionCheck = await query(
         `SELECT id FROM employee_attendance 
-         WHERE employee_id = $1 AND attendance_date = $2 AND check_out_time IS NULL`,
+         WHERE employee_id = $1 AND DATE(attendance_date) = DATE($2)`,
         [targetStaffId, attDate]
       );
 
       let attRecord = null;
       if (openSessionCheck.rows && openSessionCheck.rows.length > 0) {
-        // Update existing open session
+        // Update existing record for the day
         const upd = await query(
           `UPDATE employee_attendance SET 
             check_in_time = $1,
@@ -512,7 +521,18 @@ export async function POST(req) {
       let cIn = check_in_time ? new Date(check_in_time) : new Date(`${attDate}T${scheduledStart}:00`);
       let cOut = check_out_time ? new Date(check_out_time) : new Date(cIn.getTime() + (wHours * 60 * 60 * 1000));
 
-      if (attendance_id) {
+      let existingAttId = attendance_id;
+      if (!existingAttId) {
+        const existCheck = await query(
+          `SELECT id FROM employee_attendance WHERE employee_id = $1 AND DATE(attendance_date) = DATE($2)`,
+          [targetStaffId, attDate]
+        );
+        if (existCheck.rows && existCheck.rows.length > 0) {
+          existingAttId = existCheck.rows[0].id;
+        }
+      }
+
+      if (existingAttId) {
         // Edit existing record
         const upd = await query(
           `UPDATE employee_attendance SET 
@@ -528,7 +548,7 @@ export async function POST(req) {
             notes = $10,
             status = 'completed'
            WHERE id = $11 RETURNING *`,
-          [attDate, cIn, cOut, scheduledStart, scheduledH, wHours, lMinutes, lHours, oHours, notes || 'تسجيل يدوي من الإدارة', attendance_id]
+          [attDate, cIn, cOut, scheduledStart, scheduledH, wHours, lMinutes, lHours, oHours, notes || 'تسجيل يدوي من الإدارة', existingAttId]
         );
         return NextResponse.json({ message: 'تم تحديث التمام بنجاح', record: upd.rows[0] });
       } else {
