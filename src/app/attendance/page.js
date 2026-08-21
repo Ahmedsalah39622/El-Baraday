@@ -138,6 +138,14 @@ export default function AttendancePage() {
   const handleQuickCheckIn = async (staffId, staffName, isDriver = false) => {
     try {
       const targetEmp = employees.find(e => e.id === staffId);
+      const isActuallyDriver = Boolean(
+        isDriver || 
+        targetEmp?.role?.includes('طيار') || 
+        targetEmp?.role?.includes('دليفري') || 
+        targetEmp?.role?.toLowerCase()?.includes('driver')
+      );
+      const targetBranch = targetEmp?.branchId || targetEmp?.branch_id || (selectedBranchId !== 'all' ? selectedBranchId : 'b1');
+
       const res = await fetch('/api/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -147,8 +155,8 @@ export default function AttendancePage() {
           employee_id: staffId,
           driver_name: staffName,
           employee_name: staffName,
-          is_driver: isDriver || targetEmp?.role?.includes('طيار') || targetEmp?.role?.includes('دليفري'),
-          branch_id: targetEmp?.branch_id || selectedBranchId !== 'all' ? selectedBranchId : 'b1'
+          is_driver: isActuallyDriver,
+          branch_id: targetBranch
         })
       });
       if (res.ok) {

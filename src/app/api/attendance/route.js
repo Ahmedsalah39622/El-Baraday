@@ -97,10 +97,33 @@ export async function GET(req) {
   try {
     await ensureAttendanceTables();
 
-    // 1. Sync delivery drivers
+    // 0. Auto-clean non-drivers from active driver_attendance and drivers table
+    try {
+      await query(`
+        UPDATE driver_attendance da
+        INNER JOIN employees e ON (da.driver_id = e.id OR da.driver_name = e.name)
+        SET da.check_out_time = CURRENT_TIMESTAMP
+        WHERE da.check_out_time IS NULL
+        AND e.role NOT LIKE '%طيار%' 
+        AND e.role NOT LIKE '%دليفري%' 
+        AND LOWER(e.role) NOT LIKE '%driver%'
+      `);
+
+      await query(`
+        DELETE d FROM drivers d
+        INNER JOIN employees e ON (d.id = e.id OR d.name = e.name)
+        WHERE e.role NOT LIKE '%طيار%' 
+        AND e.role NOT LIKE '%دليفري%' 
+        AND LOWER(e.role) NOT LIKE '%driver%'
+      `);
+    } catch (cleanErr) {
+      console.warn('Driver cleanup warning:', cleanErr.message);
+    }
+
+    // 1. Sync ONLY delivery drivers from employees to drivers table
     try {
       const deliveryEmployees = await query(
-        `SELECT name, phone, branch_id FROM employees 
+        `SELECT id, name, phone, branch_id FROM employees 
          WHERE role LIKE '%طيار%' OR role LIKE '%دليفري%' OR LOWER(role) LIKE '%driver%'`
       );
       for (const emp of (deliveryEmployees.rows || [])) {
@@ -151,13 +174,18 @@ export async function GET(req) {
     const branchId = searchParams.get('branch_id');
     const dateParam = searchParams.get('date');
 
-    // 3. Driver Active Queue
+    // 3. Driver Active Queue - ONLY delivery drivers
     let sql = `
       SELECT da.*, d.phone as driver_phone, b.name as branch_name
       FROM driver_attendance da
       LEFT JOIN drivers d ON da.driver_id = d.id
+      LEFT JOIN employees e ON (da.driver_id = e.id OR da.driver_name = e.name)
       LEFT JOIN branches b ON da.branch_id = b.id
       WHERE da.check_out_time IS NULL
+      AND (
+        (e.id IS NOT NULL AND (e.role LIKE '%طيار%' OR e.role LIKE '%دليفري%' OR LOWER(e.role) LIKE '%driver%'))
+        OR (e.id IS NULL AND d.id IS NOT NULL)
+      )
     `;
     const params = [];
     if (branchId && branchId !== 'all') {
@@ -345,13 +373,15 @@ export async function POST(req) {
       await query(`UPDATE employees SET status = 'active' WHERE id = $1`, [targetStaffId]);
 
       // If Driver, manage driver_attendance for delivery queue
-      let isDriver = is_driver;
-      if (isDriver === undefined && (empRecord?.role?.includes('طيار') || empRecord?.role?.includes('دليفري') || empRecord?.role?.toLowerCase()?.includes('driver'))) {
-        isDriver = true;
-      }
+      const isDeliveryRole = Boolean(
+        empRecord?.role?.includes('طيار') || 
+        empRecord?.role?.includes('دليفري') || 
+        empRecord?.role?.toLowerCase()?.includes('driver') ||
+        (is_driver === true && !empRecord)
+      );
 
       let driverRecord = null;
-      if (isDriver) {
+      if (isDeliveryRole) {
         const existingDriverQueue = await query(
           `SELECT * FROM driver_attendance WHERE (driver_id = $1 OR driver_name = $2) AND check_out_time IS NULL`,
           [driver_id || targetStaffId, targetName]
@@ -376,6 +406,13 @@ export async function POST(req) {
           );
           driverRecord = insDriver.rows[0];
         }
+      } else {
+        // If non-delivery employee, ensure any accidental open driver_attendance record is closed immediately
+        await query(
+          `UPDATE driver_attendance SET check_out_time = CURRENT_TIMESTAMP 
+           WHERE (driver_id = $1 OR driver_name = $2) AND check_out_time IS NULL`,
+          [driver_id || targetStaffId, targetName]
+        );
       }
 
       return NextResponse.json({
