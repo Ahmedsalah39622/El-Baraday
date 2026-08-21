@@ -50,7 +50,8 @@ export const useEmployeeStore = create(
               loading: false
             });
           } else {
-            set({ employees: [], loading: false });
+            console.error('❌ Failed to fetch employees from server');
+            set({ loading: false });
           }
         } catch (err) {
           console.warn('⚠️ Using cached employees:', err.message);

@@ -4,39 +4,96 @@ import { NextResponse } from 'next/server';
 let hourlyColumnsChecked = false;
 async function ensureHourlyColumns() {
   if (hourlyColumnsChecked) return;
+  
+  // 1. Ensure employees table
   try {
-    await query(`ALTER TABLE employees ADD COLUMN hourly_rate DECIMAL(10, 2) DEFAULT 0.00`);
+    await query(`
+      CREATE TABLE IF NOT EXISTS employees (
+        id VARCHAR(100) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        phone VARCHAR(100),
+        role VARCHAR(100) DEFAULT 'كاشير',
+        salary_type VARCHAR(50) DEFAULT 'weekly',
+        weekly_rate DECIMAL(10, 2) DEFAULT 0.00,
+        daily_rate DECIMAL(10, 2) DEFAULT 0.00,
+        base_salary DECIMAL(10, 2) DEFAULT 0.00,
+        hourly_rate DECIMAL(10, 2) DEFAULT 0.00,
+        shift_hours DECIMAL(10, 2) DEFAULT 8.00,
+        work_days_per_week INT DEFAULT 6,
+        shift_start_time VARCHAR(20) DEFAULT '12:00',
+        grace_period_minutes INT DEFAULT 15,
+        late_deduction_rate DECIMAL(10, 2) DEFAULT 1.00,
+        overtime_hours DECIMAL(10, 2) DEFAULT 0.00,
+        deduction_hours DECIMAL(10, 2) DEFAULT 0.00,
+        bonus DECIMAL(10, 2) DEFAULT 0.00,
+        deductions DECIMAL(10, 2) DEFAULT 0.00,
+        branch_id VARCHAR(100) DEFAULT 'b1',
+        status VARCHAR(50) DEFAULT 'active',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
   } catch(e) {}
+
+  // 2. Ensure employee_advances table
   try {
-    await query(`ALTER TABLE employees ADD COLUMN overtime_hours DECIMAL(10, 2) DEFAULT 0.00`);
+    await query(`
+      CREATE TABLE IF NOT EXISTS employee_advances (
+        id VARCHAR(100) PRIMARY KEY,
+        employee_id VARCHAR(100),
+        employee_name VARCHAR(255),
+        amount DECIMAL(10, 2) NOT NULL,
+        is_settled TINYINT(1) DEFAULT 0,
+        payment_id VARCHAR(100) DEFAULT NULL,
+        month VARCHAR(50),
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
   } catch(e) {}
+
+  // 3. Ensure employee_attendance table
   try {
-    await query(`ALTER TABLE employees ADD COLUMN deduction_hours DECIMAL(10, 2) DEFAULT 0.00`);
+    await query(`
+      CREATE TABLE IF NOT EXISTS employee_attendance (
+        id VARCHAR(100) PRIMARY KEY,
+        employee_id VARCHAR(100) NOT NULL,
+        employee_name VARCHAR(255) NOT NULL,
+        attendance_date DATE NOT NULL,
+        shift_start_time VARCHAR(20) DEFAULT '12:00',
+        check_in_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+        check_out_time DATETIME DEFAULT NULL,
+        scheduled_hours DECIMAL(10, 2) DEFAULT 8.0,
+        working_hours DECIMAL(10, 2) DEFAULT 8.0,
+        late_minutes INT DEFAULT 0,
+        late_hours DECIMAL(10, 2) DEFAULT 0.0,
+        overtime_hours DECIMAL(10, 2) DEFAULT 0.0,
+        status VARCHAR(50) DEFAULT 'present',
+        is_paid TINYINT(1) DEFAULT 0,
+        payment_id VARCHAR(100) DEFAULT NULL,
+        branch_id VARCHAR(100) DEFAULT 'b1',
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
   } catch(e) {}
-  try {
-    await query(`ALTER TABLE employees ADD COLUMN salary_type VARCHAR(50) DEFAULT 'weekly'`);
-  } catch(e) {}
-  try {
-    await query(`ALTER TABLE employees ADD COLUMN weekly_rate DECIMAL(10, 2) DEFAULT 0.00`);
-  } catch(e) {}
-  try {
-    await query(`ALTER TABLE employees ADD COLUMN daily_rate DECIMAL(10, 2) DEFAULT 0.00`);
-  } catch(e) {}
-  try {
-    await query(`ALTER TABLE employees ADD COLUMN shift_hours DECIMAL(10, 2) DEFAULT 8.00`);
-  } catch(e) {}
-  try {
-    await query(`ALTER TABLE employees ADD COLUMN work_days_per_week INT DEFAULT 6`);
-  } catch(e) {}
-  try {
-    await query(`ALTER TABLE employees ADD COLUMN shift_start_time VARCHAR(20) DEFAULT '12:00'`);
-  } catch(e) {}
-  try {
-    await query(`ALTER TABLE employees ADD COLUMN grace_period_minutes INT DEFAULT 15`);
-  } catch(e) {}
-  try {
-    await query(`ALTER TABLE employees ADD COLUMN late_deduction_rate DECIMAL(10, 2) DEFAULT 1.00`);
-  } catch(e) {}
+
+  // 4. Safe Alter columns
+  try { await query(`ALTER TABLE employees ADD COLUMN hourly_rate DECIMAL(10, 2) DEFAULT 0.00`); } catch(e) {}
+  try { await query(`ALTER TABLE employees ADD COLUMN overtime_hours DECIMAL(10, 2) DEFAULT 0.00`); } catch(e) {}
+  try { await query(`ALTER TABLE employees ADD COLUMN deduction_hours DECIMAL(10, 2) DEFAULT 0.00`); } catch(e) {}
+  try { await query(`ALTER TABLE employees ADD COLUMN salary_type VARCHAR(50) DEFAULT 'weekly'`); } catch(e) {}
+  try { await query(`ALTER TABLE employees ADD COLUMN weekly_rate DECIMAL(10, 2) DEFAULT 0.00`); } catch(e) {}
+  try { await query(`ALTER TABLE employees ADD COLUMN daily_rate DECIMAL(10, 2) DEFAULT 0.00`); } catch(e) {}
+  try { await query(`ALTER TABLE employees ADD COLUMN shift_hours DECIMAL(10, 2) DEFAULT 8.00`); } catch(e) {}
+  try { await query(`ALTER TABLE employees ADD COLUMN work_days_per_week INT DEFAULT 6`); } catch(e) {}
+  try { await query(`ALTER TABLE employees ADD COLUMN shift_start_time VARCHAR(20) DEFAULT '12:00'`); } catch(e) {}
+  try { await query(`ALTER TABLE employees ADD COLUMN grace_period_minutes INT DEFAULT 15`); } catch(e) {}
+  try { await query(`ALTER TABLE employees ADD COLUMN late_deduction_rate DECIMAL(10, 2) DEFAULT 1.00`); } catch(e) {}
+  try { await query(`ALTER TABLE employee_advances ADD COLUMN is_settled TINYINT(1) DEFAULT 0`); } catch(e) {}
+  try { await query(`ALTER TABLE employee_advances ADD COLUMN payment_id VARCHAR(100) DEFAULT NULL`); } catch(e) {}
+  try { await query(`ALTER TABLE employee_attendance ADD COLUMN is_paid TINYINT(1) DEFAULT 0`); } catch(e) {}
+  try { await query(`ALTER TABLE employee_attendance ADD COLUMN payment_id VARCHAR(100) DEFAULT NULL`); } catch(e) {}
+
   hourlyColumnsChecked = true;
 }
 
@@ -68,9 +125,24 @@ export async function GET(request) {
     }
     sql += ` ORDER BY e.name ASC`;
 
-    const result = await query(sql, params);
-    return NextResponse.json(result.rows || []);
+    try {
+      const result = await query(sql, params);
+      return NextResponse.json(result.rows || []);
+    } catch (queryErr) {
+      console.warn('⚠️ Enriched query fallback:', queryErr.message);
+      // Resilient fallback query in case any subquery failed
+      let fallbackSql = `SELECT e.*, b.name as branch_name FROM employees e LEFT JOIN branches b ON e.branch_id = b.id`;
+      const fbParams = [];
+      if (branchId && branchId !== 'all') {
+        fbParams.push(branchId);
+        fallbackSql += ` WHERE e.branch_id = $1`;
+      }
+      fallbackSql += ` ORDER BY e.name ASC`;
+      const fallbackResult = await query(fallbackSql, fbParams);
+      return NextResponse.json(fallbackResult.rows || []);
+    }
   } catch (error) {
+    console.error('❌ Error in /api/employees GET:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
