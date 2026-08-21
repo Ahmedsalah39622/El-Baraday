@@ -244,12 +244,126 @@ export default function SalariesPage() {
   const [settleDialog, setSettleDialog] = useState(false);
   const [empToSettle, setEmpToSettle] = useState(null);
 
+  // Batch Close Weekly Cycle Dialog State (دورة الأسبوع من الأحد إلى الأحد)
+  const [closeWeekBatchDialogOpen, setCloseWeekBatchDialogOpen] = useState(false);
+  const [closingWeek, setClosingWeek] = useState(false);
+  const [closeWeekPrintSlip, setCloseWeekPrintSlip] = useState(false);
+
   // REPORTS SYSTEM STATES (تقارير القبض والسلف والبونص)
   const [selectedReportEmp, setSelectedReportEmp] = useState('all');
   const [reportPaymentsList, setReportPaymentsList] = useState([]);
   const [reportAdvancesList, setReportAdvancesList] = useState([]);
   const [reportBonusList, setReportBonusList] = useState([]);
   const [loadingReports, setLoadingReports] = useState(false);
+
+  // Sunday-to-Sunday Cycle Calculation Helper
+  const getWeeklyCycleDates = (referenceDate = new Date()) => {
+    const d = new Date(referenceDate);
+    const day = d.getDay(); // 0 is Sunday, 1 is Monday, ..., 6 is Saturday
+    
+    // Current week's Sunday
+    const sunday = new Date(d);
+    sunday.setDate(d.getDate() - day);
+    sunday.setHours(0, 0, 0, 0);
+
+    // Current week's Saturday
+    const saturday = new Date(sunday);
+    saturday.setDate(sunday.getDate() + 6);
+    saturday.setHours(23, 59, 59, 999);
+
+    // Next Sunday
+    const nextSunday = new Date(sunday);
+    nextSunday.setDate(sunday.getDate() + 7);
+    nextSunday.setHours(0, 0, 0, 0);
+
+    const formatDate = (date) => date.toISOString().split('T')[0];
+    const formatArabic = (date) => date.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    const isSundayToday = day === 0;
+    const daysOfWeek = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
+    const daysList = daysOfWeek.map((name, offset) => {
+      const itemDate = new Date(sunday);
+      itemDate.setDate(sunday.getDate() + offset);
+      return {
+        name,
+        offset,
+        dateStr: formatDate(itemDate),
+        isToday: offset === day,
+        isPassed: itemDate <= d
+      };
+    });
+
+    return {
+      startDateStr: formatDate(sunday),
+      endDateStr: formatDate(saturday),
+      nextSundayStr: formatDate(nextSunday),
+      startArabic: formatArabic(sunday),
+      endArabic: formatArabic(saturday),
+      isSundayToday,
+      currentDayName: daysOfWeek[day],
+      daysList
+    };
+  };
+
+  const cycleInfo = useMemo(() => getWeeklyCycleDates(), []);
+
+  // Batch Close Week Handler
+  const handleConfirmCloseWeek = async () => {
+    setClosingWeek(true);
+    try {
+      const paymentsPayload = (filteredEmployees || []).map(emp => {
+        const calc = calculateEmployeeSalary(emp);
+        return {
+          employee_id: emp.id,
+          employee_name: emp.name,
+          employee_role: emp.role,
+          branch_name: emp.branchName || 'الفرع الرئيسي',
+          salary_type: calc.salaryType,
+          base_salary: calc.base,
+          hourly_rate: calc.hourlyRate,
+          daily_rate: calc.dailyRate,
+          days_attended: calc.daysAttended,
+          hours_worked: calc.hoursWorked,
+          late_hours: calc.lateHours,
+          late_deduction_amount: calc.lateDeductionAmount,
+          earned_amount: calc.earnedSoFar,
+          overtime_hours: calc.overtimeHours,
+          overtime_amount: calc.overtimeAmount,
+          deduction_hours: calc.deductionHours,
+          deduction_amount: calc.deductionAmount,
+          bonus_amount: calc.directBonus,
+          direct_deductions: calc.directDeductions,
+          advances_amount: calc.advances,
+          net_paid: calc.net,
+          period_start: cycleInfo.startDateStr,
+          period_end: cycleInfo.endDateStr,
+          notes: `تقفيل وصرف الأسبوع (${cycleInfo.startDateStr} إلى ${cycleInfo.endDateStr})`
+        };
+      });
+
+      const res = await fetch('/api/employees/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'close_week_batch',
+          period_start: cycleInfo.startDateStr,
+          period_end: cycleInfo.endDateStr,
+          payments: paymentsPayload
+        })
+      });
+
+      if (res.ok) {
+        setCloseWeekBatchDialogOpen(false);
+        await fetchEmployees();
+        fetchReportsData();
+      }
+    } catch (e) {
+      console.error('Error closing week:', e);
+    } finally {
+      setClosingWeek(false);
+    }
+  };
 
   useEffect(() => {
     fetchEmployees();
@@ -951,6 +1065,89 @@ export default function SalariesPage() {
 
       {/* TAB 0: LIVE SALARIES BOARD & EMPLOYEES LIST */}
       <TabPanel value={tabValue} index={0}>
+        {/* SUNDAY-TO-SUNDAY WEEKLY CYCLE CONTROL BANNER */}
+        <Paper
+          elevation={1}
+          sx={{
+            p: 2.5,
+            mb: 3,
+            borderRadius: '20px',
+            background: cycleInfo.isSundayToday
+              ? 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)'
+              : 'linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%)',
+            border: cycleInfo.isSundayToday ? '2px solid #10B981' : '1.5px solid #BFDBFE',
+            boxShadow: '0 4px 15px rgba(0,0,0,0.03)'
+          }}
+        >
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: cycleInfo.isSundayToday ? '#10B981' : '#2563EB', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CalendarMonth />
+              </Box>
+              <Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="h6" fontWeight={900} color="#1E293B">
+                    🗓️ دورة المرتبات الأسبوعية الرسمية (من الأحد إلى الأحد)
+                  </Typography>
+                  {cycleInfo.isSundayToday && (
+                    <Chip label="🔔 اليوم الأحد: موعد تقفيل وصرف الأسبوع!" color="success" size="small" sx={{ fontWeight: 900 }} />
+                  )}
+                </Box>
+                <Typography variant="body2" color="text.secondary" fontWeight={700}>
+                  فترة الأسبوع الجاري: من <b>الأحد {cycleInfo.startDateStr}</b> إلى <b>السبت {cycleInfo.endDateStr}</b> — (اليوم: {cycleInfo.currentDayName})
+                </Typography>
+              </Box>
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+              <Button
+                variant="contained"
+                size="large"
+                startIcon={<Refresh />}
+                onClick={() => setCloseWeekBatchDialogOpen(true)}
+                sx={{
+                  borderRadius: '12px',
+                  px: 3,
+                  py: 1.2,
+                  fontWeight: 900,
+                  fontSize: '0.95rem',
+                  bgcolor: '#059669',
+                  '&:hover': { bgcolor: '#047857' },
+                  boxShadow: '0 4px 12px rgba(5, 150, 105, 0.3)'
+                }}
+              >
+                🔄 تقفيل الأسبوع وصرف المرتبات وبدء أسبوع جديد
+              </Button>
+            </Box>
+          </Box>
+
+          {/* Weekdays Flow Indicator */}
+          <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', py: 0.5 }}>
+            {cycleInfo.daysList.map((dayItem, idx) => (
+              <Box
+                key={idx}
+                sx={{
+                  flex: 1,
+                  minWidth: 85,
+                  p: 1,
+                  borderRadius: '10px',
+                  textAlign: 'center',
+                  bgcolor: dayItem.isToday ? '#2563EB' : (dayItem.isPassed ? '#E2E8F0' : '#FFFFFF'),
+                  color: dayItem.isToday ? '#FFFFFF' : '#334155',
+                  border: dayItem.isToday ? '2px solid #1D4ED8' : '1px solid #CBD5E1'
+                }}
+              >
+                <Typography variant="caption" fontWeight={900} display="block">
+                  {dayItem.name} {dayItem.isToday ? '📍 (اليوم)' : ''}
+                </Typography>
+                <Typography variant="caption" sx={{ fontSize: '0.7rem', opacity: 0.85 }}>
+                  {dayItem.dateStr.slice(5)}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        </Paper>
+
         {/* Stats Cards */}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, mb: 3 }}>
           {[
@@ -2554,6 +2751,111 @@ export default function SalariesPage() {
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setSettleDialog(false)} variant="outlined">إلغاء</Button>
           <Button onClick={handleConfirmSettle} variant="contained" sx={{ bgcolor: '#8B5CF6' }}>تأكيد تصفية الحساب</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* BATCH CLOSE WEEKLY CYCLE DIALOG */}
+      <Dialog
+        open={closeWeekBatchDialogOpen}
+        onClose={() => setCloseWeekBatchDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+        slotProps={{ paper: { sx: { borderRadius: '20px', p: 1 } } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, color: '#059669', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Refresh fontSize="large" sx={{ color: '#059669' }} />
+          تقفيل وصرف مرتبات الأسبوع وبدء أسبوع جديد (من الأحد إلى الأحد)
+        </DialogTitle>
+        <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 2 }}>
+          {/* Cycle Banner */}
+          <Paper sx={{ p: 2, bgcolor: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: '14px' }}>
+            <Grid container spacing={2} alignItems="center">
+              <Grid xs={12} sm={8}>
+                <Typography variant="subtitle1" fontWeight={900} color="#166534">
+                  🗓️ دورة الأسبوع: من الأحد {cycleInfo.startDateStr} إلى السبت {cycleInfo.endDateStr}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" fontWeight={700}>
+                  سيتم اعتماد وصرف رواتب كافة الموظفين لهذه الدورة، وتصفية أيام الحضور والسلف، وفتح الأسبوع الجديد للأحد القادم.
+                </Typography>
+              </Grid>
+              <Grid xs={12} sm={4} sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
+                <Typography variant="caption" color="text.secondary" fontWeight={800} display="block">
+                  إجمالي المبلغ المطلوب صرفه نقداً:
+                </Typography>
+                <Typography variant="h5" fontWeight={900} color="#059669">
+                  {(filteredEmployees || []).reduce((sum, emp) => sum + calculateEmployeeSalary(emp).net, 0).toLocaleString()} ج.م
+                </Typography>
+              </Grid>
+            </Grid>
+          </Paper>
+
+          {/* Employees Breakdown Table */}
+          <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: '12px', maxHeight: 320 }}>
+            <Table size="small" stickyHeader>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 900, bgcolor: '#F8FAFC' }}>الموظف والوظيفة</TableCell>
+                  <TableCell sx={{ fontWeight: 900, bgcolor: '#F8FAFC' }}>أيام الحضور</TableCell>
+                  <TableCell sx={{ fontWeight: 900, bgcolor: '#F8FAFC' }}>المستحق للأيام</TableCell>
+                  <TableCell sx={{ fontWeight: 900, bgcolor: '#F8FAFC' }}>خصم التأخير</TableCell>
+                  <TableCell sx={{ fontWeight: 900, bgcolor: '#F8FAFC' }}>السلف المخصومة</TableCell>
+                  <TableCell sx={{ fontWeight: 900, bgcolor: '#F8FAFC' }}>الصافي المسلم</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {(filteredEmployees || []).map(emp => {
+                  const calc = calculateEmployeeSalary(emp);
+                  return (
+                    <TableRow key={emp.id} hover>
+                      <TableCell sx={{ fontWeight: 800 }}>
+                        {emp.name}
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          {emp.role} ({emp.branchName || 'الرئيسي'})
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>{calc.daysAttended} يوم ({calc.hoursWorked} س)</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>{(calc.earnedSoFar > 0 ? calc.earnedSoFar : calc.base).toFixed(1)} ج</TableCell>
+                      <TableCell sx={{ fontWeight: 800, color: calc.lateDeductionAmount > 0 ? '#DC2626' : 'inherit' }}>
+                        {calc.lateDeductionAmount > 0 ? `-${calc.lateDeductionAmount.toFixed(1)} ج` : '-'}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 800, color: calc.advances > 0 ? '#DC2626' : 'inherit' }}>
+                        {calc.advances > 0 ? `-${calc.advances.toFixed(1)} ج` : '-'}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 900, color: '#059669' }}>
+                        {calc.net.toLocaleString()} ج.م
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          <Alert severity="warning" sx={{ fontWeight: 700 }}>
+            ⚠️ تنبيه هام: عند تأكيد تقفيل الأسبوع، سيتم قفل تمامات وسلف الأسبوع الحالي رسمياً، وتبدأ التمامات من يوم الأحد في احتساب أيام الأسبوع الجديد فوراً.
+          </Alert>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, display: 'flex', justifyContent: 'space-between' }}>
+          <Button onClick={() => setCloseWeekBatchDialogOpen(false)} variant="outlined" disabled={closingWeek}>
+            إلغاء
+          </Button>
+          <Button
+            variant="contained"
+            color="success"
+            disabled={closingWeek || !filteredEmployees || filteredEmployees.length === 0}
+            onClick={handleConfirmCloseWeek}
+            startIcon={<Refresh />}
+            sx={{
+              fontWeight: 900,
+              px: 4,
+              py: 1.2,
+              borderRadius: '12px',
+              bgcolor: '#059669',
+              '&:hover': { bgcolor: '#047857' }
+            }}
+          >
+            {closingWeek ? 'جاري تقفيل الأسبوع وصرف المرتبات...' : 'تأكيد تقفيل الأسبوع وصرف المرتبات وبدء أسبوع جديد 🟢'}
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

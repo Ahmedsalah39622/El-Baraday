@@ -104,6 +104,86 @@ export async function POST(request) {
   try {
     await ensureTables();
     const body = await request.json();
+
+    // ==========================================
+    // ACTION: BATCH CLOSE WEEKLY CYCLE (تقفيل دورة الأسبوع وصرف الجميع)
+    // ==========================================
+    if (body.action === 'close_week_batch') {
+      const { period_start, period_end, notes, payments = [] } = body;
+      const createdPayments = [];
+      let totalBatchPaid = 0;
+
+      for (const p of payments) {
+        if (!p.employee_id) continue;
+        const netPaid = parseFloat(p.net_paid || 0);
+        totalBatchPaid += netPaid;
+
+        const res = await query(
+          `INSERT INTO salary_payments (
+            id, employee_id, employee_name, salary_type, base_salary, hourly_rate, daily_rate,
+            days_attended, hours_worked, late_hours, late_deduction_amount, earned_amount,
+            overtime_hours, overtime_amount, deduction_hours, deduction_amount,
+            bonus_amount, direct_deductions, advances_amount, net_paid,
+            period_start, period_end, month, notes, payment_date
+          )
+          VALUES (
+            gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6,
+            $7, $8, $9, $10, $11,
+            $12, $13, $14, $15,
+            $16, $17, $18, $19,
+            $20, $21, $22, $23, CURRENT_TIMESTAMP
+          ) RETURNING *`,
+          [
+            p.employee_id, p.employee_name || 'موظف', p.salary_type || 'weekly', p.base_salary || 0, p.hourly_rate || 0, p.daily_rate || 0,
+            p.days_attended || 0, p.hours_worked || 0, p.late_hours || 0, p.late_deduction_amount || 0, p.earned_amount || 0,
+            p.overtime_hours || 0, p.overtime_amount || 0, p.deduction_hours || 0, p.deduction_amount || 0,
+            p.bonus_amount || 0, p.direct_deductions || 0, p.advances_amount || 0, netPaid,
+            period_start || null, period_end || null, p.month || new Date().toISOString().substring(0, 7), notes || `تقفيل وصرف دورة الأسبوع (${period_start || ''} إلى ${period_end || ''})`
+          ]
+        );
+
+        const paymentRecord = res.rows[0];
+        createdPayments.push(paymentRecord);
+        const paymentId = paymentRecord.id;
+
+        // 1. Settle all unpaid attendance up to cycle end
+        await query(
+          `UPDATE employee_attendance SET is_paid = 1, payment_id = $1 
+           WHERE employee_id = $2 AND is_paid = 0`,
+          [paymentId, p.employee_id]
+        );
+
+        // 2. Settle all unpaid advances
+        await query(
+          `UPDATE employee_advances SET is_settled = 1, payment_id = $1 
+           WHERE employee_id = $2 AND (is_settled = 0 OR is_settled IS NULL)`,
+          [paymentId, p.employee_id]
+        );
+
+        // 3. Reset employee cycle variables
+        await query(
+          `UPDATE employees SET 
+            overtime_hours = 0,
+            deduction_hours = 0,
+            bonus = 0,
+            deductions = 0,
+            status = 'active'
+           WHERE id = $1`,
+          [p.employee_id]
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `تم تقفيل دورة الأسبوع بنجاح وصرف رواتب ${createdPayments.length} موظف بإجمالي ${totalBatchPaid.toLocaleString()} ج.م، وبدء الأسبوع الجديد فوراً 🟢`,
+        totalPaid: totalBatchPaid,
+        payments: createdPayments
+      }, { status: 201 });
+    }
+
+    // ==========================================
+    // ACTION: SINGLE EMPLOYEE DISBURSEMENT (صرف فردي)
+    // ==========================================
     const {
       employee_id, employee_name, salary_type, base_salary, hourly_rate, daily_rate,
       days_attended, hours_worked, late_hours, late_deduction_amount, earned_amount,

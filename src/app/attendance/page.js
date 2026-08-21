@@ -623,16 +623,105 @@ export default function AttendancePage() {
       {/* TAB 0: ALL EMPLOYEES ATTENDANCE & REAL-TIME TRACKING */}
       {tabValue === 0 && (
         <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1px solid #E5E7EB', bgcolor: '#FFF' }}>
+          {/* Sunday-to-Sunday Weekly Cycle Progress Banner */}
+          {(() => {
+            const d = new Date();
+            const day = d.getDay(); // 0: Sunday, ..., 6: Saturday
+            const sunday = new Date(d);
+            sunday.setDate(d.getDate() - day);
+            const saturday = new Date(sunday);
+            saturday.setDate(sunday.getDate() + 6);
+            const formatDate = (dt) => dt.toISOString().split('T')[0];
+            const isSunday = day === 0;
+            const daysNames = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
+            return (
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 2,
+                  mb: 3,
+                  borderRadius: '16px',
+                  bgcolor: isSunday ? '#ECFDF5' : '#F0FDF4',
+                  border: isSunday ? '2px solid #10B981' : '1.5px solid #86EFAC'
+                }}
+              >
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 1.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Box sx={{ width: 40, height: 40, borderRadius: '10px', bgcolor: isSunday ? '#10B981' : '#059669', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Schedule />
+                    </Box>
+                    <Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="subtitle1" fontWeight={900} color="#166534">
+                          🗓️ دورة الحضور الأسبوعية الرسمية (من الأحد إلى الأحد)
+                        </Typography>
+                        {isSunday && (
+                          <Chip label="🔔 اليوم الأحد: موعد تقفيل الأسبوع وصرف المرتبات!" color="success" size="small" sx={{ fontWeight: 900 }} />
+                        )}
+                      </Box>
+                      <Typography variant="caption" color="text.secondary" fontWeight={700}>
+                        الأسبوع الحالي: من <b>الأحد {formatDate(sunday)}</b> إلى <b>السبت {formatDate(saturday)}</b>
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  <Button
+                    variant="contained"
+                    size="small"
+                    color="success"
+                    startIcon={<AccountBalanceWallet />}
+                    onClick={() => router.push('/salaries')}
+                    sx={{ borderRadius: '10px', fontWeight: 900, px: 2, py: 0.8, bgcolor: '#059669', '&:hover': { bgcolor: '#047857' } }}
+                  >
+                    🔄 تقفيل الأسبوع وصرف المرتبات
+                  </Button>
+                </Box>
+
+                <Box sx={{ display: 'flex', gap: 0.8, overflowX: 'auto', py: 0.5 }}>
+                  {daysNames.map((name, idx) => {
+                    const itemDt = new Date(sunday);
+                    itemDt.setDate(sunday.getDate() + idx);
+                    const isToday = idx === day;
+                    const isPassed = itemDt <= d;
+                    return (
+                      <Box
+                        key={idx}
+                        sx={{
+                          flex: 1,
+                          minWidth: 75,
+                          p: 0.8,
+                          borderRadius: '8px',
+                          textAlign: 'center',
+                          bgcolor: isToday ? '#10B981' : (isPassed ? '#E2E8F0' : '#FFFFFF'),
+                          color: isToday ? '#FFFFFF' : '#334155',
+                          border: isToday ? '2px solid #047857' : '1px solid #CBD5E1'
+                        }}
+                      >
+                        <Typography variant="caption" fontWeight={900} display="block" sx={{ fontSize: '0.75rem' }}>
+                          {name} {isToday ? '📍' : ''}
+                        </Typography>
+                        <Typography variant="caption" sx={{ fontSize: '0.65rem', opacity: 0.85 }}>
+                          {formatDate(itemDt).slice(5)}
+                        </Typography>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              </Paper>
+            );
+          })()}
+
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
             <Box>
               <Typography variant="h6" fontWeight={900} color="#1A1A2E">
-                👥 تمام الحضور والانصراف اليومي وسجل أيام الأسبوع الحالية
+                👥 تمام الحضور والانصراف وسجل أيام الأسبوع الجارية
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 يوضح ميعاد الشيفت المقرَّر، وقت إثبات التمام الفعلي، التأخيرات المحتسبة بالدقيقة، وإجمالي الأيام والساعات المحضورة بالدورة الأسبوعية الجارية
               </Typography>
             </Box>
-            <Chip label="حساب التأخير والساعات تلقائي" color="primary" size="small" variant="outlined" sx={{ fontWeight: 800 }} />
+            <Chip label="دورة أسبوعية من الأحد للأحد" color="primary" size="small" variant="outlined" sx={{ fontWeight: 800 }} />
           </Box>
 
           {loading ? (
