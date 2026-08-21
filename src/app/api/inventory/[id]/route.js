@@ -14,6 +14,7 @@ export async function PUT(request, { params }) {
       ? parseFloat(body.min_stock ?? body.minStock) : null;
     const cost_per_unit = (body.cost_per_unit !== undefined ? body.cost_per_unit : body.costPerUnit) !== undefined 
       ? parseFloat(body.cost_per_unit ?? body.costPerUnit) : null;
+    const category = body.category !== undefined ? body.category : null;
     const branch_id = body.branch_id || body.branchId;
 
     // If a specific branch stock is targeted (e.g. b1 or b2)

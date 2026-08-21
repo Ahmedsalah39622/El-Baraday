@@ -7,7 +7,7 @@ import {
   DialogTitle, DialogContent, DialogActions, IconButton, Tooltip, MenuItem, Select, FormControl, InputLabel, Grid,
   Snackbar, Alert
 } from '@mui/material';
-import { Add, WarningAmber, Edit as EditIcon, Delete as DeleteIcon, Science, LocalShipping, AddBusiness, Store, Warehouse, CheckCircle, Save } from '@mui/icons-material';
+import { Add, WarningAmber, Edit as EditIcon, Delete as DeleteIcon, Science, LocalShipping, AddBusiness, Store, Warehouse, CheckCircle, Save, RestartAlt } from '@mui/icons-material';
 import { useInventoryStore } from '@/store/useInventoryStore';
 import ProductRecipeModal from '@/components/dialogs/ProductRecipeModal';
 import BranchTransferModal from '@/components/dialogs/BranchTransferModal';
@@ -130,19 +130,57 @@ export default function InventoryPage() {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [deletingItem, setDeletingItem] = useState(null);
 
+  // Notification Toast
+  const [toast, setToast] = useState({ open: false, msg: '', type: 'success' });
+  const showToast = (msg, type = 'success') => setToast({ open: true, msg, type });
+
   useEffect(() => {
     fetchInventory();
   }, []);
 
   const handleTabChange = (event, newValue) => setTabValue(newValue);
 
-  const handleBranchStockChange = (id, branchId, val) => {
-    const qty = parseFloat(val) || 0;
-    if (branchId === 'b_main') {
-      updateStock(id, qty);
-    } else {
-      updateBranchStock(id, branchId, qty);
+  // Quick Zero-Out Branch Handler
+  const handleQuickZeroBranch = async (targetBranchId, targetBranchName) => {
+    const confirmMsg = `⚠️ تحذير تصفير الأرصدة ⚠️\n\nهل أنت متأكد من تصفير كافة أرصدة خامات (${targetBranchName}) بالكامل إلى 0؟\n\nسيتم جعل رصيد جميع الخامات 0.00 فوراً في قاعدة البيانات.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      const res = await fetch('/api/inventory/reset-branch-stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branch_id: targetBranchId,
+          item_id: 'all',
+          notes: `تصفير سريع لكافة خامات ${targetBranchName}`,
+          executor_name: 'المسؤول'
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.message || `✅ تم تصفير كافة أرصدة (${targetBranchName}) بنجاح إلى 0`, 'success');
+        await fetchInventory();
+      } else {
+        showToast(`❌ خطأ: ${data.error || 'فشلت عملية التصفير'}`, 'error');
+      }
+    } catch (e) {
+      showToast('❌ حدث خطأ أثناء تنفيذ عملية التصفير', 'error');
     }
+  };
+
+  const handleBranchStockChange = async (id, branchId, val) => {
+    const qty = parseFloat(val) || 0;
+    const itemObj = items.find(i => i.id === id);
+    const itemName = itemObj?.name || 'الخامة';
+    const branchName = branchId === 'b_main' ? 'المخزن الرئيسي' : (branchId === 'b2' ? 'فرع المسلة' : 'فرع عزت');
+
+    if (branchId === 'b_main') {
+      await updateStock(id, qty);
+    } else {
+      await updateBranchStock(id, branchId, qty);
+    }
+    showToast(`✅ تم حفظ وتحديث رصيد (${itemName}) في (${branchName}) إلى ${qty} بنجاح!`, 'success');
   };
 
   const handleAddItem = async () => {
@@ -369,9 +407,91 @@ export default function InventoryPage() {
                 <TableCell sx={{ fontWeight: 800 }}>اسم الخامة / الصنف</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>الفئة</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>الوحدة</TableCell>
-                <TableCell sx={{ fontWeight: 900, color: '#4F46E5', bgcolor: '#EEF2FF' }}>🏬 المخزن الرئيسي</TableCell>
-                <TableCell sx={{ fontWeight: 900, color: '#D97706', bgcolor: '#FEF3C7' }}>🏛️ فرع عزت</TableCell>
-                <TableCell sx={{ fontWeight: 900, color: '#059669', bgcolor: '#ECFDF5' }}>🏢 فرع المسلة</TableCell>
+
+                {/* Main Warehouse Column Header with Zero-Out Button */}
+                <TableCell sx={{ bgcolor: '#EEF2FF', textAlign: 'center', minWidth: 160 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.8 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 900, color: '#4F46E5', fontSize: '0.95rem' }}>
+                      🏬 المخزن الرئيسي
+                    </Typography>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      startIcon={<RestartAlt sx={{ fontSize: '15px !important' }} />}
+                      onClick={() => handleQuickZeroBranch('b_main', 'المخزن الرئيسي')}
+                      sx={{
+                        fontSize: '0.75rem',
+                        py: 0.3,
+                        px: 1.2,
+                        borderRadius: '8px',
+                        bgcolor: '#EF4444',
+                        color: '#FFFFFF',
+                        fontWeight: 900,
+                        boxShadow: '0 2px 8px rgba(239, 68, 68, 0.35)',
+                        '&:hover': { bgcolor: '#DC2626' }
+                      }}
+                    >
+                      تصفير المخزن 🔄 0
+                    </Button>
+                  </Box>
+                </TableCell>
+
+                {/* Branch 1 Column Header with Zero-Out Button */}
+                <TableCell sx={{ bgcolor: '#FEF3C7', textAlign: 'center', minWidth: 160 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.8 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 900, color: '#D97706', fontSize: '0.95rem' }}>
+                      🏛️ فرع عزت
+                    </Typography>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      startIcon={<RestartAlt sx={{ fontSize: '15px !important' }} />}
+                      onClick={() => handleQuickZeroBranch('b1', 'فرع عزت')}
+                      sx={{
+                        fontSize: '0.75rem',
+                        py: 0.3,
+                        px: 1.2,
+                        borderRadius: '8px',
+                        bgcolor: '#DC2626',
+                        color: '#FFFFFF',
+                        fontWeight: 900,
+                        boxShadow: '0 2px 8px rgba(220, 38, 38, 0.35)',
+                        '&:hover': { bgcolor: '#B91C1C' }
+                      }}
+                    >
+                      تصفير فرع عزت 🔄 0
+                    </Button>
+                  </Box>
+                </TableCell>
+
+                {/* Branch 2 Column Header with Zero-Out Button */}
+                <TableCell sx={{ bgcolor: '#ECFDF5', textAlign: 'center', minWidth: 160 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.8 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 900, color: '#059669', fontSize: '0.95rem' }}>
+                      🏢 فرع المسلة
+                    </Typography>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      startIcon={<RestartAlt sx={{ fontSize: '15px !important' }} />}
+                      onClick={() => handleQuickZeroBranch('b2', 'فرع المسلة')}
+                      sx={{
+                        fontSize: '0.75rem',
+                        py: 0.3,
+                        px: 1.2,
+                        borderRadius: '8px',
+                        bgcolor: '#DC2626',
+                        color: '#FFFFFF',
+                        fontWeight: 900,
+                        boxShadow: '0 2px 8px rgba(220, 38, 38, 0.35)',
+                        '&:hover': { bgcolor: '#B91C1C' }
+                      }}
+                    >
+                      تصفير فرع المسلة 🔄 0
+                    </Button>
+                  </Box>
+                </TableCell>
+
                 <TableCell sx={{ fontWeight: 800 }}>إجمالي النظام</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>الحد الأدنى</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>تكلفة الوحدة</TableCell>
@@ -698,12 +818,17 @@ export default function InventoryPage() {
         onClose={() => { setTransferModalOpen(false); fetchInventory(); }}
       />
 
-      {/* Stock Adjustment & Supply Modal */}
-      <StockAdjustmentModal
-        open={adjustmentModalOpen}
-        onClose={() => setAdjustmentModalOpen(false)}
-        onRefresh={() => fetchInventory()}
-      />
+      {/* Toast Notification */}
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={3500}
+        onClose={() => setToast(p => ({ ...p, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={toast.type} sx={{ width: '100%', fontWeight: 800, borderRadius: '12px' }}>
+          {toast.msg}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
