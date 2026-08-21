@@ -14,10 +14,28 @@ async function ensureHourlyColumns() {
     await query(`ALTER TABLE employees ADD COLUMN deduction_hours DECIMAL(10, 2) DEFAULT 0.00`);
   } catch(e) {}
   try {
-    await query(`ALTER TABLE employees ADD COLUMN salary_type VARCHAR(50) DEFAULT 'monthly'`);
+    await query(`ALTER TABLE employees ADD COLUMN salary_type VARCHAR(50) DEFAULT 'weekly'`);
   } catch(e) {}
   try {
     await query(`ALTER TABLE employees ADD COLUMN weekly_rate DECIMAL(10, 2) DEFAULT 0.00`);
+  } catch(e) {}
+  try {
+    await query(`ALTER TABLE employees ADD COLUMN daily_rate DECIMAL(10, 2) DEFAULT 0.00`);
+  } catch(e) {}
+  try {
+    await query(`ALTER TABLE employees ADD COLUMN shift_hours DECIMAL(10, 2) DEFAULT 8.00`);
+  } catch(e) {}
+  try {
+    await query(`ALTER TABLE employees ADD COLUMN work_days_per_week INT DEFAULT 6`);
+  } catch(e) {}
+  try {
+    await query(`ALTER TABLE employees ADD COLUMN shift_start_time VARCHAR(20) DEFAULT '12:00'`);
+  } catch(e) {}
+  try {
+    await query(`ALTER TABLE employees ADD COLUMN grace_period_minutes INT DEFAULT 15`);
+  } catch(e) {}
+  try {
+    await query(`ALTER TABLE employees ADD COLUMN late_deduction_rate DECIMAL(10, 2) DEFAULT 1.00`);
   } catch(e) {}
   hourlyColumnsChecked = true;
 }
@@ -29,9 +47,18 @@ export async function GET(request) {
     const branchId = searchParams.get('branch_id');
 
     let sql = `
-      SELECT e.*, b.name as branch_name, COALESCE(SUM(a.amount), 0)::NUMERIC as total_advances
+      SELECT 
+        e.*, 
+        b.name as branch_name, 
+        (SELECT COALESCE(SUM(a.amount), 0) FROM employee_advances a WHERE a.employee_id = e.id AND (a.is_settled = 0 OR a.is_settled IS NULL)) as total_advances,
+        (SELECT COUNT(DISTINCT ea.attendance_date) FROM employee_attendance ea WHERE ea.employee_id = e.id AND ea.is_paid = 0) as unpaid_days_count,
+        (SELECT COALESCE(SUM(ea.working_hours), 0) FROM employee_attendance ea WHERE ea.employee_id = e.id AND ea.is_paid = 0) as unpaid_working_hours,
+        (SELECT COALESCE(SUM(ea.late_hours), 0) FROM employee_attendance ea WHERE ea.employee_id = e.id AND ea.is_paid = 0) as unpaid_late_hours,
+        (SELECT COALESCE(SUM(ea.late_minutes), 0) FROM employee_attendance ea WHERE ea.employee_id = e.id AND ea.is_paid = 0) as unpaid_late_minutes,
+        (SELECT COALESCE(SUM(ea.overtime_hours), 0) FROM employee_attendance ea WHERE ea.employee_id = e.id AND ea.is_paid = 0) as unpaid_overtime_hours,
+        (SELECT COUNT(*) FROM employee_attendance ea WHERE ea.employee_id = e.id AND ea.check_out_time IS NULL) as is_clocked_in,
+        (SELECT ea.check_in_time FROM employee_attendance ea WHERE ea.employee_id = e.id AND ea.check_out_time IS NULL ORDER BY ea.check_in_time DESC LIMIT 1) as current_check_in_time
       FROM employees e
-      LEFT JOIN employee_advances a ON e.id = a.employee_id
       LEFT JOIN branches b ON e.branch_id = b.id
     `;
     const params = [];
@@ -39,7 +66,7 @@ export async function GET(request) {
       params.push(branchId);
       sql += ` WHERE e.branch_id = $1`;
     }
-    sql += ` GROUP BY e.id, b.name ORDER BY e.name`;
+    sql += ` ORDER BY e.name ASC`;
 
     const result = await query(sql, params);
     return NextResponse.json(result.rows || []);
@@ -55,23 +82,36 @@ export async function POST(request) {
     const { 
       name, phone, role, base_salary, hourly_rate, 
       overtime_hours, deduction_hours, bonus, deductions, branch_id,
-      salary_type, weekly_rate
+      salary_type, weekly_rate, daily_rate, shift_hours, work_days_per_week,
+      shift_start_time, grace_period_minutes, late_deduction_rate
     } = body;
     const empBranch = branch_id || 'b1';
-    const sType = salary_type || 'monthly';
+    const sType = salary_type || 'weekly';
     const wRate = parseFloat(weekly_rate || 0);
+    const workDays = parseInt(work_days_per_week || 6);
+    const sHours = parseFloat(shift_hours || 8.0);
+    const dRate = parseFloat(daily_rate || (sType === 'weekly' && wRate > 0 ? (wRate / workDays) : 0));
+    const hRate = parseFloat(hourly_rate || (dRate > 0 ? (dRate / sHours) : 0));
+    const bSalary = parseFloat(base_salary || (sType === 'weekly' ? (wRate * 4) : 0));
 
     const result = await query(
       `INSERT INTO employees (
         id, name, phone, role, base_salary, hourly_rate, 
         overtime_hours, deduction_hours, bonus, deductions, branch_id,
-        salary_type, weekly_rate
+        salary_type, weekly_rate, daily_rate, shift_hours, work_days_per_week,
+        shift_start_time, grace_period_minutes, late_deduction_rate
       )
-      VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+      VALUES (
+        gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, 
+        $6, $7, $8, $9, $10,
+        $11, $12, $13, $14, $15,
+        $16, $17, $18
+      ) RETURNING *`,
       [
-        name, phone, role || 'كاشير', base_salary || 0, hourly_rate || 0,
+        name, phone, role || 'كاشير', bSalary, hRate,
         overtime_hours || 0, deduction_hours || 0, bonus || 0, deductions || 0, empBranch,
-        sType, wRate
+        sType, wRate, dRate, sHours, workDays,
+        shift_start_time || '12:00', parseInt(grace_period_minutes || 15), parseFloat(late_deduction_rate || 1.0)
       ]
     );
 
@@ -91,3 +131,4 @@ export async function POST(request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+

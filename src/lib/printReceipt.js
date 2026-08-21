@@ -1561,5 +1561,259 @@ export function printDriverCustodyReceipt(custodyData) {
   }, 250);
 }
 
+// Thermal / Standard Salary Disbursal Voucher Printout
+export function printSalaryReceipt(paymentData, settings = {}) {
+  if (!paymentData) return;
+
+  const {
+    employee_name = 'موظف',
+    employee_role = 'موظف',
+    branch_name = 'الفرع الرئيسي',
+    salary_type = 'weekly',
+    base_salary = 0,
+    daily_rate = 0,
+    hourly_rate = 0,
+    days_attended = 0,
+    hours_worked = 0,
+    late_hours = 0,
+    late_deduction_amount = 0,
+    earned_amount = 0,
+    overtime_hours = 0,
+    overtime_amount = 0,
+    bonus_amount = 0,
+    direct_deductions = 0,
+    advances_amount = 0,
+    net_paid = 0,
+    notes = '',
+    payment_date = new Date()
+  } = paymentData;
+
+  const companyName = settings?.company_name || 'مطعم البرادعي للحواوشي';
+  const companyPhone = settings?.company_phone || '01012345678';
+  const dateFormatted = new Date(payment_date).toLocaleString('ar-EG', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: true
+  });
+
+  const salaryTypeLabel = salary_type === 'weekly' ? 'أسبوعي (Weekly)' : (salary_type === 'hourly' ? 'بالساعة (Hourly)' : 'شهري (Monthly)');
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="ar" dir="rtl">
+    <head>
+      <meta charset="UTF-8">
+      <title>إيصال قبض راتب - ${employee_name}</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&display=swap');
+        @page {
+          size: 80mm auto;
+          margin: 0mm !important;
+        }
+        @media print {
+          @page {
+            size: 80mm auto;
+            margin: 0mm !important;
+          }
+          html, body {
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 2mm !important;
+            background: #FFF !important;
+            color: #000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
+        * {
+          box-sizing: border-box !important;
+          margin: 0;
+          padding: 0;
+        }
+        body {
+          font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif;
+          margin: 0 auto;
+          padding: 2mm;
+          width: 100%;
+          color: #000;
+          background: #FFF;
+          direction: rtl;
+        }
+        .center { text-align: center; }
+        .dashed { border-bottom: 1px dashed #000; margin: 3px 0; }
+        .solid { border-bottom: 1.5px solid #000; margin: 4px 0; }
+        .badge {
+          border: 1.5px solid #000;
+          background: #F3F4F6;
+          padding: 2px 8px;
+          border-radius: 4px;
+          display: inline-block;
+          font-weight: 900;
+          font-size: 11px;
+          margin-top: 3px;
+        }
+        table.meta {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 3px 0;
+        }
+        table.meta td {
+          font-size: 10.5px;
+          padding: 2px 0;
+          font-weight: 800;
+        }
+        .total-box {
+          border: 2px solid #000;
+          padding: 4px 6px;
+          border-radius: 6px;
+          margin-top: 4px;
+          background: #F9FAFB;
+        }
+        .sign-area {
+          margin-top: 8px;
+          display: flex;
+          justify-content: space-between;
+          font-size: 9.5px;
+          font-weight: 900;
+          padding-top: 6px;
+          border-top: 1px dashed #000;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="center">
+        <h2 style="font-size: 14px; font-weight: 900;">${companyName}</h2>
+        <div style="font-size: 9px; font-weight: 700;">فرع: ${branch_name} | هاتف: ${companyPhone}</div>
+        <div class="badge">💵 إيصال صرف وتصفية مستحقات الموظف</div>
+      </div>
+
+      <div class="solid"></div>
+
+      <table class="meta">
+        <tr>
+          <td style="width: 35%; color: #333;">الموظف:</td>
+          <td style="width: 65%; font-weight: 900; font-size: 12px;">${employee_name}</td>
+        </tr>
+        <tr>
+          <td style="color: #333;">الوظيفة:</td>
+          <td>${employee_role}</td>
+        </tr>
+        <tr>
+          <td style="color: #333;">نظام الراتب:</td>
+          <td>${salaryTypeLabel}</td>
+        </tr>
+        <tr>
+          <td style="color: #333;">تاريخ الصرف:</td>
+          <td>${dateFormatted}</td>
+        </tr>
+      </table>
+
+      <div class="solid"></div>
+
+      <table class="meta">
+        <tr>
+          <td>عدد الأيام المحضورة:</td>
+          <td style="text-align: left; font-weight: 900;">${days_attended} يوم</td>
+        </tr>
+        <tr>
+          <td>إجمالي ساعات العمل:</td>
+          <td style="text-align: left; font-weight: 900;">${parseFloat(hours_worked).toFixed(1)} ساعة</td>
+        </tr>
+        ${daily_rate > 0 ? `
+          <tr>
+            <td>اليومية المعتمدة:</td>
+            <td style="text-align: left; font-weight: 900;">${parseFloat(daily_rate).toFixed(2)} ج.م/يوم</td>
+          </tr>
+        ` : ''}
+        <tr>
+          <td>المستحق الفعلي للأيام:</td>
+          <td style="text-align: left; font-weight: 900;">${parseFloat(earned_amount || base_salary).toFixed(2)} ج.م</td>
+        </tr>
+        ${(parseFloat(overtime_amount) > 0 || parseFloat(bonus_amount) > 0) ? `
+          <tr>
+            <td>الإضافي والمكافآت:</td>
+            <td style="text-align: left; font-weight: 900; color: #059669;">+${(parseFloat(overtime_amount) + parseFloat(bonus_amount)).toFixed(2)} ج.م</td>
+          </tr>
+        ` : ''}
+        ${parseFloat(late_deduction_amount) > 0 ? `
+          <tr>
+            <td>خصم التأخيرات (${late_hours} س):</td>
+            <td style="text-align: left; font-weight: 900; color: #DC2626;">-${parseFloat(late_deduction_amount).toFixed(2)} ج.م</td>
+          </tr>
+        ` : ''}
+        ${parseFloat(direct_deductions) > 0 ? `
+          <tr>
+            <td>خصومات وجزاءات مباشرة:</td>
+            <td style="text-align: left; font-weight: 900; color: #DC2626;">-${parseFloat(direct_deductions).toFixed(2)} ج.م</td>
+          </tr>
+        ` : ''}
+        ${parseFloat(advances_amount) > 0 ? `
+          <tr>
+            <td>السُلف المسحوبة المخصومة:</td>
+            <td style="text-align: left; font-weight: 900; color: #DC2626;">-${parseFloat(advances_amount).toFixed(2)} ج.م</td>
+          </tr>
+        ` : ''}
+      </table>
+
+      <div class="total-box">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="font-size: 12px; font-weight: 900; text-align: right;">الصافي المسلم نقداً:</td>
+            <td style="font-size: 16px; font-weight: 900; text-align: left;">${parseFloat(net_paid).toFixed(2)} ج.م</td>
+          </tr>
+        </table>
+      </div>
+
+      ${notes ? `
+        <div style="font-size: 9px; font-weight: 800; background: #F3F4F6; padding: 3px; border-radius: 4px; margin-top: 4px; text-align: center;">
+          البيان: ${notes}
+        </div>
+      ` : ''}
+
+      <div class="sign-area">
+        <div style="text-align: center;">
+          توقيع الموظف المستلم<br><br>
+          ....................
+        </div>
+        <div style="text-align: center;">
+          توقيع مسؤول HR / الحسابات<br><br>
+          ....................
+        </div>
+      </div>
+
+      <div class="center" style="font-size: 8.5px; font-weight: 800; margin-top: 6px;">
+        تمت تصفية وصرف المستحقات بنجاح 👍
+      </div>
+    </body>
+    </html>
+  `;
+
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.style.visibility = 'hidden';
+
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  setTimeout(() => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => {
+      try {
+        document.body.removeChild(iframe);
+      } catch (e) { }
+    }, 2000);
+  }, 250);
+}
+
+
 
 

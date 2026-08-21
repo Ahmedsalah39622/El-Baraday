@@ -21,15 +21,28 @@ export const useEmployeeStore = create(
                 name: r.name,
                 role: r.role || 'موظف',
                 phone: r.phone || '',
-                salaryType: r.salary_type || 'monthly',
+                salaryType: r.salary_type || 'weekly',
                 weeklyRate: parseFloat(r.weekly_rate || 0),
-                baseSalary: parseFloat(r.base_salary || 4000),
+                dailyRate: parseFloat(r.daily_rate || 0),
+                baseSalary: parseFloat(r.base_salary || 0),
                 hourlyRate: parseFloat(r.hourly_rate || 0),
+                shiftHours: parseFloat(r.shift_hours || 8.0),
+                workDaysPerWeek: parseInt(r.work_days_per_week || 6),
+                shiftStartTime: r.shift_start_time || '12:00',
+                gracePeriodMinutes: parseInt(r.grace_period_minutes || 15),
+                lateDeductionRate: parseFloat(r.late_deduction_rate || 1.0),
                 overtimeHours: parseFloat(r.overtime_hours || 0),
                 deductionHours: parseFloat(r.deduction_hours || 0),
                 bonus: parseFloat(r.bonus || 0),
                 deductions: parseFloat(r.deductions || 0),
                 advances: parseFloat(r.total_advances || 0),
+                unpaidDaysCount: parseInt(r.unpaid_days_count || 0),
+                unpaidWorkingHours: parseFloat(r.unpaid_working_hours || 0),
+                unpaidLateHours: parseFloat(r.unpaid_late_hours || 0),
+                unpaidLateMinutes: parseInt(r.unpaid_late_minutes || 0),
+                unpaidOvertimeHours: parseFloat(r.unpaid_overtime_hours || 0),
+                isClockedIn: Boolean(parseInt(r.is_clocked_in || 0) > 0),
+                currentCheckInTime: r.current_check_in_time,
                 status: r.status || 'مستحق',
                 branchId: r.branch_id || 'b1',
                 branchName: r.branch_name || 'الفرع الأول - الرئيسي'
@@ -63,48 +76,54 @@ export const useEmployeeStore = create(
               notes: notes || 'سلفة مالية'
             })
           });
+          get().fetchEmployees();
         } catch (e) {}
       },
 
       markAsPaid: async (employeeId, calcDetails = null) => {
         const emp = get().employees.find(e => e.id === employeeId);
-        set((state) => ({
-          employees: state.employees.map(e =>
-            e.id === employeeId ? { ...e, status: 'تم الصرف' } : e
-          )
-        }));
 
         try {
-          await fetch(`/api/employees/${employeeId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'تم الصرف' })
-          });
-        } catch (e) {}
-
-        if (emp && calcDetails) {
-          try {
+          if (emp && calcDetails) {
             await fetch('/api/employees/payments', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 employee_id: emp.id,
                 employee_name: emp.name,
-                base_salary: calcDetails.base,
-                hourly_rate: calcDetails.hourlyRate,
-                overtime_hours: calcDetails.overtimeHours,
-                overtime_amount: calcDetails.overtimeAmount,
-                deduction_hours: calcDetails.deductionHours,
-                deduction_amount: calcDetails.deductionAmount,
-                bonus_amount: calcDetails.directBonus,
-                direct_deductions: calcDetails.directDeductions,
-                advances_amount: calcDetails.advances,
-                net_paid: calcDetails.net,
+                salary_type: calcDetails.salaryType || emp.salaryType || 'weekly',
+                base_salary: calcDetails.base || 0,
+                hourly_rate: calcDetails.hourlyRate || 0,
+                daily_rate: calcDetails.dailyRate || 0,
+                days_attended: calcDetails.daysAttended || 0,
+                hours_worked: calcDetails.hoursWorked || 0,
+                late_hours: calcDetails.lateHours || 0,
+                late_deduction_amount: calcDetails.lateDeductionAmount || 0,
+                earned_amount: calcDetails.earnedSoFar || 0,
+                overtime_hours: calcDetails.overtimeHours || 0,
+                overtime_amount: calcDetails.overtimeAmount || 0,
+                deduction_hours: calcDetails.deductionHours || 0,
+                deduction_amount: calcDetails.deductionAmount || 0,
+                bonus_amount: calcDetails.directBonus || 0,
+                direct_deductions: calcDetails.directDeductions || 0,
+                advances_amount: calcDetails.advances || 0,
+                net_paid: calcDetails.net || 0,
+                period_start: calcDetails.periodStart || null,
+                period_end: calcDetails.periodEnd || null,
                 month: new Date().toISOString().substring(0, 7),
-                notes: 'تم صرف راتب الشهر'
+                notes: calcDetails.notes || 'صرف وتصفية مستحقات الأسبوع'
               })
             });
-          } catch (e) {}
+          } else {
+            await fetch(`/api/employees/${employeeId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: 'تم الصرف' })
+            });
+          }
+          await get().fetchEmployees();
+        } catch (e) {
+          console.error('Error in markAsPaid:', e);
         }
       },
 
@@ -112,9 +131,16 @@ export const useEmployeeStore = create(
         const newId = `emp_${Date.now()}`;
         const newEmp = { 
           id: newId, 
-          salaryType: emp.salaryType || 'monthly',
-          weeklyRate: emp.weeklyRate || 0,
-          hourlyRate: emp.hourlyRate || 0,
+          salaryType: emp.salaryType || 'weekly',
+          weeklyRate: parseFloat(emp.weeklyRate || 0),
+          dailyRate: parseFloat(emp.dailyRate || 0),
+          baseSalary: parseFloat(emp.baseSalary || 0),
+          hourlyRate: parseFloat(emp.hourlyRate || 0),
+          shiftHours: parseFloat(emp.shiftHours || 8.0),
+          workDaysPerWeek: parseInt(emp.workDaysPerWeek || 6),
+          shiftStartTime: emp.shiftStartTime || '12:00',
+          gracePeriodMinutes: parseInt(emp.gracePeriodMinutes || 15),
+          lateDeductionRate: parseFloat(emp.lateDeductionRate || 1.0),
           overtimeHours: 0,
           deductionHours: 0,
           bonus: 0, 
@@ -132,10 +158,16 @@ export const useEmployeeStore = create(
               name: newEmp.name,
               phone: newEmp.phone,
               role: newEmp.role,
-              salary_type: newEmp.salaryType || 'monthly',
+              salary_type: newEmp.salaryType || 'weekly',
               weekly_rate: newEmp.weeklyRate || 0,
+              daily_rate: newEmp.dailyRate || 0,
               base_salary: newEmp.baseSalary || 0,
               hourly_rate: newEmp.hourlyRate || 0,
+              shift_hours: newEmp.shiftHours || 8.0,
+              work_days_per_week: newEmp.workDaysPerWeek || 6,
+              shift_start_time: newEmp.shiftStartTime || '12:00',
+              grace_period_minutes: newEmp.gracePeriodMinutes || 15,
+              late_deduction_rate: newEmp.lateDeductionRate || 1.0,
               overtime_hours: newEmp.overtimeHours || 0,
               deduction_hours: newEmp.deductionHours || 0,
               bonus: newEmp.bonus || 0,
@@ -166,9 +198,15 @@ export const useEmployeeStore = create(
               phone: updates.phone,
               role: updates.role,
               salary_type: updates.salaryType || updates.salary_type,
-              weekly_rate: updates.weeklyRate || updates.weekly_rate,
-              base_salary: updates.baseSalary,
-              hourly_rate: updates.hourlyRate,
+              weekly_rate: updates.weeklyRate !== undefined ? updates.weeklyRate : updates.weekly_rate,
+              daily_rate: updates.dailyRate !== undefined ? updates.dailyRate : updates.daily_rate,
+              base_salary: updates.baseSalary !== undefined ? updates.baseSalary : updates.base_salary,
+              hourly_rate: updates.hourlyRate !== undefined ? updates.hourlyRate : updates.hourly_rate,
+              shift_hours: updates.shiftHours !== undefined ? updates.shiftHours : updates.shift_hours,
+              work_days_per_week: updates.workDaysPerWeek !== undefined ? updates.workDaysPerWeek : updates.work_days_per_week,
+              shift_start_time: updates.shiftStartTime !== undefined ? updates.shiftStartTime : updates.shift_start_time,
+              grace_period_minutes: updates.gracePeriodMinutes !== undefined ? updates.gracePeriodMinutes : updates.grace_period_minutes,
+              late_deduction_rate: updates.lateDeductionRate !== undefined ? updates.lateDeductionRate : updates.late_deduction_rate,
               overtime_hours: updates.overtimeHours,
               deduction_hours: updates.deductionHours,
               bonus: updates.bonus,
@@ -205,11 +243,13 @@ export const useEmployeeStore = create(
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: 'تمت التصفية' })
           });
+          get().fetchEmployees();
         } catch (e) {}
       }
     }),
     {
-      name: 'el-baraday-employees-v7',
+      name: 'el-baraday-employees-v8',
     }
   )
 );
+

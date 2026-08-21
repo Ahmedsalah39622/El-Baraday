@@ -119,8 +119,16 @@ CREATE TABLE IF NOT EXISTS `employees` (
   `name` VARCHAR(255) NOT NULL,
   `phone` VARCHAR(100),
   `role` VARCHAR(100) DEFAULT 'كاشير',
+  `salary_type` VARCHAR(50) DEFAULT 'weekly', -- 'weekly', 'monthly', 'daily', 'hourly'
+  `weekly_rate` DECIMAL(10, 2) DEFAULT 0,
+  `daily_rate` DECIMAL(10, 2) DEFAULT 0,
   `base_salary` DECIMAL(10, 2) DEFAULT 0,
   `hourly_rate` DECIMAL(10, 2) DEFAULT 0,
+  `shift_hours` DECIMAL(10, 2) DEFAULT 8.0,
+  `work_days_per_week` INT DEFAULT 6,
+  `shift_start_time` VARCHAR(20) DEFAULT '12:00',
+  `grace_period_minutes` INT DEFAULT 15,
+  `late_deduction_rate` DECIMAL(10, 2) DEFAULT 1.0,
   `overtime_hours` DECIMAL(10, 2) DEFAULT 0,
   `deduction_hours` DECIMAL(10, 2) DEFAULT 0,
   `bonus` DECIMAL(10, 2) DEFAULT 0,
@@ -130,12 +138,37 @@ CREATE TABLE IF NOT EXISTS `employees` (
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ==================== EMPLOYEE ATTENDANCE & DELAYS (تمامات وساعات وتأخيرات الموظفين) ====================
+CREATE TABLE IF NOT EXISTS `employee_attendance` (
+  `id` VARCHAR(100) PRIMARY KEY,
+  `employee_id` VARCHAR(100) NOT NULL,
+  `employee_name` VARCHAR(255) NOT NULL,
+  `attendance_date` DATE NOT NULL,
+  `shift_start_time` VARCHAR(20) DEFAULT '12:00',
+  `check_in_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `check_out_time` DATETIME DEFAULT NULL,
+  `scheduled_hours` DECIMAL(10, 2) DEFAULT 8.0,
+  `working_hours` DECIMAL(10, 2) DEFAULT 8.0,
+  `late_minutes` INT DEFAULT 0,
+  `late_hours` DECIMAL(10, 2) DEFAULT 0.0,
+  `overtime_hours` DECIMAL(10, 2) DEFAULT 0.0,
+  `status` VARCHAR(50) DEFAULT 'present',
+  `is_paid` TINYINT(1) DEFAULT 0,
+  `payment_id` VARCHAR(100) DEFAULT NULL,
+  `branch_id` VARCHAR(100) DEFAULT 'b1',
+  `notes` TEXT,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`employee_id`) REFERENCES `employees`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ==================== EMPLOYEE ADVANCES (سلف) ====================
 CREATE TABLE IF NOT EXISTS `employee_advances` (
   `id` VARCHAR(100) PRIMARY KEY,
   `employee_id` VARCHAR(100),
   `employee_name` VARCHAR(255),
   `amount` DECIMAL(10, 2) NOT NULL,
+  `is_settled` TINYINT(1) DEFAULT 0,
+  `payment_id` VARCHAR(100) DEFAULT NULL,
   `month` VARCHAR(50),
   `notes` TEXT,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -162,6 +195,13 @@ CREATE TABLE IF NOT EXISTS `salary_payments` (
   `id` VARCHAR(100) PRIMARY KEY,
   `employee_id` VARCHAR(100),
   `employee_name` VARCHAR(255),
+  `salary_type` VARCHAR(50) DEFAULT 'weekly',
+  `daily_rate` DECIMAL(10, 2) DEFAULT 0,
+  `days_attended` INT DEFAULT 0,
+  `hours_worked` DECIMAL(10, 2) DEFAULT 0,
+  `late_hours` DECIMAL(10, 2) DEFAULT 0,
+  `late_deduction_amount` DECIMAL(10, 2) DEFAULT 0,
+  `earned_amount` DECIMAL(10, 2) DEFAULT 0,
   `base_salary` DECIMAL(10, 2) DEFAULT 0,
   `hourly_rate` DECIMAL(10, 2) DEFAULT 0,
   `overtime_hours` DECIMAL(10, 2) DEFAULT 0,
@@ -172,6 +212,8 @@ CREATE TABLE IF NOT EXISTS `salary_payments` (
   `direct_deductions` DECIMAL(10, 2) DEFAULT 0,
   `advances_amount` DECIMAL(10, 2) DEFAULT 0,
   `net_paid` DECIMAL(10, 2) NOT NULL,
+  `period_start` DATE DEFAULT NULL,
+  `period_end` DATE DEFAULT NULL,
   `month` VARCHAR(50),
   `notes` TEXT,
   `payment_date` DATETIME DEFAULT CURRENT_TIMESTAMP,

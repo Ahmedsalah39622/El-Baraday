@@ -8,7 +8,8 @@ export async function PUT(request, { params }) {
     const { 
       name, phone, role, base_salary, hourly_rate, 
       overtime_hours, deduction_hours, bonus, deductions, status, branch_id,
-      salary_type, weekly_rate
+      salary_type, weekly_rate, daily_rate, shift_hours, work_days_per_week,
+      shift_start_time, grace_period_minutes, late_deduction_rate
     } = body;
 
     const result = await query(
@@ -25,12 +26,19 @@ export async function PUT(request, { params }) {
         status=COALESCE($10,status), 
         branch_id=COALESCE($11,branch_id),
         salary_type=COALESCE($12,salary_type),
-        weekly_rate=COALESCE($13,weekly_rate)
-       WHERE id=$14 RETURNING *`,
+        weekly_rate=COALESCE($13,weekly_rate),
+        daily_rate=COALESCE($14,daily_rate),
+        shift_hours=COALESCE($15,shift_hours),
+        work_days_per_week=COALESCE($16,work_days_per_week),
+        shift_start_time=COALESCE($17,shift_start_time),
+        grace_period_minutes=COALESCE($18,grace_period_minutes),
+        late_deduction_rate=COALESCE($19,late_deduction_rate)
+       WHERE id=$20 RETURNING *`,
       [
         name, phone, role, base_salary, hourly_rate, 
         overtime_hours, deduction_hours, bonus, deductions, status, branch_id,
-        salary_type, weekly_rate, id
+        salary_type, weekly_rate, daily_rate, shift_hours, work_days_per_week,
+        shift_start_time, grace_period_minutes, late_deduction_rate, id
       ]
     );
 
