@@ -62,7 +62,22 @@ export default function Sidebar() {
 
   if (pathname === '/login') return null;
 
-  const visibleNavItems = navItems.filter((item) => hasPermission(item.path));
+  const isAdmin = user?.role === 'admin';
+  const hasPos = isAdmin || hasPermission('/');
+
+  const visibleNavItems = navItems
+    .map((item) => {
+      if (item.path === '/') {
+        return {
+          ...item,
+          label: hasPos ? 'الرئيسية (الكاشير)' : 'الرئيسية (المتابعة والإحصائيات)',
+          icon: hasPos ? Home : AssessmentOutlined,
+        };
+      }
+      return item;
+    })
+    .filter((item) => item.path === '/' || hasPermission(item.path));
+
   const visibleBottomItems = bottomItems.filter((item) => item.isLogout || hasPermission(item.path));
 
   // All allowed items combined for the "More" drawer on mobile
@@ -83,11 +98,16 @@ export default function Sidebar() {
     }
   };
 
+  // Build dynamic mobile bottom nav (Home + top allowed screens + More)
+  const otherAllowedNav = visibleNavItems.filter((item) => item.path !== '/').slice(0, 3);
   const mobileNavItems = [
-    { id: 'home', label: 'الرئيسية', icon: Home, path: '/' },
-    { id: 'orders', label: 'الطلبات', icon: ListAlt, path: '/orders' },
-    { id: 'attendance', label: 'التمامات', icon: HowToReg, path: '/attendance' },
-    { id: 'delivery', label: 'الدليفري', icon: DeliveryDining, path: '/delivery' },
+    {
+      id: 'home',
+      label: hasPos ? 'الرئيسية' : 'المتابعة',
+      icon: hasPos ? Home : AssessmentOutlined,
+      path: '/',
+    },
+    ...otherAllowedNav,
     { id: 'more', label: 'المزيد ☰', icon: Menu, isMore: true },
   ];
 

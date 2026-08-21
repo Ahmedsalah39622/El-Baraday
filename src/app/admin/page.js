@@ -117,7 +117,7 @@ export default function AdminPage() {
   };
 
   const handleSave = async () => {
-    if (!currentUser.name.trim() || !currentUser.username.trim() || !currentUser.pin.trim()) {
+    if (!currentUser.name.trim() || !currentUser.username.trim() || (!currentUser.id && !currentUser.pin.trim())) {
       alert('برجاء استكمال الاسم واسم المستخدم ورمز الـ PIN!');
       return;
     }

@@ -17,6 +17,8 @@ import { useShiftStore } from '@/store/useShiftStore';
 import { useBranchStore } from '@/store/useBranchStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { printThermalReceipt, playOrderNotificationSound, isOrderPrinted, markOrderAsPrinted } from '@/lib/printReceipt';
+import OperationsDashboard from '@/components/dashboard/OperationsDashboard';
+import { AssessmentOutlined } from '@mui/icons-material';
 
 export default function POSPage() {
   const { products, fetchProducts } = useProductStore();
@@ -24,8 +26,10 @@ export default function POSPage() {
   const { invoices } = useInvoiceStore();
   const { activeShift } = useShiftStore();
   const { branches, selectedBranchId, setSelectedBranchId, fetchBranches } = useBranchStore();
-  const { user } = useAuthStore();
+  const { user, hasPermission } = useAuthStore();
   const isAdmin = user?.role === 'admin';
+  const hasPosPermission = isAdmin || hasPermission('/');
+  const [adminViewMode, setAdminViewMode] = useState('pos'); // 'pos' | 'dashboard'
   const effectiveBranchId = isAdmin ? selectedBranchId : (user?.branch_id || user?.branchId || 'b1');
 
   useEffect(() => {
@@ -580,6 +584,14 @@ export default function POSPage() {
     }
   };
 
+  if (!hasPosPermission || (isAdmin && adminViewMode === 'dashboard')) {
+    return (
+      <OperationsDashboard
+        onSwitchToPos={isAdmin ? () => setAdminViewMode('pos') : null}
+      />
+    );
+  }
+
   return (
     <Box
       sx={{
@@ -672,6 +684,29 @@ export default function POSPage() {
                     <Tab value="b2" label="🏢 فرع المسلة" />
                   </Tabs>
                 </Paper>
+              )}
+
+              {isAdmin && (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<AssessmentOutlined />}
+                  onClick={() => setAdminViewMode('dashboard')}
+                  sx={{
+                    borderRadius: '12px',
+                    fontWeight: 800,
+                    borderColor: '#CBD5E1',
+                    color: '#334155',
+                    bgcolor: '#FFFFFF',
+                    px: 1.5,
+                    py: 0.6,
+                    fontSize: '0.8rem',
+                    textTransform: 'none',
+                    '&:hover': { bgcolor: '#F8FAFC', borderColor: '#94A3B8' }
+                  }}
+                >
+                  📊 لوحة الإحصائيات والعمليات
+                </Button>
               )}
             </Box>
           </Box>

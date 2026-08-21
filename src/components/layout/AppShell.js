@@ -71,7 +71,7 @@ export default function AppShell({ children }) {
       height: '100vh',
       width: '100vw',
       overflow: 'hidden',
-      bgcolor: 'background.default',
+      bgcolor: '#F8FAFC',
     }}>
       <Box sx={{
         flex: 1,
@@ -80,8 +80,10 @@ export default function AppShell({ children }) {
         overflowX: 'hidden',
         display: 'flex',
         flexDirection: 'column',
+        bgcolor: '#F8FAFC',
         '&::-webkit-scrollbar': { width: 8 },
         '&::-webkit-scrollbar-thumb': { bgcolor: '#CBD5E1', borderRadius: 4 },
+        '&::-webkit-scrollbar-track': { bgcolor: '#F1F5F9' },
       }}>
         {children}
       </Box>
