@@ -16,8 +16,8 @@ if (typeof window !== 'undefined') {
 }
 
 export const ROLE_PERMISSIONS = {
-  admin:   ['/', '/invoices', '/returns', '/products', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance', '/inventory', '/branches-inventory', '/salaries', '/reports', '/admin', '/settings'],
-  cashier: ['/', '/invoices', '/returns', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance'],
+  admin:   ['/', '/invoices', '/returns', '/products', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance', '/inventory', '/branches-inventory', '/salaries', '/reports', '/admin', '/settings', 'show_safe_balance'],
+  cashier: ['/', '/invoices', '/returns', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance', 'show_safe_balance'],
   driver:  ['/delivery', '/attendance', '/orders'],
   kitchen: ['/orders'],
 };
@@ -60,6 +60,54 @@ export const useAuthStore = create(
         }
       },
 
+      syncUserWithServer: async () => {
+        const { user, isAuthenticated, logout } = get();
+        if (!isAuthenticated || !user) return;
+        try {
+          const res = await fetch('/api/auth/verify-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: user.id, username: user.username })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.exists) {
+              if (data.status === 'inactive') {
+                logout();
+                return;
+              }
+              set((state) => ({
+                user: {
+                  ...state.user,
+                  id: data.id || state.user?.id,
+                  name: data.name,
+                  role: data.role,
+                  permissions: Array.isArray(data.permissions) ? data.permissions : [],
+                  branch_id: data.branch_id || state.user?.branch_id || 'b1',
+                  status: data.status || 'active'
+                }
+              }));
+            }
+          }
+        } catch (e) {
+          // ignore network failures silently
+        }
+      },
+
+      canViewSafeBalance: () => {
+        const { user, isAuthenticated } = get();
+        if (!isAuthenticated || !user) return false;
+        const role = user.role || 'cashier';
+        if (role === 'admin') return true;
+
+        if (Array.isArray(user.permissions)) {
+          return user.permissions.includes('show_safe_balance');
+        }
+
+        const defaultPerms = ROLE_PERMISSIONS[role] || [];
+        return defaultPerms.includes('show_safe_balance');
+      },
+
       hasPermission: (pathname) => {
         const { user, isAuthenticated } = get();
 
@@ -77,6 +125,7 @@ export const useAuthStore = create(
           if (pathname === '/attendance') return true;
           // Match by full path or short path (e.g. 'pos' matches '/', 'orders' matches '/orders')
           return user.permissions.some(p => {
+            if (p === 'show_safe_balance') return false;
             const normalized = p.startsWith('/') ? p : `/${p}`;
             if (normalized === '/pos' || normalized === '/') {
               return pathname === '/';
@@ -88,7 +137,7 @@ export const useAuthStore = create(
         // Fall back to role defaults
         const allowed = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.cashier;
         if (pathname === '/') return allowed.includes('/');
-        return allowed.some(r => r !== '/' && pathname.startsWith(r));
+        return allowed.some(r => r !== '/' && r !== 'show_safe_balance' && pathname.startsWith(r));
       }
     }),
     {

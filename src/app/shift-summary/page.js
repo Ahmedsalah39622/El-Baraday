@@ -54,8 +54,9 @@ export default function ShiftSummaryPage() {
   const { returns, fetchReturns } = useReturnsStore();
   const { activeShift, fetchShifts, openShift, closeShift, shifts: allShiftsList } = useShiftStore();
   const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
-  const { user } = useAuthStore();
+  const { user, canViewSafeBalance } = useAuthStore();
   const isAdmin = user?.role === 'admin' || !user?.role;
+  const canSeeSafe = isAdmin || (typeof canViewSafeBalance === 'function' ? canViewSafeBalance() : user?.permissions?.includes('show_safe_balance'));
 
   // Shift summary can show specific branch or aggregated 'all' branches
   const effectiveBranchId = isAdmin 
@@ -506,35 +507,35 @@ export default function ShiftSummaryPage() {
         <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E5E7EB', bgcolor: '#F0F7FF' }}>
           <Typography variant="caption" sx={{ color: '#4285F4', fontWeight: 800 }}>بداية العهدة (النقدية الأولى)</Typography>
           <Typography variant="h5" sx={{ fontWeight: 900, color: '#1E40AF', mt: 0.5 }}>
-            {isShiftActive ? `${startCash.toFixed(2)} ج.م` : '0.00 ج.م'}
+            {isShiftActive ? (canSeeSafe ? `${startCash.toFixed(2)} ج.م` : '🔒 مخفي') : '0.00 ج.م'}
           </Typography>
         </Paper>
 
         <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E5E7EB', bgcolor: '#ECFDF5' }}>
           <Typography variant="caption" sx={{ color: '#10B981', fontWeight: 800 }}>مبيعات الوردية الحالية</Typography>
           <Typography variant="h5" sx={{ fontWeight: 900, color: '#065F46', mt: 0.5 }}>
-            {isShiftActive ? `${totalSales.toFixed(2)} ج.م` : '0.00 ج.م'}
+            {isShiftActive ? (canSeeSafe ? `${totalSales.toFixed(2)} ج.م` : '🔒 مخفي') : '0.00 ج.م'}
           </Typography>
         </Paper>
 
         <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E5E7EB', bgcolor: '#F5F3FF' }}>
           <Typography variant="caption" sx={{ color: '#7C3AED', fontWeight: 800 }}>صافي أوردرات الدليفري</Typography>
           <Typography variant="h5" sx={{ fontWeight: 900, color: '#5B21B6', mt: 0.5 }}>
-            {isShiftActive ? `${activeShiftNetDeliverySales.toFixed(2)} ج.م` : '0.00 ج.م'}
+            {isShiftActive ? (canSeeSafe ? `${activeShiftNetDeliverySales.toFixed(2)} ج.م` : '🔒 مخفي') : '0.00 ج.م'}
           </Typography>
         </Paper>
 
         <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E5E7EB', bgcolor: '#FFF7ED' }}>
           <Typography variant="caption" sx={{ color: '#EA580C', fontWeight: 800 }}>إجمالي خدمة الدليفري</Typography>
           <Typography variant="h5" sx={{ fontWeight: 900, color: '#9A3412', mt: 0.5 }}>
-            {isShiftActive ? `${activeShiftDeliveryFeesSum.toFixed(2)} ج.م` : '0.00 ج.م'}
+            {isShiftActive ? (canSeeSafe ? `${activeShiftDeliveryFeesSum.toFixed(2)} ج.م` : '🔒 مخفي') : '0.00 ج.م'}
           </Typography>
         </Paper>
 
         <Paper sx={{ p: 2.5, borderRadius: '16px', border: '1px solid #E5E7EB', bgcolor: '#FEF3C7' }}>
           <Typography variant="caption" sx={{ color: '#D97706', fontWeight: 800 }}>المتوقع بالخزينة الآن</Typography>
           <Typography variant="h5" sx={{ fontWeight: 900, color: '#92400E', mt: 0.5 }}>
-            {isShiftActive ? `${expectedDrawerCash.toFixed(2)} ج.م` : '0.00 ج.م'}
+            {isShiftActive ? (canSeeSafe ? `${expectedDrawerCash.toFixed(2)} ج.م` : '🔒 مخفي') : '0.00 ج.م'}
           </Typography>
         </Paper>
 

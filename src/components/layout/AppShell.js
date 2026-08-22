@@ -13,13 +13,32 @@ export default function AppShell({ children }) {
   const router = useRouter();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const hasPermission = useAuthStore((state) => state.hasPermission);
+  const syncUserWithServer = useAuthStore((state) => state.syncUserWithServer);
 
   // Tracks whether Zustand has rehydrated from sessionStorage
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     setHydrated(true);
-  }, []);
+    if (useAuthStore.getState().isAuthenticated) {
+      syncUserWithServer();
+    }
+  }, [syncUserWithServer]);
+
+  // Sync user state on window focus or visibility change to pick up live admin changes
+  useEffect(() => {
+    const handleFocus = () => {
+      if (useAuthStore.getState().isAuthenticated) {
+        syncUserWithServer();
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('visibilitychange', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [syncUserWithServer]);
 
   const isPublic = PUBLIC_ROUTES.includes(pathname);
 
@@ -36,10 +55,13 @@ export default function AppShell({ children }) {
       return;
     }
 
-    if (isAuthenticated && !isPublic && !hasPermission(pathname)) {
-      router.replace('/');
+    if (isAuthenticated && !isPublic) {
+      syncUserWithServer();
+      if (!hasPermission(pathname)) {
+        router.replace('/');
+      }
     }
-  }, [hydrated, isAuthenticated, pathname, isPublic, hasPermission, router]);
+  }, [hydrated, isAuthenticated, pathname, isPublic, hasPermission, router, syncUserWithServer]);
 
   // Login and public pages render immediately without any blocking spinner
   if (isPublic) {

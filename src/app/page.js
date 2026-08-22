@@ -26,13 +26,15 @@ export default function POSPage() {
   const { invoices } = useInvoiceStore();
   const { activeShift } = useShiftStore();
   const { branches, selectedBranchId, setSelectedBranchId, fetchBranches } = useBranchStore();
-  const { user, hasPermission } = useAuthStore();
+  const { user, hasPermission, canViewSafeBalance } = useAuthStore();
   const isAdmin = user?.role === 'admin';
+  const canSeeSafe = isAdmin || (typeof canViewSafeBalance === 'function' ? canViewSafeBalance() : user?.permissions?.includes('show_safe_balance'));
   const hasPosPermission = isAdmin || hasPermission('/');
   const [adminViewMode, setAdminViewMode] = useState('pos'); // 'pos' | 'dashboard'
   const effectiveBranchId = isAdmin ? selectedBranchId : (user?.branch_id || user?.branchId || 'b1');
 
   useEffect(() => {
+    useAuthStore.getState().syncUserWithServer?.();
     fetchBranches();
     useCustomerStore.getState().fetchCustomers();
     useCustomerStore.getState().fetchDrivers();
@@ -924,10 +926,10 @@ export default function POSPage() {
               </Box>
               <Box sx={{ textAlign: 'right' }}>
                 <Typography variant="caption" sx={{ color: isSystemLoading ? '#64748B' : (isShiftActive ? '#047857' : '#991B1B'), fontWeight: 800, display: 'block', lineHeight: 1.1 }}>
-                  {isSystemLoading ? 'جاري التحقق من حالة الوردية' : (isShiftActive ? 'المبلغ في الخزنة حالياً' : 'حالة الوردية')}
+                  {isSystemLoading ? 'جاري التحقق من حالة الوردية' : (isShiftActive ? (canSeeSafe ? 'المبلغ في الخزنة حالياً' : 'حالة الوردية') : 'حالة الوردية')}
                 </Typography>
                 <Typography variant="subtitle1" sx={{ color: isSystemLoading ? '#64748B' : (isShiftActive ? '#065F46' : '#991B1B'), fontWeight: 900, fontSize: '1.15rem', lineHeight: 1.2 }}>
-                  {isSystemLoading ? 'جاري التحميل...' : (isShiftActive ? `${currentTillCash.toFixed(2)} ج.م` : 'شيفت مغلق')}
+                  {isSystemLoading ? 'جاري التحميل...' : (isShiftActive ? (canSeeSafe ? `${currentTillCash.toFixed(2)} ج.م` : '🔒 الوردية مفتوحة') : 'شيفت مغلق')}
                 </Typography>
               </Box>
             </Box>

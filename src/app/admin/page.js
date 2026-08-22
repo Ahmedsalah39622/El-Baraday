@@ -9,7 +9,8 @@ import {
 } from '@mui/material';
 import {
   AdminPanelSettingsOutlined, PersonOutlined, Add, EditOutlined,
-  DeleteOutlined, LockOutlined, SecurityOutlined, Close, Store, Key
+  DeleteOutlined, LockOutlined, SecurityOutlined, Close, Store, Key,
+  AccountBalanceWallet, Visibility, VisibilityOff
 } from '@mui/icons-material';
 import { ALL_SYSTEM_SCREENS, ROLE_PERMISSIONS } from '@/store/useAuthStore';
 import { useBranchStore } from '@/store/useBranchStore';
@@ -193,8 +194,9 @@ export default function AdminPage() {
 
   const getPermissionsSummary = (perms) => {
     if (!perms || perms.length === 0) return 'بلا صلاحيات';
-    if (perms.length === ALL_SYSTEM_SCREENS.length) return 'كامل الصلاحيات';
-    return `${perms.length} شاشات مسموحة`;
+    const screens = perms.filter(p => p.startsWith('/'));
+    if (screens.length === ALL_SYSTEM_SCREENS.length) return 'كامل الصلاحيات';
+    return `${screens.length} شاشات مسموحة`;
   };
 
   return (
@@ -210,7 +212,7 @@ export default function AdminPage() {
               إدارة المستخدمين وحسابات الموظفين والصلاحيات
             </Typography>
             <Typography variant="caption" sx={{ color: '#6B7280', display: { xs: 'none', sm: 'block' } }}>
-              التحكم في أدوار موظفي النظام (كاشيرات، طيارين، مدراء) وتعيين فروعهم وترخيص شاشات الدخول لكل حساب
+              التحكم في أدوار موظفي النظام (كاشيرات، طيارين، مدراء) وتعيين فروعهم وترخيص شاشات الدخول ورؤية قيم الخزنة لكل حساب
             </Typography>
           </Box>
         </Box>
@@ -249,7 +251,7 @@ export default function AdminPage() {
         {loading ? (
           <Box sx={{ p: 4, textAlign: 'center' }}><CircularProgress size={32} /></Box>
         ) : (
-          <Table sx={{ minWidth: 650 }}>
+          <Table sx={{ minWidth: 720 }}>
             <TableHead sx={{ bgcolor: '#F8FAFC' }}>
               <TableRow>
                 <TableCell sx={{ fontWeight: 800 }}>اسم الموظف / المستخدم</TableCell>
@@ -258,71 +260,92 @@ export default function AdminPage() {
                 <TableCell sx={{ fontWeight: 800 }}>الدور / الوظيفة</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>رمز ה-PIN</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>الشاشات والصلاحيات</TableCell>
+                <TableCell sx={{ fontWeight: 800 }}>رؤية قيم الخزنة</TableCell>
                 <TableCell sx={{ fontWeight: 800 }}>الحالة</TableCell>
                 <TableCell align="center" sx={{ fontWeight: 800 }}>الإجراءات والتعديل</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {users.map((u) => (
-                <TableRow key={u.id} hover>
-                  <TableCell sx={{ fontWeight: 800, color: '#1A1A2E' }}>{u.name}</TableCell>
-                  <TableCell sx={{ fontFamily: 'monospace', color: '#3B82F6', fontWeight: 700 }}>{u.username}</TableCell>
-                  <TableCell>
-                    <Chip
-                      icon={<Store sx={{ fontSize: '14px !important' }} />}
-                      label={u.branch_name || (u.branch_id === 'b2' ? 'فرع المسلة' : (u.branch_id === 'b1' ? 'فرع عزت' : 'المخزن الرئيسي'))}
-                      size="small"
-                      sx={{ bgcolor: '#F0FDF4', color: '#166534', fontWeight: 800 }}
-                    />
-                  </TableCell>
-                  <TableCell>{getRoleBadge(u.role)}</TableCell>
-                  <TableCell sx={{ fontFamily: 'monospace', fontWeight: 800, color: '#475569' }}>
-                    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
-                      <Key sx={{ fontSize: 14, color: '#9CA3AF' }} />
-                      {u.pin || '—'}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={getPermissionsSummary(u.permissions)}
-                      size="small"
-                      variant="outlined"
-                      sx={{ fontWeight: 700, borderColor: '#D1D5DB' }}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={u.status === 'active' ? 'نشط' : 'غير نشط'}
-                      size="small"
-                      sx={{
-                        bgcolor: u.status === 'active' ? '#D1FAE5' : '#FEE2E2',
-                        color: u.status === 'active' ? '#065F46' : '#991B1B',
-                        fontWeight: 700,
-                      }}
-                    />
-                  </TableCell>
-                  <TableCell align="center">
-                    <Tooltip title="تعديل الحساب والفرع والصلاحيات">
-                      <IconButton size="small" onClick={() => handleOpenDialog(u)} sx={{ color: '#4285F4' }}>
-                        <EditOutlined fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="حذف الحساب">
-                      <IconButton
+              {users.map((u) => {
+                const canSeeSafe = u.role === 'admin' || (Array.isArray(u.permissions) && u.permissions.includes('show_safe_balance'));
+                return (
+                  <TableRow key={u.id} hover>
+                    <TableCell sx={{ fontWeight: 800, color: '#1A1A2E' }}>{u.name}</TableCell>
+                    <TableCell sx={{ fontFamily: 'monospace', color: '#3B82F6', fontWeight: 700 }}>{u.username}</TableCell>
+                    <TableCell>
+                      <Chip
+                        icon={<Store sx={{ fontSize: '14px !important' }} />}
+                        label={u.branch_name || (u.branch_id === 'b2' ? 'فرع المسلة' : (u.branch_id === 'b1' ? 'فرع عزت' : 'المخزن الرئيسي'))}
                         size="small"
-                        onClick={() => { setUserToDelete(u); setDeleteDialogOpen(true); }}
-                        sx={{ color: '#EF4444' }}
-                      >
-                        <DeleteOutlined fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))}
+                        sx={{ bgcolor: '#F0FDF4', color: '#166534', fontWeight: 800 }}
+                      />
+                    </TableCell>
+                    <TableCell>{getRoleBadge(u.role)}</TableCell>
+                    <TableCell sx={{ fontFamily: 'monospace', fontWeight: 800, color: '#475569' }}>
+                      <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                        <Key sx={{ fontSize: 14, color: '#9CA3AF' }} />
+                        {u.pin || '—'}
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={getPermissionsSummary(u.permissions)}
+                        size="small"
+                        variant="outlined"
+                        sx={{ fontWeight: 700, borderColor: '#D1D5DB' }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {canSeeSafe ? (
+                        <Chip
+                          icon={<AccountBalanceWallet sx={{ fontSize: '13px !important' }} />}
+                          label="مرئية 🟢"
+                          size="small"
+                          sx={{ bgcolor: '#ECFDF5', color: '#065F46', fontWeight: 800 }}
+                        />
+                      ) : (
+                        <Chip
+                          icon={<LockOutlined sx={{ fontSize: '13px !important' }} />}
+                          label="مخفية 🔒"
+                          size="small"
+                          sx={{ bgcolor: '#FEF2F2', color: '#991B1B', fontWeight: 800 }}
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={u.status === 'active' ? 'نشط' : 'غير نشط'}
+                        size="small"
+                        sx={{
+                          bgcolor: u.status === 'active' ? '#D1FAE5' : '#FEE2E2',
+                          color: u.status === 'active' ? '#065F46' : '#991B1B',
+                          fontWeight: 700,
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell align="center">
+                      <Tooltip title="تعديل الحساب والفرع والصلاحيات">
+                        <IconButton size="small" onClick={() => handleOpenDialog(u)} sx={{ color: '#4285F4' }}>
+                          <EditOutlined fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="حذف الحساب">
+                        <IconButton
+                          size="small"
+                          onClick={() => { setUserToDelete(u); setDeleteDialogOpen(true); }}
+                          sx={{ color: '#EF4444' }}
+                        >
+                          <DeleteOutlined fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
 
               {users.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 4, color: '#9CA3AF' }}>
+                  <TableCell colSpan={9} align="center" sx={{ py: 4, color: '#9CA3AF' }}>
                     لا يوجد حسابات مسجلة للنظام حالياً
                   </TableCell>
                 </TableRow>
@@ -454,6 +477,71 @@ export default function AdminPage() {
           </Grid>
 
           <Divider />
+
+          {/* Special Safe Balance Visibility Toggle Card */}
+          <Paper
+            onClick={() => handleTogglePermission('show_safe_balance')}
+            sx={{
+              p: 2,
+              borderRadius: '16px',
+              border: '2px solid',
+              borderColor: currentUser.permissions.includes('show_safe_balance') ? '#10B981' : '#E2E8F0',
+              bgcolor: currentUser.permissions.includes('show_safe_balance') ? '#F0FDF4' : '#FAFAFA',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 2,
+              transition: 'all 0.2s ease',
+              boxShadow: currentUser.permissions.includes('show_safe_balance') ? '0 4px 12px rgba(16, 185, 129, 0.12)' : 'none',
+              '&:hover': { borderColor: '#10B981' }
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Box
+                sx={{
+                  width: 44,
+                  height: 44,
+                  minWidth: 44,
+                  borderRadius: '12px',
+                  bgcolor: currentUser.permissions.includes('show_safe_balance') ? 'rgba(16, 185, 129, 0.2)' : 'rgba(100, 116, 139, 0.1)',
+                  color: currentUser.permissions.includes('show_safe_balance') ? '#059669' : '#64748B',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <AccountBalanceWallet sx={{ fontSize: 24 }} />
+              </Box>
+              <Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 900, color: '#1A1A2E', fontSize: '0.95rem' }}>
+                    💰 إظهار قيم ومبالغ الخزنة والدرج (Safe Balance Visibility)
+                  </Typography>
+                  <Chip
+                    label={currentUser.permissions.includes('show_safe_balance') ? 'مفعل (مرئية)' : 'معطل (مخفية)'}
+                    size="small"
+                    sx={{
+                      bgcolor: currentUser.permissions.includes('show_safe_balance') ? '#DCFCE7' : '#FEE2E2',
+                      color: currentUser.permissions.includes('show_safe_balance') ? '#15803D' : '#B91C1C',
+                      fontWeight: 800,
+                      fontSize: '0.75rem',
+                    }}
+                  />
+                </Box>
+                <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600, display: 'block', mt: 0.3 }}>
+                  عند التفعيل: تظهر لهذا المستخدم قيم النقدية ورصيد الخزنة والدرج الحالي بالصفحات وشاشة الكاشير. عند التعطيل: يتم إخفاء المبالغ وحمايتها.
+                </Typography>
+              </Box>
+            </Box>
+
+            <Checkbox
+              checked={currentUser.permissions.includes('show_safe_balance')}
+              onChange={() => handleTogglePermission('show_safe_balance')}
+              color="success"
+              sx={{ '& .MuiSvgIcon-root': { fontSize: 28 } }}
+            />
+          </Paper>
 
           {/* Granular Screen Permissions Checkboxes Grid */}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
