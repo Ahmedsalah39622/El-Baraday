@@ -121,8 +121,6 @@ export const useAuthStore = create(
 
         // Custom per-user permissions set by Admin
         if (Array.isArray(user.permissions) && user.permissions.length > 0) {
-          // Always allow attendance for any logged in user
-          if (pathname === '/attendance') return true;
           // Match by full path or short path (e.g. 'pos' matches '/', 'orders' matches '/orders')
           return user.permissions.some(p => {
             if (p === 'show_safe_balance') return false;
