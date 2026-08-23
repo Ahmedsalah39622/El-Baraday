@@ -51,7 +51,13 @@ export default function AppShell({ children }) {
     }
 
     if (isAuthenticated && isPublic) {
-      router.replace('/');
+      const candidateRoutes = [
+        '/', '/orders', '/invoices', '/delivery', '/tables', '/customers',
+        '/products', '/inventory', '/salaries', '/finances', '/shift-summary',
+        '/attendance', '/branches-inventory', '/reports', '/settings', '/admin'
+      ];
+      const firstAllowed = candidateRoutes.find((r) => hasPermission(r)) || '/';
+      router.replace(firstAllowed);
       return;
     }
 

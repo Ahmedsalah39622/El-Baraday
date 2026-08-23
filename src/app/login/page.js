@@ -103,7 +103,14 @@ export default function LoginPage() {
 
       if (res.ok && data.success) {
         login(data.user);
-        router.push('/');
+        const userPerms = Array.isArray(data.user?.permissions) ? data.user.permissions : [];
+        const hasHome = userPerms.includes('/') || (data.user?.role === 'admin' && userPerms.length === 0);
+        let targetRoute = '/';
+        if (userPerms.length > 0 && !hasHome) {
+          const firstScreen = userPerms.find(p => p.startsWith('/') && p !== 'show_safe_balance');
+          if (firstScreen) targetRoute = firstScreen;
+        }
+        router.push(targetRoute);
       } else {
         setErrorMsg(data.error || 'رمز PIN غير صحيح!');
         setPinDigits(['', '', '', '']);
