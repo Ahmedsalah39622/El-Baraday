@@ -57,8 +57,9 @@ export default function InvoicesPage() {
   } = useInvoiceStore();
   const { settings } = useSettingsStore();
   const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
-  const { user } = useAuthStore();
+  const { user, canViewSafeBalance } = useAuthStore();
   const isAdmin = user?.role === 'admin' || !user?.role;
+  const canSeeSafe = isAdmin || (typeof canViewSafeBalance === 'function' ? canViewSafeBalance() : user?.permissions?.includes('show_safe_balance'));
   const effectiveBranch = (user && user.role !== 'admin' && user.branch_id) ? user.branch_id : selectedBranchId;
 
   // Filters & State for Custom Invoices
@@ -492,7 +493,7 @@ export default function InvoicesPage() {
                     تحصيل اليوم
                   </Typography>
                   <Typography variant="h5" fontWeight="900" color="success.main" sx={{ mt: 0.5 }}>
-                    {todayCollectedSum.toLocaleString()} ج.م
+                    {canSeeSafe ? `${todayCollectedSum.toLocaleString()} ج.م` : '🔒 مخفي'}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
                     تاريخ اليوم: {todayStr}
@@ -515,7 +516,7 @@ export default function InvoicesPage() {
                     إجمالي المحصّل
                   </Typography>
                   <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5, color: '#1565C0' }}>
-                    {totalPaidSum.toLocaleString()} ج.م
+                    {canSeeSafe ? `${totalPaidSum.toLocaleString()} ج.م` : '🔒 مخفي'}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
                     المبالغ المستلمة بالخزنة
@@ -538,7 +539,7 @@ export default function InvoicesPage() {
                     المتبقي / الآجل
                   </Typography>
                   <Typography variant="h5" fontWeight="900" color="error.main" sx={{ mt: 0.5 }}>
-                    {totalRemainingSum.toLocaleString()} ج.م
+                    {canSeeSafe ? `${totalRemainingSum.toLocaleString()} ج.م` : '🔒 مخفي'}
                   </Typography>
                   <Typography variant="caption" color="error.main" fontWeight="bold">
                     مبالغ متبقية للتحصيل

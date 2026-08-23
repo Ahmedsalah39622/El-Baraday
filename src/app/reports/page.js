@@ -20,8 +20,9 @@ import { exportToExcel } from '@/lib/exportToExcel';
 export default function ReportsPage() {
   const { invoices, fetchInvoices } = useInvoiceStore();
   const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
-  const { user } = useAuthStore();
+  const { user, canViewSafeBalance } = useAuthStore();
   const isAdmin = user?.role === 'admin';
+  const canSeeSafe = isAdmin || (typeof canViewSafeBalance === 'function' ? canViewSafeBalance() : user?.permissions?.includes('show_safe_balance'));
 
   const todayStr = new Date().toISOString().split('T')[0];
   const [dateFrom, setDateFrom] = useState(todayStr);
@@ -495,7 +496,7 @@ export default function ReportsPage() {
               </Box>
               <Box>
                 <Typography variant="caption" sx={{ color: '#1E40AF', fontWeight: 800 }}>إجمالي إيراد المبيعات</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 900, color: '#1E3A8A' }}>{totalSales.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 900, color: '#1E3A8A' }}>{canSeeSafe ? `${totalSales.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م` : '🔒 مخفي'}</Typography>
               </Box>
             </CardContent>
           </Card>
@@ -523,7 +524,7 @@ export default function ReportsPage() {
               </Box>
               <Box>
                 <Typography variant="caption" sx={{ color: '#E06B1F', fontWeight: 800 }}>طلبات الدليفري المحصلة</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 900, color: '#C25108' }}>{deliveryCount} طلب ({deliveryFeesTotal.toFixed(0)} ج.م)</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 900, color: '#C25108' }}>{deliveryCount} طلب {canSeeSafe ? `(${deliveryFeesTotal.toFixed(0)} ج.م)` : ''}</Typography>
               </Box>
             </CardContent>
           </Card>
@@ -537,7 +538,7 @@ export default function ReportsPage() {
               </Box>
               <Box>
                 <Typography variant="caption" sx={{ color: '#6B21A8', fontWeight: 800 }}>متوسط قيمة الأوردر</Typography>
-                <Typography variant="h6" sx={{ fontWeight: 900, color: '#581C87' }}>{avgOrderValue.toFixed(2)} ج.م</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 900, color: '#581C87' }}>{canSeeSafe ? `${avgOrderValue.toFixed(2)} ج.م` : '🔒 مخفي'}</Typography>
               </Box>
             </CardContent>
           </Card>
@@ -605,15 +606,15 @@ export default function ReportsPage() {
                       <Paper sx={{ p: 2, borderRadius: '12px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: 1.2 }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1, bgcolor: '#ECFDF5', borderRadius: '8px' }}>
                           <Typography variant="body2" sx={{ fontWeight: 700 }}>إجمالي مبيعات اليوم:</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 900, color: '#047857' }}>{(parseFloat(dailyReportSummary.total_sales) || 0).toLocaleString()} ج.م</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 900, color: '#047857' }}>{canSeeSafe ? `${(parseFloat(dailyReportSummary.total_sales) || 0).toLocaleString()} ج.م` : '🔒 مخفي'}</Typography>
                         </Box>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1, bgcolor: '#EFF6FF', borderRadius: '8px' }}>
                           <Typography variant="body2" sx={{ fontWeight: 700 }}>تحصيل الكاش:</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 900, color: '#1D4ED8' }}>{(parseFloat(dailyReportSummary.cash_total) || 0).toLocaleString()} ج.م</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 900, color: '#1D4ED8' }}>{canSeeSafe ? `${(parseFloat(dailyReportSummary.cash_total) || 0).toLocaleString()} ج.م` : '🔒 مخفي'}</Typography>
                         </Box>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1, bgcolor: '#F3E8FF', borderRadius: '8px' }}>
                           <Typography variant="body2" sx={{ fontWeight: 700 }}>تحصيل الفيزا / الشبكة:</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 900, color: '#7E22CE' }}>{(parseFloat(dailyReportSummary.visa_total) || 0).toLocaleString()} ج.م</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 900, color: '#7E22CE' }}>{canSeeSafe ? `${(parseFloat(dailyReportSummary.visa_total) || 0).toLocaleString()} ج.م` : '🔒 مخفي'}</Typography>
                         </Box>
                       </Paper>
                     )}
@@ -788,9 +789,9 @@ export default function ReportsPage() {
                             <TableCell sx={{ fontWeight: 800 }}>{row.cashier_name || 'كاشير'}</TableCell>
                             <TableCell>{row.start_time ? new Date(row.start_time).toLocaleString('ar-EG') : '-'}</TableCell>
                             <TableCell>{row.end_time ? new Date(row.end_time).toLocaleString('ar-EG') : 'شيفت مفتوح'}</TableCell>
-                            <TableCell align="left" sx={{ fontWeight: 800 }}>{(parseFloat(row.expected_cash) || 0).toFixed(2)} ج.م</TableCell>
-                            <TableCell align="left" sx={{ fontWeight: 800 }}>{(parseFloat(row.actual_cash) || 0).toFixed(2)} ج.م</TableCell>
-                            <TableCell align="left" sx={{ fontWeight: 900, color: diff < 0 ? '#EF4444' : '#10B981' }}>{diff.toFixed(2)} ج.م</TableCell>
+                            <TableCell align="left" sx={{ fontWeight: 800 }}>{canSeeSafe ? `${(parseFloat(row.expected_cash) || 0).toFixed(2)} ج.م` : '🔒 مخفي'}</TableCell>
+                            <TableCell align="left" sx={{ fontWeight: 800 }}>{canSeeSafe ? `${(parseFloat(row.actual_cash) || 0).toFixed(2)} ج.م` : '🔒 مخفي'}</TableCell>
+                            <TableCell align="left" sx={{ fontWeight: 900, color: diff < 0 ? '#EF4444' : '#10B981' }}>{canSeeSafe ? `${diff.toFixed(2)} ج.م` : '🔒 مخفي'}</TableCell>
                           </TableRow>
                         );
                       })}

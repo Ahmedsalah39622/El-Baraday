@@ -52,6 +52,7 @@ import {
 import { useFinancesStore } from '@/store/useFinancesStore';
 import { useBranchStore } from '@/store/useBranchStore';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
+import { useAuthStore } from '@/store/useAuthStore';
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -67,6 +68,9 @@ export default function FinancesPage() {
     useFinancesStore();
   const { branches, fetchBranches } = useBranchStore();
   const { invoices, fetchInvoices } = useInvoiceStore();
+  const { user, canViewSafeBalance } = useAuthStore();
+  const isAdmin = user?.role === 'admin' || user?.username === 'admin';
+  const canSeeSafe = isAdmin || (typeof canViewSafeBalance === 'function' ? canViewSafeBalance() : user?.permissions?.includes('show_safe_balance'));
 
   const [tabValue, setTabValue] = useState(0); // 0 = الإيرادات والمصروفات الكلية (الملخص الشامل)
   const [searchTerm, setSearchTerm] = useState('');
@@ -659,7 +663,7 @@ export default function FinancesPage() {
                 </Box>
               </Box>
               <Typography variant="h6" sx={{ fontWeight: 900, color: '#0C4A6E', fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-                {metrics.estimatedRevenue.toLocaleString()} <Typography component="span" variant="caption" sx={{ fontWeight: 700 }}>ج.م</Typography>
+                {canSeeSafe ? `${metrics.estimatedRevenue.toLocaleString()} ج.م` : '🔒 مخفي'}
               </Typography>
             </CardContent>
           </Card>
@@ -678,7 +682,7 @@ export default function FinancesPage() {
                 </Box>
               </Box>
               <Typography variant="h6" sx={{ fontWeight: 900, color: '#7C2D12', fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-                {(metrics.totalPurchasesCost + metrics.totalOpExpenses).toLocaleString()} <Typography component="span" variant="caption" sx={{ fontWeight: 700 }}>ج.م</Typography>
+                {canSeeSafe ? `${(metrics.totalPurchasesCost + metrics.totalOpExpenses).toLocaleString()} ج.م` : '🔒 مخفي'}
               </Typography>
             </CardContent>
           </Card>
@@ -697,7 +701,7 @@ export default function FinancesPage() {
                 </Box>
               </Box>
               <Typography variant="h6" sx={{ fontWeight: 900, color: '#991B1B', fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-                {metrics.totalPurchasesOwed.toLocaleString()} <Typography component="span" variant="caption" sx={{ fontWeight: 700 }}>ج.م</Typography>
+                {canSeeSafe ? `${metrics.totalPurchasesOwed.toLocaleString()} ج.م` : '🔒 مخفي'}
               </Typography>
             </CardContent>
           </Card>
@@ -716,7 +720,7 @@ export default function FinancesPage() {
                 </Box>
               </Box>
               <Typography variant="h6" sx={{ fontWeight: 900, color: '#064E3B', fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-                {metrics.netProfit.toLocaleString()} <Typography component="span" variant="caption" sx={{ fontWeight: 700 }}>ج.م</Typography>
+                {canSeeSafe ? `${metrics.netProfit.toLocaleString()} ج.م` : '🔒 مخفي'}
               </Typography>
             </CardContent>
           </Card>
@@ -791,22 +795,22 @@ export default function FinancesPage() {
                       🏢 {b.branchName}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 800, color: '#0284C7', whiteSpace: 'nowrap' }}>
-                      {b.revenue.toLocaleString()} ج.م
+                      {canSeeSafe ? `${b.revenue.toLocaleString()} ج.م` : '🔒 مخفي'}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 800, color: '#7C2D12', whiteSpace: 'nowrap' }}>
-                      {b.purchasesCost.toLocaleString()} ج.م
+                      {canSeeSafe ? `${b.purchasesCost.toLocaleString()} ج.م` : '🔒 مخفي'}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 800, color: '#EA580C', whiteSpace: 'nowrap' }}>
-                      {b.opExpenses.toLocaleString()} ج.م
+                      {canSeeSafe ? `${b.opExpenses.toLocaleString()} ج.م` : '🔒 مخفي'}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 800, color: '#4B5563', whiteSpace: 'nowrap' }}>
-                      {b.totalOutflows.toLocaleString()} ج.م
+                      {canSeeSafe ? `${b.totalOutflows.toLocaleString()} ج.م` : '🔒 مخفي'}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 900, color: b.purchasesOwed > 0 ? '#DC2626' : '#059669', whiteSpace: 'nowrap' }}>
-                      {b.purchasesOwed.toLocaleString()} ج.م
+                      {canSeeSafe ? `${b.purchasesOwed.toLocaleString()} ج.م` : '🔒 مخفي'}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 900, color: '#059669', whiteSpace: 'nowrap' }}>
-                      {b.netProfit.toLocaleString()} ج.م
+                      {canSeeSafe ? `${b.netProfit.toLocaleString()} ج.م` : '🔒 مخفي'}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -818,22 +822,22 @@ export default function FinancesPage() {
                       🌟 الإجمالي الكلي لجميع الفروع
                     </TableCell>
                     <TableCell sx={{ fontWeight: 900, color: '#0369A1', whiteSpace: 'nowrap' }}>
-                      {displayedBranchSummary.reduce((sum, b) => sum + b.revenue, 0).toLocaleString()} ج.م
+                      {canSeeSafe ? `${displayedBranchSummary.reduce((sum, b) => sum + b.revenue, 0).toLocaleString()} ج.م` : '🔒 مخفي'}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 900, color: '#7C2D12', whiteSpace: 'nowrap' }}>
-                      {displayedBranchSummary.reduce((sum, b) => sum + b.purchasesCost, 0).toLocaleString()} ج.م
+                      {canSeeSafe ? `${displayedBranchSummary.reduce((sum, b) => sum + b.purchasesCost, 0).toLocaleString()} ج.م` : '🔒 مخفي'}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 900, color: '#C2410C', whiteSpace: 'nowrap' }}>
-                      {displayedBranchSummary.reduce((sum, b) => sum + b.opExpenses, 0).toLocaleString()} ج.م
+                      {canSeeSafe ? `${displayedBranchSummary.reduce((sum, b) => sum + b.opExpenses, 0).toLocaleString()} ج.م` : '🔒 مخفي'}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 900, color: '#1F2937', whiteSpace: 'nowrap' }}>
-                      {displayedBranchSummary.reduce((sum, b) => sum + b.totalOutflows, 0).toLocaleString()} ج.م
+                      {canSeeSafe ? `${displayedBranchSummary.reduce((sum, b) => sum + b.totalOutflows, 0).toLocaleString()} ج.م` : '🔒 مخفي'}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 900, color: '#B91C1C', whiteSpace: 'nowrap' }}>
-                      {displayedBranchSummary.reduce((sum, b) => sum + b.purchasesOwed, 0).toLocaleString()} ج.م
+                      {canSeeSafe ? `${displayedBranchSummary.reduce((sum, b) => sum + b.purchasesOwed, 0).toLocaleString()} ج.م` : '🔒 مخفي'}
                     </TableCell>
                     <TableCell sx={{ fontWeight: 900, color: '#047857', whiteSpace: 'nowrap' }}>
-                      {displayedBranchSummary.reduce((sum, b) => sum + b.netProfit, 0).toLocaleString()} ج.م
+                      {canSeeSafe ? `${displayedBranchSummary.reduce((sum, b) => sum + b.netProfit, 0).toLocaleString()} ج.م` : '🔒 مخفي'}
                     </TableCell>
                   </TableRow>
                 )}

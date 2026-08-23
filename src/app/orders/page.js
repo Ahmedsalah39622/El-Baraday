@@ -57,8 +57,9 @@ export default function OrdersPage() {
   const { invoices, fetchInvoices, cancelOrder } = useInvoiceStore();
   const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
   const { activeShift, fetchShifts, shifts: allShiftsList } = useShiftStore();
-  const { user } = useAuthStore();
+  const { user, canViewSafeBalance } = useAuthStore();
   const isAdmin = user?.role === 'admin' || user?.username === 'admin';
+  const canSeeSafe = isAdmin || (typeof canViewSafeBalance === 'function' ? canViewSafeBalance() : user?.permissions?.includes('show_safe_balance'));
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showPreviousShifts, setShowPreviousShifts] = useState(false);
@@ -344,7 +345,7 @@ export default function OrdersPage() {
                 إجمالي الخزنة (النقدية)
               </Typography>
               <Typography variant="h5" sx={{ fontWeight: 900, color: '#065F46' }}>
-                {totalCashInDrawer.toLocaleString()} ج.م
+                {canSeeSafe ? `${totalCashInDrawer.toLocaleString()} ج.م` : '🔒 مخفي'}
               </Typography>
             </Box>
           </Paper>
@@ -360,7 +361,7 @@ export default function OrdersPage() {
                 إجمالي مبيعات الدليفري
               </Typography>
               <Typography variant="h5" sx={{ fontWeight: 900, color: '#9A3412' }}>
-                {totalDeliverySales.toLocaleString()} ج.م
+                {canSeeSafe ? `${totalDeliverySales.toLocaleString()} ج.م` : '🔒 مخفي'}
               </Typography>
             </Box>
           </Paper>
@@ -376,7 +377,7 @@ export default function OrdersPage() {
                 إجمالي خدمة الدليفري
               </Typography>
               <Typography variant="h5" sx={{ fontWeight: 900, color: '#78350F' }}>
-                {totalDeliveryFee.toLocaleString()} ج.م
+                {canSeeSafe ? `${totalDeliveryFee.toLocaleString()} ج.م` : '🔒 مخفي'}
               </Typography>
             </Box>
           </Paper>
@@ -392,7 +393,7 @@ export default function OrdersPage() {
                 إجمالي مبيعات الفرع الكلية
               </Typography>
               <Typography variant="h5" sx={{ fontWeight: 900, color: '#1E3A8A' }}>
-                {totalBranchSales.toLocaleString()} ج.م
+                {canSeeSafe ? `${totalBranchSales.toLocaleString()} ج.م` : '🔒 مخفي'}
               </Typography>
             </Box>
           </Paper>
