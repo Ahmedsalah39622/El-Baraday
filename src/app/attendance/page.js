@@ -24,7 +24,7 @@ export default function AttendancePage() {
   const router = useRouter();
   const { user } = useAuthStore();
   const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
-  const isAdmin = user?.role === 'admin' || !user?.role;
+  const isAdmin = user?.role === 'admin' || user?.username === 'admin';
 
   const [loading, setLoading] = useState(true);
   const [tabValue, setTabValue] = useState(0);
@@ -43,6 +43,7 @@ export default function AttendancePage() {
   const [selectedBranchForCheckIn, setSelectedBranchForCheckIn] = useState('b1');
   const [checkInTimeInput, setCheckInTimeInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [staffSearch, setStaffSearch] = useState('');
 
   // Manual / Edit Attendance Modal for HR
   const [manualModalOpen, setManualModalOpen] = useState(false);
@@ -472,6 +473,503 @@ export default function AttendancePage() {
   const clockedInEmployeesCount = employees.filter(e => e.isClockedIn || e.status === 'active').length;
   const totalLateTodayCount = todayAttendance.filter(a => parseInt(a.late_minutes || 0) > 0).length;
 
+  const displayEmployees = employees.filter(emp => {
+    if (!staffSearch.trim()) return true;
+    const q = staffSearch.trim().toLowerCase();
+    return (
+      (emp.name && emp.name.toLowerCase().includes(q)) ||
+      (emp.role && emp.role.toLowerCase().includes(q)) ||
+      (emp.phone && emp.phone.includes(q))
+    );
+  });
+
+  // ==========================================
+  // SIMPLIFIED VIEW FOR NON-ADMIN CASHIERS / USERS
+  // ==========================================
+  if (!isAdmin) {
+    return (
+      <Box sx={{ p: { xs: 1.5, md: 3 }, display: 'flex', flexDirection: 'column', gap: 2.5, pb: { xs: 10, md: 4 } }}>
+        {/* Simplified Header */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ width: 48, height: 48, borderRadius: '16px', bgcolor: 'rgba(16, 185, 129, 0.12)', color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <HowToReg sx={{ fontSize: 28 }} />
+            </Box>
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 900, color: '#1A1A2E', fontSize: { xs: '1.25rem', md: '1.6rem' } }}>
+                📋 إثبات الحضور والتمام اليومي
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#6B7280', fontWeight: 600 }}>
+                تسجيل حضور وانصراف موظفي وطياري الفرع بكل سهولة
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Button
+              variant="outlined"
+              startIcon={<Refresh />}
+              onClick={() => fetchAttendance()}
+              sx={{ borderRadius: '12px', fontWeight: 800 }}
+            >
+              تحديث
+            </Button>
+
+            <Button
+              variant="contained"
+              startIcon={<PersonAdd />}
+              onClick={() => setCheckInOpen(true)}
+              sx={{ bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' }, borderRadius: '12px', fontWeight: 900, px: 2.5 }}
+            >
+              + تسجيل حضور سريع ⚡
+            </Button>
+          </Box>
+        </Box>
+
+        {/* Simplified 3 KPI Cards */}
+        <Grid container spacing={2}>
+          <Grid xs={12} sm={4}>
+            <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: '#FFFFFF' }}>
+              <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#ECFDF5', color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <HowToReg />
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary" fontWeight={700}>الموظفون الحاضرون بالشيفت</Typography>
+                <Typography variant="h6" fontWeight={900} color="#059669">{clockedInEmployeesCount} / {employees.length} موظف</Typography>
+              </Box>
+            </Paper>
+          </Grid>
+
+          <Grid xs={12} sm={4}>
+            <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: '#FFFFFF' }}>
+              <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#EFF6FF', color: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <DeliveryDining />
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary" fontWeight={700}>الطيارون المتواجدون بالدور</Typography>
+                <Typography variant="h6" fontWeight={900} color="#2563EB">{activeQueue.length} طيار</Typography>
+              </Box>
+            </Paper>
+          </Grid>
+
+          <Grid xs={12} sm={4}>
+            <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: '#FFFFFF' }}>
+              <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#FEF2F2', color: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Warning />
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary" fontWeight={700}>تأخيرات مسجلة اليوم</Typography>
+                <Typography variant="h6" fontWeight={900} color="#DC2626">{totalLateTodayCount} موظف متأخر</Typography>
+              </Box>
+            </Paper>
+          </Grid>
+        </Grid>
+
+        {/* Main Tabs Navigation */}
+        <Paper elevation={1} sx={{ borderRadius: '16px', border: '1px solid #E2E8F0', bgcolor: '#FFF' }}>
+          <Tabs
+            value={tabValue}
+            onChange={(e, val) => setTabValue(val)}
+            indicatorColor="primary"
+            textColor="primary"
+            sx={{
+              px: 2,
+              minHeight: 50,
+              '& .MuiTab-root': {
+                fontWeight: 800,
+                fontSize: '0.95rem',
+                minHeight: 50
+              }
+            }}
+          >
+            <Tab icon={<HowToReg sx={{ fontSize: 20 }} />} iconPosition="start" label="👥 كشف حضور وتمامات الموظفين والطيارين" />
+            <Tab icon={<SwapVert sx={{ fontSize: 20 }} />} iconPosition="start" label={`🛵 طابور دور الطيارين (${activeQueue.length})`} />
+            <Tab icon={<History sx={{ fontSize: 20 }} />} iconPosition="start" label="🕒 سجل حركات اليوم" />
+          </Tabs>
+        </Paper>
+
+        {/* TAB 0: SIMPLIFIED CHECK-IN / CHECK-OUT TABLE */}
+        {tabValue === 0 && (
+          <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1px solid #E5E7EB', bgcolor: '#FFF' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1.5 }}>
+              <TextField
+                size="small"
+                placeholder="🔍 ابحث بالاسم أو الوظيفة أو الهاتف..."
+                value={staffSearch}
+                onChange={(e) => setStaffSearch(e.target.value)}
+                sx={{ width: { xs: '100%', sm: 320 }, '& .MuiOutlinedInput-root': { borderRadius: '12px', bgcolor: '#F8FAFC' } }}
+              />
+              <Typography variant="caption" color="text.secondary" fontWeight={700}>
+                إجمالي موظفي الفرع: <b>{displayEmployees.length}</b>
+              </Typography>
+            </Box>
+
+            {loading ? (
+              <Box sx={{ py: 4, textAlign: 'center' }}><CircularProgress size={32} /></Box>
+            ) : displayEmployees.length === 0 ? (
+              <Alert severity="info" sx={{ borderRadius: '12px', fontWeight: 700 }}>
+                لا يوجد موظفين مسجلين مطابقين للبحث.
+              </Alert>
+            ) : (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: '#F8FAFC' }}>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 900 }}>الموظف والوظيفة</TableCell>
+                      <TableCell sx={{ fontWeight: 900 }}>ميعاد الشيفت</TableCell>
+                      <TableCell sx={{ fontWeight: 900 }}>حالة اليوم والتمام</TableCell>
+                      <TableCell sx={{ fontWeight: 900 }} align="center">إجراء التمام (حضور / انصراف)</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {displayEmployees.map((emp) => {
+                      const todayRecord = todayAttendance.find(a => a.employee_id === emp.id);
+                      const isClockedIn = emp.isClockedIn || emp.status === 'active';
+                      const isDriver = emp.role?.includes('طيار') || emp.role?.includes('دليفري') || emp.role?.toLowerCase()?.includes('driver');
+
+                      let lateDisplay = null;
+                      if (todayRecord) {
+                        const lateM = parseInt(todayRecord.late_minutes || 0);
+                        if (lateM > 0) {
+                          lateDisplay = (
+                            <Chip
+                              icon={<Warning sx={{ fontSize: '14px !important' }} />}
+                              label={`تأخير: ${lateM} دقيقة`}
+                              size="small"
+                              sx={{ bgcolor: '#FEF2F2', color: '#DC2626', fontWeight: 900, height: 22, fontSize: '0.72rem' }}
+                            />
+                          );
+                        } else {
+                          lateDisplay = (
+                            <Chip
+                              icon={<CheckCircle sx={{ fontSize: '14px !important' }} />}
+                              label="في الميعاد 🟢"
+                              size="small"
+                              sx={{ bgcolor: '#ECFDF5', color: '#059669', fontWeight: 900, height: 22, fontSize: '0.72rem' }}
+                            />
+                          );
+                        }
+                      }
+
+                      const checkInFormatted = todayRecord?.check_in_time
+                        ? new Date(todayRecord.check_in_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+                        : (emp.currentCheckInTime ? new Date(emp.currentCheckInTime).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '-');
+
+                      return (
+                        <TableRow key={emp.id} hover>
+                          {/* 1. Employee Info */}
+                          <TableCell sx={{ fontWeight: 800 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Box sx={{ width: 38, height: 38, borderRadius: '10px', bgcolor: isClockedIn ? '#D1FAE5' : '#F1F5F9', color: isClockedIn ? '#059669' : '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.2rem' }}>
+                                {isDriver ? '🛵' : '👤'}
+                              </Box>
+                              <Box>
+                                <Typography variant="body2" fontWeight={800} color="#1E293B">
+                                  {emp.name}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {emp.role || 'موظف'} {emp.phone ? `| 📞 ${emp.phone}` : ''}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </TableCell>
+
+                          {/* 2. Shift Info */}
+                          <TableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Schedule sx={{ fontSize: 15, color: '#3B82F6' }} />
+                              <Typography variant="body2" fontWeight={800}>
+                                {emp.shift_hours || 8} س (ميعاد {emp.shift_start_time || emp.shiftStartTime || '12:00'})
+                              </Typography>
+                            </Box>
+                          </TableCell>
+
+                          {/* 3. Status Today */}
+                          <TableCell>
+                            {isClockedIn ? (
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <Chip label="حاضر بالشيفت 🟢" size="small" color="success" sx={{ fontWeight: 800, height: 22, fontSize: '0.72rem' }} />
+                                  <Typography variant="caption" fontWeight={800}>
+                                    دخول: {checkInFormatted}
+                                  </Typography>
+                                </Box>
+                                {lateDisplay}
+                              </Box>
+                            ) : todayRecord ? (
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
+                                <Chip label="انتهى الشيفت / منصرف" size="small" variant="outlined" sx={{ fontWeight: 700, height: 22, fontSize: '0.72rem' }} />
+                                {lateDisplay}
+                              </Box>
+                            ) : (
+                              <Chip label="⚪ لم يحضر اليوم بعد" size="small" sx={{ bgcolor: '#F1F5F9', color: '#64748B', fontWeight: 700, height: 22, fontSize: '0.72rem' }} />
+                            )}
+                          </TableCell>
+
+                          {/* 4. Action Button */}
+                          <TableCell align="center">
+                            {isClockedIn ? (
+                              <Button
+                                size="medium"
+                                variant="contained"
+                                color="error"
+                                startIcon={<Logout />}
+                                onClick={() => handleCheckOut(todayRecord?.id, emp.id, emp.name)}
+                                sx={{ borderRadius: '10px', fontWeight: 900, px: 2.5, py: 0.6, fontSize: '0.85rem' }}
+                              >
+                                تسجيل انصراف
+                              </Button>
+                            ) : (
+                              <Button
+                                size="medium"
+                                variant="contained"
+                                color="success"
+                                startIcon={<PlayArrow />}
+                                onClick={() => handleQuickCheckIn(emp.id, emp.name, isDriver)}
+                                sx={{ borderRadius: '10px', fontWeight: 900, px: 2.5, py: 0.6, fontSize: '0.85rem', bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' } }}
+                              >
+                                إثبات تمام (حضور)
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Paper>
+        )}
+
+        {/* TAB 1: DRIVER QUEUE SECTION */}
+        {tabValue === 1 && (
+          <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1.5px solid #E5E7EB' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <SwapVert sx={{ color: '#10B981' }} />
+                <Typography variant="h6" fontWeight={800} color="#1A1A2E">
+                  📋 طابور دور الطيارين (مرتب تلقائياً بالدقيقة)
+                </Typography>
+              </Box>
+              <Chip label="الترتيب تلقائي بالدقيقة" size="small" variant="outlined" sx={{ fontWeight: 700 }} />
+            </Box>
+
+            {loading ? (
+              <Box sx={{ py: 4, textAlign: 'center' }}><CircularProgress size={32} /></Box>
+            ) : activeQueue.length === 0 ? (
+              <Alert severity="info" sx={{ borderRadius: '12px', fontWeight: 700 }}>
+                لا يوجد طيارين مسجلين بالسيستم حالياً. اضغط على زر "تسجيل حضور سريع" لبدء طابور التوصيل.
+              </Alert>
+            ) : (
+              <Grid container spacing={2}>
+                {(() => {
+                  const readyQueue = (activeQueue || []).filter(q => q.status === 'ready');
+
+                  return activeQueue.map((item) => {
+                    const isOnDelivery = item.status === 'on_delivery';
+                    const readyIndex = readyQueue.findIndex(q => q.id === item.id);
+                    const isTopReady = !isOnDelivery && readyIndex === 0;
+
+                    let badgeLabel = `🟢 الدور ${readyIndex + 1}`;
+                    let badgeStyle = { bgcolor: '#E5E7EB', color: '#374151' };
+                    let cardStyle = { borderColor: '#E5E7EB', bgcolor: '#FFFFFF' };
+
+                    if (isOnDelivery) {
+                      badgeLabel = '🛵 في مشوار توصيل (خارج بالطلب)';
+                      badgeStyle = { bgcolor: '#3B82F6', color: '#FFFFFF' };
+                      cardStyle = { borderColor: '#3B82F6', bgcolor: '#EFF6FF' };
+                    } else if (isTopReady) {
+                      badgeLabel = '👑 الدور 1 (التالي للخروج)';
+                      badgeStyle = { bgcolor: '#10B981', color: '#FFFFFF' };
+                      cardStyle = { borderColor: '#10B981', bgcolor: '#F0FDF4' };
+                    }
+
+                    const formattedTime = item.check_in_time
+                      ? new Date(item.check_in_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+                      : '-';
+
+                    return (
+                      <Grid xs={12} sm={6} md={4} key={item.id}>
+                        <Card
+                          elevation={0}
+                          sx={{
+                            borderRadius: '16px',
+                            border: '2px solid',
+                            ...cardStyle,
+                            boxShadow: isTopReady ? '0 4px 14px rgba(16, 185, 129, 0.2)' : (isOnDelivery ? '0 4px 14px rgba(59, 130, 246, 0.15)' : 'none'),
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          <CardContent sx={{ p: 2 }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+                              <Chip
+                                label={badgeLabel}
+                                size="small"
+                                sx={{
+                                  ...badgeStyle,
+                                  fontWeight: 900,
+                                  fontSize: '0.8rem'
+                                }}
+                              />
+                              <Typography variant="caption" sx={{ color: '#6B7280', fontWeight: 700 }}>
+                                الفرع: {item.branch_name || 'الرئيسي'}
+                              </Typography>
+                            </Box>
+
+                            <Typography variant="h6" fontWeight={800} sx={{ color: '#1A1A2E', mb: 0.5 }}>
+                              {item.driver_name}
+                            </Typography>
+
+                            <Typography variant="body2" sx={{ color: '#6B7280', display: 'flex', alignItems: 'center', gap: 0.5, mb: 1.5 }}>
+                              <AccessTime sx={{ fontSize: 16 }} />
+                              <span>وقت التمام: {formattedTime}</span>
+                            </Typography>
+
+                            <Box sx={{ mb: 2 }}>
+                              {item.status === 'on_delivery' ? (
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8 }}>
+                                  <Chip
+                                    icon={<DeliveryDining />}
+                                    label="🛵 خارج في أوردر توصيل"
+                                    color="warning"
+                                    size="small"
+                                    sx={{ fontWeight: 800 }}
+                                  />
+                                  {item.check_in_time && (
+                                    <DeliveryTimerBadge
+                                      dispatchedAt={item.check_in_time}
+                                      targetMinutes={deliveryTimerMinutes}
+                                    />
+                                  )}
+                                </Box>
+                              ) : (
+                                <Chip
+                                  icon={<CheckCircle />}
+                                  label="🟢 جاهز للخروج بالطلب"
+                                  color="success"
+                                  variant="outlined"
+                                  size="small"
+                                  sx={{ fontWeight: 800 }}
+                                />
+                              )}
+                            </Box>
+
+                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', pt: 1, borderTop: '1px solid #F3F4F6' }}>
+                              <Button
+                                size="small"
+                                color="error"
+                                startIcon={<Logout />}
+                                onClick={() => handleCheckOut(item.id, item.driver_id, item.driver_name)}
+                                sx={{ fontWeight: 700 }}
+                              >
+                                تسجيل انصراف
+                              </Button>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    );
+                  });
+                })()}
+              </Grid>
+            )}
+          </Paper>
+        )}
+
+        {/* TAB 2: RECENT LOGS */}
+        {tabValue === 2 && (
+          <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1.5px solid #E5E7EB', bgcolor: '#FFF' }}>
+            <Typography variant="h6" fontWeight={900} color="#1A1A2E" sx={{ mb: 2 }}>
+              📜 سجل حركات اليوم والتمامات
+            </Typography>
+
+            <TableContainer>
+              <Table size="small">
+                <TableHead sx={{ bgcolor: '#F8FAFC' }}>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 900 }}>التاريخ</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>اسم الموظف</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>الوظيفة والفرع</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>وقت الحضور</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>وقت الانصراف</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>ساعات العمل</TableCell>
+                    <TableCell sx={{ fontWeight: 900 }}>التأخير</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {recentLogs.map((log) => (
+                    <TableRow key={log.id} hover>
+                      <TableCell sx={{ fontWeight: 700 }}>{log.date}</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>{log.employee_name}</TableCell>
+                      <TableCell>{log.role} ({log.branch_name || 'الرئيسي'})</TableCell>
+                      <TableCell sx={{ color: '#059669', fontWeight: 800 }}>
+                        {log.check_in_time ? new Date(log.check_in_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      </TableCell>
+                      <TableCell sx={{ color: '#DC2626', fontWeight: 800 }}>
+                        {log.check_out_time ? new Date(log.check_out_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : (log.status === 'active' ? '🟢 حاضر بالشيفت' : '-')}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>{log.working_hours || '-'} س</TableCell>
+                      <TableCell sx={{ color: parseInt(log.late_minutes || 0) > 0 ? '#DC2626' : '#6B7280', fontWeight: 700 }}>
+                        {parseInt(log.late_minutes || 0) > 0 ? `تأخير ${log.late_minutes} د` : 'في الميعاد 🟢'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        )}
+
+        {/* Quick Check-in Dialog */}
+        <Dialog open={checkInOpen} onClose={() => setCheckInOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}>
+          <DialogTitle sx={{ fontWeight: 900, pb: 1 }}>⚡ تسجيل حضور وتمام سريع</DialogTitle>
+          <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '12px !important' }}>
+            <FormControl fullWidth size="small">
+              <InputLabel>اختر الموظف / الطيار</InputLabel>
+              <Select
+                value={selectedStaffId}
+                label="اختر الموظف / الطيار"
+                onChange={(e) => setSelectedStaffId(e.target.value)}
+              >
+                {employees.map(e => (
+                  <MenuItem key={e.id} value={e.id}>
+                    {e.role?.includes('طيار') ? '🛵' : '👤'} {e.name} - ({e.role || 'موظف'})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <TextField
+              size="small"
+              type="time"
+              label="وقت الحضور الفعلي"
+              value={checkInTimeInput}
+              onChange={(e) => setCheckInTimeInput(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              helperText="اتركه فارغاً لاعتماد الوقت الحالي تلقائياً"
+            />
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setCheckInOpen(false)} sx={{ fontWeight: 700 }}>إلغاء</Button>
+            <Button
+              variant="contained"
+              color="success"
+              onClick={handleCustomTimeCheckIn}
+              disabled={!selectedStaffId || submitting}
+              sx={{ borderRadius: '10px', fontWeight: 900, px: 3 }}
+            >
+              {submitting ? <CircularProgress size={20} /> : 'تسجيل حضور 🟢'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    );
+  }
+
+  // ==========================================
+  // FULL HR VIEW FOR ADMIN
+  // ==========================================
   return (
     <Box sx={{ p: { xs: 1.5, md: 3 }, display: 'flex', flexDirection: 'column', gap: 2.5, pb: { xs: 10, md: 4 } }}>
       {/* Page Header */}
