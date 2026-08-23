@@ -114,12 +114,7 @@ export const useAuthStore = create(
         // Unauthenticated = no access to anything
         if (!isAuthenticated || !user) return false;
 
-        const role = user.role || 'cashier';
-
-        // Admin always has full access
-        if (role === 'admin') return true;
-
-        // Custom per-user permissions set by Admin
+        // Custom per-user permissions set by Admin (applicable to all roles including admin)
         if (Array.isArray(user.permissions) && user.permissions.length > 0) {
           // Match by full path or short path (e.g. 'pos' matches '/', 'orders' matches '/orders')
           return user.permissions.some(p => {
@@ -131,6 +126,11 @@ export const useAuthStore = create(
             return pathname === normalized || pathname.startsWith(normalized + '/');
           });
         }
+
+        const role = user.role || 'cashier';
+
+        // Admin role defaults to full access ONLY when no specific permissions array is defined
+        if (role === 'admin') return true;
 
         // Fall back to role defaults
         const allowed = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.cashier;

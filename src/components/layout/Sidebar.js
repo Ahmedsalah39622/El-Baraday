@@ -63,7 +63,7 @@ export default function Sidebar() {
   if (pathname === '/login') return null;
 
   const isAdmin = user?.role === 'admin';
-  const hasPos = isAdmin || hasPermission('/');
+  const hasPos = hasPermission('/');
 
   const visibleNavItems = navItems
     .map((item) => {
@@ -76,7 +76,7 @@ export default function Sidebar() {
       }
       return item;
     })
-    .filter((item) => item.path === '/' || hasPermission(item.path));
+    .filter((item) => hasPermission(item.path));
 
   const visibleBottomItems = bottomItems.filter((item) => item.isLogout || hasPermission(item.path));
 

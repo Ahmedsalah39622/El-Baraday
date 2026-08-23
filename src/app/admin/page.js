@@ -111,7 +111,6 @@ export default function AdminPage() {
         : [...prev.permissions, path];
       return {
         ...prev,
-        role: 'custom',
         permissions: updated
       };
     });

@@ -58,7 +58,15 @@ export default function AppShell({ children }) {
     if (isAuthenticated && !isPublic) {
       syncUserWithServer();
       if (!hasPermission(pathname)) {
-        router.replace('/');
+        const candidateRoutes = [
+          '/', '/orders', '/invoices', '/delivery', '/tables', '/customers',
+          '/products', '/inventory', '/salaries', '/finances', '/shift-summary',
+          '/attendance', '/branches-inventory', '/reports', '/settings', '/admin'
+        ];
+        const firstAllowed = candidateRoutes.find((r) => hasPermission(r)) || '/';
+        if (pathname !== firstAllowed) {
+          router.replace(firstAllowed);
+        }
       }
     }
   }, [hydrated, isAuthenticated, pathname, isPublic, hasPermission, router, syncUserWithServer]);
