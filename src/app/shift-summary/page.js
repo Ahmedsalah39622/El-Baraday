@@ -245,7 +245,9 @@ export default function ShiftSummaryPage() {
     return sum + (parseFloat(ret.total_returned) || 0);
   }, 0);
 
-  const totalSales = activeShiftInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0) - returnDeduction;
+  // استبعاد رسوم التوصيل من مبيعات الوردية — الديلفري فيها لوحدها
+  const totalDeliveryFees = activeShiftInvoices.reduce((sum, inv) => sum + (parseFloat(inv.deliveryFee || inv.delivery_fee) || 0), 0);
+  const totalSales = activeShiftInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0) - returnDeduction - totalDeliveryFees;
   const startCash = relevantActiveShifts.reduce((sum, s) => sum + (parseFloat(s.start_amount || s.startAmount || 0)), 0);
   const expectedDrawerCash = isShiftActive ? (startCash + totalSales) : 0;
 
@@ -285,7 +287,8 @@ export default function ShiftSummaryPage() {
       for (const s of relevantActiveShifts) {
         const sStart = parseFloat(s.start_amount || s.startAmount || 0);
         const sInvoices = activeShiftInvoices.filter(i => (i.branch_id || i.branchId || 'b1') === (s.branch_id || 'b1'));
-        const sSales = sInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0);
+        const sFees = sInvoices.reduce((sum, inv) => sum + (parseFloat(inv.deliveryFee || inv.delivery_fee) || 0), 0);
+        const sSales = sInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0) - sFees;
         const sExp = sStart + sSales;
         await closeShift(sExp, sExp, sSales, sInvoices.length, deficitNotes.trim());
       }

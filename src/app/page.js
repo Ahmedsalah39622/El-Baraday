@@ -516,7 +516,9 @@ export default function POSPage() {
       if (!isCashCollected) return sum;
     }
 
-    return sum + (parseFloat(inv.paidAmount || inv.total || 0));
+    // استبعاد رسوم التوصيل من نقدية الدرج
+    const invDeliveryFee = isDelivery ? (parseFloat(inv.deliveryFee || inv.delivery_fee) || 0) : 0;
+    return sum + (parseFloat(inv.paidAmount || inv.total || 0)) - invDeliveryFee;
   }, 0);
 
   // Calculate Branch 2 cash drawer amount: Returns 0.00 if Branch 2 shift is CLOSED
@@ -544,7 +546,9 @@ export default function POSPage() {
       if (!isCashCollected) return sum;
     }
 
-    return sum + (parseFloat(inv.paidAmount || inv.total || 0));
+    // استبعاد رسوم التوصيل من نقدية الدرج
+    const invDeliveryFee = isDelivery ? (parseFloat(inv.deliveryFee || inv.delivery_fee) || 0) : 0;
+    return sum + (parseFloat(inv.paidAmount || inv.total || 0)) - invDeliveryFee;
   }, 0);
 
   const isShiftActive = activeShift && activeShift.status === 'active';
