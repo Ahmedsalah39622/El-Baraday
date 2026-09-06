@@ -65,6 +65,12 @@ async function ensureAttendanceTables() {
   try {
     await query(`ALTER TABLE employees ADD COLUMN daily_rate DECIMAL(10, 2) DEFAULT 0.00`);
   } catch(e) {}
+  try {
+    await query(`ALTER TABLE employee_attendance ADD COLUMN early_leave_hours DECIMAL(10, 2) DEFAULT 0.00`);
+  } catch(e) {}
+  try {
+    await query(`ALTER TABLE employee_attendance ADD COLUMN early_leave_minutes INT DEFAULT 0`);
+  } catch(e) {}
 
   tablesChecked = true;
 }
@@ -456,15 +462,35 @@ export async function POST(req) {
       }
 
       let updatedAtt = null;
+      let actualWorkingHours = 0;
+      let overtimeH = 0;
+      let earlyLeaveH = 0;
+      let earlyLeaveM = 0;
+      let checkInTime = null;
+
       if (targetAttId) {
         const attRes = await query(`SELECT * FROM employee_attendance WHERE id = $1`, [targetAttId]);
         if (attRes.rows && attRes.rows.length > 0) {
           const att = attRes.rows[0];
-          const checkInTime = new Date(att.check_in_time);
+          checkInTime = new Date(att.check_in_time);
           const diffHours = Math.max(0, (checkOutDateObj.getTime() - checkInTime.getTime()) / (1000 * 60 * 60));
-          const actualWorkingHours = working_hours !== undefined ? parseFloat(working_hours) : parseFloat(diffHours.toFixed(2));
+          actualWorkingHours = working_hours !== undefined ? parseFloat(working_hours) : parseFloat(diffHours.toFixed(2));
           const scheduledH = parseFloat(att.scheduled_hours || 8.0);
-          const overtimeH = actualWorkingHours > scheduledH ? parseFloat((actualWorkingHours - scheduledH).toFixed(2)) : 0.00;
+
+          if (actualWorkingHours > scheduledH) {
+            overtimeH = parseFloat((actualWorkingHours - scheduledH).toFixed(2));
+            earlyLeaveH = 0.00;
+            earlyLeaveM = 0;
+          } else if (actualWorkingHours < scheduledH) {
+            overtimeH = 0.00;
+            earlyLeaveH = parseFloat((scheduledH - actualWorkingHours).toFixed(2));
+            earlyLeaveM = Math.round(earlyLeaveH * 60);
+          } else {
+            overtimeH = 0.00;
+            earlyLeaveH = 0.00;
+            earlyLeaveM = 0;
+          }
+
           const dayFraction = actualWorkingHours >= (scheduledH * 0.75) ? 1.00 : parseFloat((actualWorkingHours / scheduledH).toFixed(2));
 
           const upd = await query(
@@ -472,11 +498,13 @@ export async function POST(req) {
               check_out_time = $1,
               working_hours = $2,
               overtime_hours = $3,
-              day_fraction = $4,
+              early_leave_hours = $4,
+              early_leave_minutes = $5,
+              day_fraction = $6,
               status = 'completed',
-              notes = COALESCE($5, notes)
-             WHERE id = $6 RETURNING *`,
-            [checkOutDateObj, actualWorkingHours, overtimeH, dayFraction, notes || null, targetAttId]
+              notes = COALESCE($7, notes)
+             WHERE id = $8 RETURNING *`,
+            [checkOutDateObj, actualWorkingHours, overtimeH, earlyLeaveH, earlyLeaveM, dayFraction, notes || null, targetAttId]
           );
           updatedAtt = upd.rows[0];
         }
@@ -496,9 +524,24 @@ export async function POST(req) {
         await query(`UPDATE employees SET status = 'inactive' WHERE id = $1`, [targetStaffId]);
       }
 
+      let msg = 'تم تسجيل الانصراف وحساب ساعات العمل بنجاح';
+      if (overtimeH > 0) {
+        msg = `تم تسجيل الانصراف - ساعات العمل: ${actualWorkingHours} ساعة (أوفر تايم إضافي: +${overtimeH} ساعة 🚀)`;
+      } else if (earlyLeaveH > 0) {
+        msg = `تم تسجيل الانصراف - ساعات العمل: ${actualWorkingHours} ساعة (انصراف مبكر: عجز ${earlyLeaveH} ساعة ⚠️)`;
+      } else {
+        msg = `تم تسجيل الانصراف في موعد انتهاء الشيفت تماماً (${actualWorkingHours} ساعة عمل 🟢)`;
+      }
+
       return NextResponse.json({
-        message: 'تم تسجيل الانصراف وحساب ساعات العمل بنجاح',
-        attendance: updatedAtt
+        message: msg,
+        attendance: updatedAtt,
+        actualWorkingHours,
+        overtimeHours: overtimeH,
+        earlyLeaveHours: earlyLeaveH,
+        earlyLeaveMinutes: earlyLeaveM,
+        checkInTime,
+        checkOutTime: checkOutDateObj
       });
     }
 

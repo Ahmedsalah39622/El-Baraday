@@ -26,11 +26,13 @@ import {
   CardGiftcard,
   AssignmentReturnOutlined,
   Hub,
+  Fingerprint,
 } from '@mui/icons-material';
 import { useAuthStore } from '@/store/useAuthStore';
 
 const navItems = [
   { id: 'home', label: 'الرئيسية', icon: Home, path: '/' },
+  { id: 'fingerprint', label: 'البصمة', icon: Fingerprint, path: '/fingerprint' },
   { id: 'invoices', label: 'الفواتير والتحصيل', icon: Receipt, path: '/invoices' },
   { id: 'returns', label: 'المرتجعات', icon: AssignmentReturnOutlined, path: '/returns' },
   { id: 'products', label: 'إدارة المنتجات', icon: FastfoodOutlined, path: '/products' },

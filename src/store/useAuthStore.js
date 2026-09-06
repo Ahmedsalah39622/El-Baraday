@@ -16,10 +16,10 @@ if (typeof window !== 'undefined') {
 }
 
 export const ROLE_PERMISSIONS = {
-  admin:   ['/', '/invoices', '/returns', '/products', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance', '/inventory', '/branches-inventory', '/salaries', '/reports', '/admin', '/settings', 'show_safe_balance'],
-  cashier: ['/', '/invoices', '/returns', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance', 'show_safe_balance'],
-  driver:  ['/delivery', '/attendance', '/orders'],
-  kitchen: ['/orders'],
+  admin:   ['/', '/invoices', '/returns', '/products', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance', '/fingerprint', '/inventory', '/branches-inventory', '/salaries', '/reports', '/admin', '/settings', 'show_safe_balance'],
+  cashier: ['/', '/invoices', '/returns', '/prizes', '/orders', '/tables', '/customers', '/finances', '/shift-summary', '/delivery', '/attendance', '/fingerprint', 'show_safe_balance'],
+  driver:  ['/delivery', '/attendance', '/fingerprint', '/orders'],
+  kitchen: ['/orders', '/fingerprint'],
 };
 
 export const ALL_SYSTEM_SCREENS = [
@@ -35,6 +35,7 @@ export const ALL_SYSTEM_SCREENS = [
   { path: '/shift-summary', name: 'تقفيل الشيفتات والخزنة' },
   { path: '/delivery',      name: 'إدارة الدليفري والطيارين' },
   { path: '/attendance',    name: 'تمامات الموظفين والطيارين' },
+  { path: '/fingerprint',   name: 'البصمة (حضور وانصراف سريع)' },
   { path: '/inventory',     name: 'المخزن والمواد الخام' },
   { path: '/branches-inventory', name: 'جرد ومتابعة خامات الفروع والتحويلات' },
   { path: '/salaries',      name: 'المرتبات والسلف للموظفين' },

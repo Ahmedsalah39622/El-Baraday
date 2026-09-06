@@ -93,6 +93,8 @@ async function ensureHourlyColumns() {
   try { await query(`ALTER TABLE employee_advances ADD COLUMN payment_id VARCHAR(100) DEFAULT NULL`); } catch(e) {}
   try { await query(`ALTER TABLE employee_attendance ADD COLUMN is_paid TINYINT(1) DEFAULT 0`); } catch(e) {}
   try { await query(`ALTER TABLE employee_attendance ADD COLUMN payment_id VARCHAR(100) DEFAULT NULL`); } catch(e) {}
+  try { await query(`ALTER TABLE employee_attendance ADD COLUMN early_leave_hours DECIMAL(10, 2) DEFAULT 0.00`); } catch(e) {}
+  try { await query(`ALTER TABLE employee_attendance ADD COLUMN early_leave_minutes INT DEFAULT 0`); } catch(e) {}
 
   hourlyColumnsChecked = true;
 }
@@ -113,6 +115,8 @@ export async function GET(request) {
         (SELECT COALESCE(SUM(ea.late_hours), 0) FROM employee_attendance ea WHERE ea.employee_id = e.id AND ea.is_paid = 0) as unpaid_late_hours,
         (SELECT COALESCE(SUM(ea.late_minutes), 0) FROM employee_attendance ea WHERE ea.employee_id = e.id AND ea.is_paid = 0) as unpaid_late_minutes,
         (SELECT COALESCE(SUM(ea.overtime_hours), 0) FROM employee_attendance ea WHERE ea.employee_id = e.id AND ea.is_paid = 0) as unpaid_overtime_hours,
+        (SELECT COALESCE(SUM(ea.early_leave_hours), 0) FROM employee_attendance ea WHERE ea.employee_id = e.id AND ea.is_paid = 0) as unpaid_early_leave_hours,
+        (SELECT COALESCE(SUM(ea.early_leave_minutes), 0) FROM employee_attendance ea WHERE ea.employee_id = e.id AND ea.is_paid = 0) as unpaid_early_leave_minutes,
         (SELECT COUNT(*) FROM employee_attendance ea WHERE ea.employee_id = e.id AND ea.check_out_time IS NULL) as is_clocked_in,
         (SELECT ea.check_in_time FROM employee_attendance ea WHERE ea.employee_id = e.id AND ea.check_out_time IS NULL ORDER BY ea.check_in_time DESC LIMIT 1) as current_check_in_time
       FROM employees e

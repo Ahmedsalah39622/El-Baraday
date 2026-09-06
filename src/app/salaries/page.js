@@ -90,7 +90,9 @@ export function calculateEmployeeSalary(emp) {
   const lateMinutes = parseInt(emp.unpaidLateMinutes !== undefined ? emp.unpaidLateMinutes : (emp.unpaid_late_minutes || 0));
 
   const overtimeHours = parseFloat(emp.overtimeHours || emp.overtime_hours || 0) + parseFloat(emp.unpaidOvertimeHours || emp.unpaid_overtime_hours || 0);
-  const deductionHours = parseFloat(emp.deductionHours || emp.deduction_hours || 0);
+  const earlyLeaveHours = parseFloat(emp.unpaidEarlyLeaveHours || emp.unpaid_early_leave_hours || 0);
+  const earlyLeaveMinutes = parseInt(emp.unpaidEarlyLeaveMinutes || emp.unpaid_early_leave_minutes || 0);
+  const deductionHours = parseFloat(emp.deductionHours || emp.deduction_hours || 0) + earlyLeaveHours;
 
   // Late arrival deduction amount
   const lateDeductionAmount = parseFloat((lateHours * hourlyRate * lateDeductionRate).toFixed(2));
@@ -144,6 +146,8 @@ export function calculateEmployeeSalary(emp) {
     lateHours,
     lateMinutes,
     lateDeductionAmount,
+    earlyLeaveHours,
+    earlyLeaveMinutes,
     earnedSoFar,
     effectiveBase,
     overtimeHours,
@@ -1343,6 +1347,11 @@ export default function SalariesPage() {
                             />
                           ) : (
                             <Typography variant="caption" color="text.secondary">لا يوجد تأخير 🟢</Typography>
+                          )}
+                          {calc.earlyLeaveHours > 0 && (
+                            <Typography variant="caption" sx={{ color: '#D97706', fontWeight: 800 }}>
+                              انصراف مبكر: {calc.earlyLeaveHours} س ({calc.earlyLeaveMinutes} د)
+                            </Typography>
                           )}
                           {calc.directDeductions + calc.deductionAmount > 0 && (
                             <Typography variant="caption" color="error.main" fontWeight="bold">

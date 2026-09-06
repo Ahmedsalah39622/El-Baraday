@@ -41,6 +41,8 @@ export const useEmployeeStore = create(
                 unpaidLateHours: parseFloat(r.unpaid_late_hours || 0),
                 unpaidLateMinutes: parseInt(r.unpaid_late_minutes || 0),
                 unpaidOvertimeHours: parseFloat(r.unpaid_overtime_hours || 0),
+                unpaidEarlyLeaveHours: parseFloat(r.unpaid_early_leave_hours || 0),
+                unpaidEarlyLeaveMinutes: parseInt(r.unpaid_early_leave_minutes || 0),
                 isClockedIn: Boolean(parseInt(r.is_clocked_in || 0) > 0),
                 currentCheckInTime: r.current_check_in_time,
                 status: r.status || 'مستحق',
