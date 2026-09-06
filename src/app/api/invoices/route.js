@@ -118,7 +118,9 @@ export async function POST(req) {
     const remainingAmount = body.remaining_amount !== undefined ? parseFloat(body.remaining_amount) : Math.max(0, amount - paidAmount);
     
     let paymentStatus = body.payment_status || 'paid';
-    if (remainingAmount <= 0) {
+    if (body.payment_status === 'draft' || body.is_draft) {
+      paymentStatus = 'draft';
+    } else if (remainingAmount <= 0) {
       paymentStatus = 'paid';
     } else if (paidAmount > 0 && remainingAmount > 0) {
       paymentStatus = 'partial';

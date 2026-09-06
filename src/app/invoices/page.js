@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Box, Typography, Tabs, Tab, TextField, Button,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
   InputAdornment, Dialog, DialogTitle, DialogContent, DialogActions, Grid,
   Card, CardContent, Chip, IconButton, MenuItem, Select, FormControl, InputLabel,
-  Tooltip, Alert, CircularProgress, Divider, Stack
+  Tooltip, Alert, CircularProgress, Divider, Stack, Autocomplete
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -25,12 +25,18 @@ import {
   Replay as ReturnIcon,
   Refresh as RefreshIcon,
   CalendarToday as CalendarIcon,
-  PictureAsPdf
+  PictureAsPdf,
+  Clear as ClearIcon,
+  StickyNote2,
+  NoteAlt,
+  Scale,
+  Send
 } from '@mui/icons-material';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useBranchStore } from '@/store/useBranchStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useProductStore } from '@/store/useProductStore';
 import { printCustomInvoice } from '@/lib/printReceipt';
 import { generateReportPDF } from '@/lib/reportPdfExport';
 
@@ -67,6 +73,9 @@ export default function InvoicesPage() {
   const [filterDate, setFilterDate] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
 
+  const { products, fetchProducts } = useProductStore();
+  const [draftSearchQuery, setDraftSearchQuery] = useState('');
+
   // New Invoice Modal Form State
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingInvoiceId, setEditingInvoiceId] = useState(null);
@@ -83,7 +92,14 @@ export default function InvoicesPage() {
     notes: '',
     items: []
   });
-  const [newItem, setNewItem] = useState({ description: '', qty: 1, price: '' });
+
+  // Detailed Product Item State (اسم المنتج، كام كيلو، سعر الكيلو، الإجمالي)
+  const [newItem, setNewItem] = useState({
+    product_name: '',
+    kilos: '',
+    price: '',
+    total: ''
+  });
   const [formError, setFormError] = useState('');
 
   // Printable View Dialog State
@@ -100,9 +116,49 @@ export default function InvoicesPage() {
   useEffect(() => {
     fetchCustomInvoices();
     fetchInvoices(100, effectiveBranch || 'all');
+    fetchProducts();
   }, [effectiveBranch, selectedBranchId, user]);
 
   const handleTabChange = (event, newValue) => setTabValue(newValue);
+
+  // Product Selection & Auto-Price
+  const handleProductSelect = (val) => {
+    const prodName = typeof val === 'string' ? val : (val?.name || '');
+    const found = (products || []).find(p => p.name === prodName);
+    const unitPrice = found && found.price ? found.price.toString() : newItem.price;
+    const kilosNum = parseFloat(newItem.kilos) || 0;
+    const priceNum = parseFloat(unitPrice) || 0;
+    const totalVal = (kilosNum > 0 && priceNum > 0) ? (kilosNum * priceNum).toFixed(2) : '';
+
+    setNewItem(prev => ({
+      ...prev,
+      product_name: prodName,
+      price: unitPrice,
+      total: totalVal
+    }));
+  };
+
+  const handleKilosChange = (kilosVal) => {
+    const kilosNum = parseFloat(kilosVal) || 0;
+    const priceNum = parseFloat(newItem.price) || 0;
+    const totalVal = (kilosNum > 0 && priceNum > 0) ? (kilosNum * priceNum).toFixed(2) : '';
+    setNewItem(prev => ({
+      ...prev,
+      kilos: kilosVal,
+      total: totalVal
+    }));
+  };
+
+  const handleItemPriceChange = (priceVal) => {
+    const priceNum = parseFloat(priceVal) || 0;
+    const kilosNum = parseFloat(newItem.kilos) || 0;
+    const totalVal = (kilosNum > 0 && priceNum > 0) ? (kilosNum * priceNum).toFixed(2) : '';
+    setNewItem(prev => ({
+      ...prev,
+      price: priceVal,
+      total: totalVal
+    }));
+  };
 
   // Auto calculate remaining when amount or paid_amount changes
   const handleAmountChange = (val, field) => {
@@ -113,67 +169,78 @@ export default function InvoicesPage() {
     if (field === 'amount' && formData.paid_amount === '') {
       updated.paid_amount = val;
       updated.remaining_amount = '0';
-      updated.payment_status = 'paid';
+      updated.payment_status = formData.payment_status === 'draft' ? 'draft' : 'paid';
     } else {
       const rem = Math.max(0, amount - paid);
       updated.remaining_amount = rem.toString();
-      if (rem === 0 && amount > 0) updated.payment_status = 'paid';
-      else if (paid > 0 && rem > 0) updated.payment_status = 'partial';
-      else if (paid === 0 && amount > 0) updated.payment_status = 'unpaid';
+      if (formData.payment_status !== 'draft') {
+        if (rem === 0 && amount > 0) updated.payment_status = 'paid';
+        else if (paid > 0 && rem > 0) updated.payment_status = 'partial';
+        else if (paid === 0 && amount > 0) updated.payment_status = 'unpaid';
+      }
     }
 
     setFormData(updated);
   };
 
   const handleAddItemToInvoice = () => {
-    if (!newItem.description || !newItem.price) return;
+    const prodName = (newItem.product_name || '').trim();
+    if (!prodName) return;
+
+    const kilosVal = parseFloat(newItem.kilos) || 1;
     const itemPrice = parseFloat(newItem.price) || 0;
-    const itemQty = parseInt(newItem.qty) || 1;
-    const itemTotal = itemPrice * itemQty;
+    const itemTotal = parseFloat(newItem.total) || (kilosVal * itemPrice);
 
     const items = [...formData.items, {
-      description: newItem.description,
-      qty: itemQty,
+      product_name: prodName,
+      description: `${prodName} (${kilosVal} كجم)`,
+      kilos: kilosVal,
+      qty: kilosVal,
       price: itemPrice,
       total: itemTotal
     }];
 
-    // Sum items total if user hasn't typed an overall amount manually or to sync
-    const sum = items.reduce((acc, curr) => acc + curr.total, 0);
+    const sum = items.reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0);
+    const isDraft = formData.payment_status === 'draft';
+
     setFormData({
       ...formData,
       items,
       amount: sum.toString(),
-      paid_amount: sum.toString(),
-      remaining_amount: '0',
-      payment_status: 'paid'
+      paid_amount: isDraft ? '0' : sum.toString(),
+      remaining_amount: isDraft ? sum.toString() : '0',
+      payment_status: isDraft ? 'draft' : 'paid'
     });
-    setNewItem({ description: '', qty: 1, price: '' });
+
+    setNewItem({ product_name: '', kilos: '', price: '', total: '' });
   };
 
   const handleRemoveItemFromInvoice = (index) => {
     const items = formData.items.filter((_, i) => i !== index);
-    const sum = items.reduce((acc, curr) => acc + curr.total, 0);
+    const sum = items.reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0);
+    const isDraft = formData.payment_status === 'draft';
     setFormData({
       ...formData,
       items,
-      amount: sum > 0 ? sum.toString() : formData.amount,
-      paid_amount: sum > 0 ? sum.toString() : formData.paid_amount,
+      amount: sum > 0 ? sum.toString() : (formData.amount || '0'),
+      paid_amount: isDraft ? '0' : (sum > 0 ? sum.toString() : formData.paid_amount),
+      remaining_amount: isDraft ? (sum > 0 ? sum.toString() : '0') : formData.remaining_amount
     });
   };
 
-  const handleOpenCreateModal = (inv = null) => {
+  const handleOpenCreateModal = (inv = null, isDraft = false) => {
     setFormError('');
+    setNewItem({ product_name: '', kilos: '', price: '', total: '' });
     if (inv) {
       setEditingInvoiceId(inv.id);
       setFormData({
-        title: inv.title || 'فاتورة تحصيل',
+        title: inv.title || (inv.payment_status === 'draft' ? 'مسودة / نوتة' : 'فاتورة تحصيل'),
         customer_name: inv.customer_name || '',
         customer_phone: inv.customer_phone || '',
         amount: inv.amount ? inv.amount.toString() : '',
         paid_amount: inv.paid_amount ? inv.paid_amount.toString() : '',
         remaining_amount: inv.remaining_amount ? inv.remaining_amount.toString() : '0',
-        payment_status: inv.payment_status || 'paid',
+        payment_status: inv.payment_status || (isDraft ? 'draft' : 'paid'),
         payment_method: inv.payment_method || 'cash',
         invoice_date: inv.invoice_date ? inv.invoice_date.split('T')[0] : new Date().toISOString().split('T')[0],
         notes: inv.notes || '',
@@ -182,13 +249,13 @@ export default function InvoicesPage() {
     } else {
       setEditingInvoiceId(null);
       setFormData({
-        title: 'فاتورة تحصيل',
+        title: isDraft ? 'مسودة / نوتة' : 'فاتورة تحصيل',
         customer_name: '',
         customer_phone: '',
         amount: '',
         paid_amount: '',
         remaining_amount: '0',
-        payment_status: 'paid',
+        payment_status: isDraft ? 'draft' : 'paid',
         payment_method: 'cash',
         invoice_date: new Date().toISOString().split('T')[0],
         notes: '',
@@ -198,39 +265,66 @@ export default function InvoicesPage() {
     setCreateDialogOpen(true);
   };
 
-  const handleSaveInvoice = async () => {
+  const handleSaveInvoice = async (isDraft = false) => {
     if (!formData.customer_name.trim()) {
-      setFormError('الرجاء إدخال اسم العميل أو الجهة (باسم كذا)');
+      setFormError(isDraft ? 'الرجاء إدخال اسم العميل أو عنوان المسودة' : 'الرجاء إدخال اسم العميل أو الجهة (باسم كذا)');
       return;
     }
-    if (!formData.amount || parseFloat(formData.amount) <= 0) {
-      setFormError('الرجاء إدخال مبلغ التحصيل (التحصيل كذا)');
-      return;
-    }
-    if (!formData.invoice_date) {
-      setFormError('الرجاء اختيار تاريخ الفاتورة (يوم كذا)');
+    const finalAmount = parseFloat(formData.amount) || 0;
+    if (!isDraft && finalAmount <= 0) {
+      setFormError('الرجاء إدخال مبلغ التحصيل أو إضافة منتجات');
       return;
     }
 
+    const payload = {
+      ...formData,
+      amount: finalAmount.toString(),
+      payment_status: isDraft ? 'draft' : (formData.payment_status === 'draft' ? 'paid' : formData.payment_status),
+      title: isDraft ? (formData.title && formData.title !== 'فاتورة تحصيل' ? formData.title : 'مسودة / نوتة') : (formData.title || 'فاتورة تحصيل'),
+      paid_amount: isDraft ? '0' : (formData.paid_amount || finalAmount.toString()),
+      remaining_amount: isDraft ? finalAmount.toString() : (formData.remaining_amount || '0')
+    };
+
     if (editingInvoiceId) {
-      const res = await updateCustomInvoice(editingInvoiceId, formData);
+      const res = await updateCustomInvoice(editingInvoiceId, payload);
       if (res.success) {
         setCreateDialogOpen(false);
+        if (isDraft) setTabValue(3);
       } else {
-        setFormError(res.error || 'حدث خطأ أثناء تعديل الفاتورة');
+        setFormError(res.error || 'حدث خطأ أثناء تعديل المسودة/الفاتورة');
       }
     } else {
-      const res = await addCustomInvoice(formData);
+      const res = await addCustomInvoice(payload);
       if (res.success) {
         setCreateDialogOpen(false);
+        if (isDraft) setTabValue(3);
       } else {
-        setFormError(res.error || 'حدث خطأ أثناء إضافة الفاتورة');
+        setFormError(res.error || 'حدث خطأ أثناء إضافة المسودة/الفاتورة');
       }
     }
   };
 
+  const handleConvertDraftToInvoice = (draft) => {
+    setFormError('');
+    setEditingInvoiceId(draft.id);
+    setFormData({
+      title: 'فاتورة تحصيل',
+      customer_name: draft.customer_name || '',
+      customer_phone: draft.customer_phone || '',
+      amount: draft.amount ? draft.amount.toString() : '',
+      paid_amount: draft.amount ? draft.amount.toString() : '',
+      remaining_amount: '0',
+      payment_status: 'paid',
+      payment_method: draft.payment_method && draft.payment_method !== 'draft' ? draft.payment_method : 'cash',
+      invoice_date: new Date().toISOString().split('T')[0],
+      notes: draft.notes || '',
+      items: Array.isArray(draft.items) ? draft.items : []
+    });
+    setCreateDialogOpen(true);
+  };
+
   const handleDeleteInvoice = async (id) => {
-    if (confirm('هل أنت تأكد من رغبتك في حذف هذه الفاتورة؟')) {
+    if (confirm('هل أنت متأكد من رغبتك في حذف هذا العنصر؟')) {
       await deleteCustomInvoice(id);
     }
   };
@@ -248,40 +342,73 @@ export default function InvoicesPage() {
   };
 
   const getWhatsAppShareUrl = (inv) => {
-    const text = `🧾 *مطعم البرادعي للحواوشي*
-📌 *فاتورة رقم:* ${inv.invoice_number}
-👤 *الاسم:* ${inv.customer_name}
-📅 *التاريخ:* ${inv.invoice_date?.split('T')[0]}
-💰 *مبلغ التحصيل:* ${inv.amount} ج.م
-✅ *المدفوع:* ${inv.paid_amount} ج.م
-🔻 *المتبقي:* ${inv.remaining_amount} ج.م
-📝 *البيان:* ${inv.title} ${inv.notes ? `\n💬 *ملاحظات:* ${inv.notes}` : ''}`;
+    const isDraft = inv.payment_status === 'draft';
+    let itemsText = '';
+    if (Array.isArray(inv.items) && inv.items.length > 0) {
+      itemsText = '\n📦 *الأصناف والكميات:*\n' + inv.items.map(it => `• ${it.product_name || it.description} - ${it.kilos ? `${it.kilos} كجم` : `${it.qty} عدد`} (${it.total || ((it.price || 0) * (it.kilos || it.qty || 1))} ج.م)`).join('\n');
+    }
+    const text = isDraft 
+      ? `📝 *مسودة طلب / نوتة - مطعم البرادعي*\n👤 *الاسم:* ${inv.customer_name}\n📅 *التاريخ:* ${inv.invoice_date?.split('T')[0]}${itemsText}\n💰 *المبلغ التقديري:* ${inv.amount} ج.م${inv.notes ? `\n💬 *ملاحظات:* ${inv.notes}` : ''}`
+      : `🧾 *مطعم البرادعي للحواوشي*\n📌 *فاتورة رقم:* ${inv.invoice_number}\n👤 *الاسم:* ${inv.customer_name}\n📅 *التاريخ:* ${inv.invoice_date?.split('T')[0]}${itemsText}\n💰 *مبلغ التحصيل:* ${inv.amount} ج.م\n✅ *المدفوع:* ${inv.paid_amount} ج.م\n🔻 *المتبقي:* ${inv.remaining_amount} ج.م${inv.notes ? `\n💬 *ملاحظات:* ${inv.notes}` : ''}`;
     return `https://wa.me/${inv.customer_phone ? '2' + inv.customer_phone.replace(/\D/g, '') : ''}?text=${encodeURIComponent(text)}`;
   };
 
-  // Filtered Custom Invoices
-  const filteredCustomInvoices = customInvoices.filter((inv) => {
-    const matchesSearch = 
-      !searchQuery ||
-      inv.customer_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.invoice_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.customer_phone?.includes(searchQuery);
+  // Official custom invoices (excluding drafts)
+  const officialCustomInvoices = useMemo(() => {
+    return customInvoices.filter(inv => inv.payment_status !== 'draft');
+  }, [customInvoices]);
 
-    const matchesDate = !filterDate || inv.invoice_date?.startsWith(filterDate);
-    const matchesStatus = filterStatus === 'all' || inv.payment_status === filterStatus;
+  // Draft invoices (Notes)
+  const draftCustomInvoices = useMemo(() => {
+    return customInvoices.filter(inv => inv.payment_status === 'draft');
+  }, [customInvoices]);
 
-    return matchesSearch && matchesDate && matchesStatus;
-  });
+  // Filtered Official Invoices
+  const filteredCustomInvoices = useMemo(() => {
+    return officialCustomInvoices.filter((inv) => {
+      const matchesSearch = 
+        !searchQuery ||
+        inv.customer_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        inv.invoice_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        inv.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        inv.customer_phone?.includes(searchQuery) ||
+        (Array.isArray(inv.items) && inv.items.some(it => 
+          (it.product_name && it.product_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (it.description && it.description.toLowerCase().includes(searchQuery.toLowerCase()))
+        ));
 
-  // Calculate Statistics
-  const totalInvoicesCount = customInvoices.length;
-  const totalAmountSum = customInvoices.reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
-  const totalPaidSum = customInvoices.reduce((acc, curr) => acc + (parseFloat(curr.paid_amount) || 0), 0);
-  const totalRemainingSum = customInvoices.reduce((acc, curr) => acc + (parseFloat(curr.remaining_amount) || 0), 0);
+      const matchesDate = !filterDate || inv.invoice_date?.startsWith(filterDate);
+      const matchesStatus = filterStatus === 'all' || inv.payment_status === filterStatus;
+
+      return matchesSearch && matchesDate && matchesStatus;
+    });
+  }, [officialCustomInvoices, searchQuery, filterDate, filterStatus]);
+
+  // Filtered Draft Invoices (Notes)
+  const filteredDraftInvoices = useMemo(() => {
+    return draftCustomInvoices.filter((d) => {
+      if (!draftSearchQuery.trim()) return true;
+      const q = draftSearchQuery.toLowerCase().trim();
+      return (
+        d.customer_name?.toLowerCase().includes(q) ||
+        d.customer_phone?.includes(q) ||
+        d.notes?.toLowerCase().includes(q) ||
+        (Array.isArray(d.items) && d.items.some(it => 
+          (it.product_name && it.product_name.toLowerCase().includes(q)) ||
+          (it.description && it.description.toLowerCase().includes(q))
+        ))
+      );
+    });
+  }, [draftCustomInvoices, draftSearchQuery]);
+
+  // Calculate Statistics (Only for official invoices)
+  const totalInvoicesCount = officialCustomInvoices.length;
+  const totalAmountSum = officialCustomInvoices.reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
+  const totalPaidSum = officialCustomInvoices.reduce((acc, curr) => acc + (parseFloat(curr.paid_amount) || 0), 0);
+  const totalRemainingSum = officialCustomInvoices.reduce((acc, curr) => acc + (parseFloat(curr.remaining_amount) || 0), 0);
   
   const todayStr = new Date().toISOString().split('T')[0];
-  const todayCollectedSum = customInvoices
+  const todayCollectedSum = officialCustomInvoices
     .filter(inv => inv.invoice_date && inv.invoice_date.startsWith(todayStr))
     .reduce((acc, curr) => acc + (parseFloat(curr.paid_amount) || 0), 0);
 
@@ -293,6 +420,8 @@ export default function InvoicesPage() {
         return <Chip label="تحصيل جزئي" color="warning" size="small" sx={{ fontWeight: 'bold' }} />;
       case 'unpaid':
         return <Chip label="غير محصل" color="error" size="small" sx={{ fontWeight: 'bold' }} />;
+      case 'draft':
+        return <Chip label="مسودة 📝" sx={{ bgcolor: '#FEF3C7', color: '#B45309', fontWeight: 'bold' }} size="small" />;
       default:
         return <Chip label="مكتمل" color="default" size="small" />;
     }
@@ -443,6 +572,24 @@ export default function InvoicesPage() {
           <Button
             variant="contained"
             size="large"
+            startIcon={<StickyNote2 />}
+            onClick={() => handleOpenCreateModal(null, true)}
+            sx={{
+              borderRadius: '12px',
+              px: 2.5,
+              py: 1.2,
+              fontWeight: 'bold',
+              bgcolor: '#d97706',
+              '&:hover': { bgcolor: '#b45309' },
+              boxShadow: '0 8px 20px rgba(217, 119, 6, 0.25)'
+            }}
+          >
+            + مسودة / نوتة جديدة 📝
+          </Button>
+
+          <Button
+            variant="contained"
+            size="large"
             startIcon={<AddIcon />}
             onClick={() => handleOpenCreateModal()}
             sx={{
@@ -564,9 +711,13 @@ export default function InvoicesPage() {
           variant="fullWidth"
           sx={{ '& .MuiTab-root': { fontWeight: 'bold', fontSize: '1rem' } }}
         >
-          <Tab label="سجل الفواتير والتحصيل" />
+          <Tab label={`سجل الفواتير والتحصيل (${officialCustomInvoices.length})`} />
           <Tab label="فواتير طلبات المطعم (POS)" />
           <Tab label="مرتجعات المنتجات" />
+          <Tab 
+            label={`المسودات والملاحظات (Notes) ${draftCustomInvoices.length > 0 ? `(${draftCustomInvoices.length})` : ''} 📝`} 
+            sx={{ color: draftCustomInvoices.length > 0 ? '#b45309 !important' : 'inherit' }}
+          />
         </Tabs>
       </Paper>
 
@@ -681,7 +832,21 @@ export default function InvoicesPage() {
                         </Typography>
                       )}
                     </TableCell>
-                    <TableCell>{inv.title || 'فاتورة تحصيل'}</TableCell>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight="600">{inv.title || 'فاتورة تحصيل'}</Typography>
+                      {Array.isArray(inv.items) && inv.items.length > 0 && (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+                          {inv.items.map((it, idx) => (
+                            <Chip
+                              key={idx}
+                              size="small"
+                              label={`${it.product_name || it.description} (${it.kilos ? `${it.kilos} كجم` : `${it.qty}`})`}
+                              sx={{ height: 20, fontSize: '0.72rem', bgcolor: '#f1f5f9', fontWeight: 600 }}
+                            />
+                          ))}
+                        </Box>
+                      )}
+                    </TableCell>
                     <TableCell>{inv.invoice_date?.split('T')[0]}</TableCell>
                     <TableCell sx={{ fontWeight: '900', fontSize: '1.05rem', color: '#1A1A2E' }}>
                       {parseFloat(inv.amount).toLocaleString()} ج.م
@@ -832,6 +997,217 @@ export default function InvoicesPage() {
         <Typography color="text.secondary" align="center" sx={{ my: 4 }}>
           أدخل رقم الفاتورة أو اختر طلب لعرض عناصره وإجراء المرتجع
         </Typography>
+      </TabPanel>
+
+      {/* TAB 3: DRAFTS & QUICK NOTES (المسودات والملاحظات زي الـ Notes) */}
+      <TabPanel value={tabValue} index={3} className="no-print">
+        <Box sx={{ mb: 3 }}>
+          <Grid container spacing={2} alignItems="center" justifyContent="space-between">
+            <Grid xs={12} sm={6}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="ابحث في المسودات (باسم العميل، اسم المنتج، الملاحظات)..."
+                value={draftSearchQuery}
+                onChange={(e) => setDraftSearchQuery(e.target.value)}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon color="action" />
+                      </InputAdornment>
+                    ),
+                    endAdornment: draftSearchQuery ? (
+                      <InputAdornment position="end">
+                        <IconButton size="small" onClick={() => setDraftSearchQuery('')}>
+                          <ClearIcon fontSize="small" />
+                        </IconButton>
+                      </InputAdornment>
+                    ) : null
+                  }
+                }}
+                sx={{ borderRadius: '12px' }}
+              />
+            </Grid>
+            <Grid xs={12} sm={6} sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
+              <Button
+                variant="contained"
+                size="large"
+                startIcon={<StickyNote2 />}
+                onClick={() => handleOpenCreateModal(null, true)}
+                sx={{
+                  borderRadius: '12px',
+                  fontWeight: 800,
+                  bgcolor: '#d97706',
+                  '&:hover': { bgcolor: '#b45309' },
+                  px: 3,
+                  py: 1.1,
+                  boxShadow: '0 6px 16px rgba(217, 119, 6, 0.25)'
+                }}
+              >
+                + إضافة مسودة / نوتة جديدة 📝
+              </Button>
+            </Grid>
+          </Grid>
+        </Box>
+
+        {filteredDraftInvoices.length === 0 ? (
+          <Paper elevation={0} sx={{ p: 6, textAlign: 'center', borderRadius: '16px', border: '2px dashed #fde68a', bgcolor: '#fffbeb' }}>
+            <StickyNote2 sx={{ fontSize: 64, color: '#f59e0b', mb: 1.5 }} />
+            <Typography variant="h6" fontWeight="bold" color="#92400e">
+              لا توجد مسودات أو ملاحظات محفوظة
+            </Typography>
+            <Typography variant="body2" color="#b45309" sx={{ mt: 0.5, mb: 2.5 }}>
+              يمكنك حفظ طلبات العملاء وحساب الكيلوهات والأسعار كمسودات (Notes) والرجوع إليها أو تحويلها لفاتورة رسمية في أي وقت بلمسة واحدة.
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => handleOpenCreateModal(null, true)}
+              sx={{ borderRadius: '10px', fontWeight: 'bold', bgcolor: '#d97706', '&:hover': { bgcolor: '#b45309' } }}
+            >
+              إنشاء أول مسودة الآن 📝
+            </Button>
+          </Paper>
+        ) : (
+          <Grid container spacing={2.5}>
+            {filteredDraftInvoices.map((draft) => (
+              <Grid xs={12} sm={6} md={4} key={draft.id}>
+                <Card sx={{
+                  borderRadius: '16px',
+                  border: '1.5px solid #fde68a',
+                  bgcolor: '#fffdf5',
+                  boxShadow: '0 4px 14px rgba(245, 158, 11, 0.1)',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    transform: 'translateY(-3px)',
+                    boxShadow: '0 8px 24px rgba(245, 158, 11, 0.18)'
+                  }
+                }}>
+                  <CardContent sx={{ p: 2.5 }}>
+                    {/* Header */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+                      <Box>
+                        <Typography variant="h6" fontWeight="900" color="#78350f" sx={{ lineHeight: 1.2 }}>
+                          {draft.customer_name}
+                        </Typography>
+                        <Typography variant="caption" color="#92400e" sx={{ display: 'block', mt: 0.3 }}>
+                          📅 {draft.invoice_date?.split('T')[0] || new Date().toISOString().split('T')[0]}
+                        </Typography>
+                      </Box>
+                      <Chip
+                        icon={<StickyNote2 sx={{ fontSize: '14px !important' }} />}
+                        label="مسودة 📝"
+                        size="small"
+                        sx={{ bgcolor: '#fef3c7', color: '#b45309', fontWeight: 800 }}
+                      />
+                    </Box>
+
+                    {draft.customer_phone && (
+                      <Typography variant="caption" color="#78350f" sx={{ display: 'block', mb: 1.5 }}>
+                        📞 {draft.customer_phone}
+                      </Typography>
+                    )}
+
+                    {/* Products & Kilos */}
+                    {Array.isArray(draft.items) && draft.items.length > 0 ? (
+                      <Box sx={{ p: 1.2, mb: 1.5, borderRadius: '10px', bgcolor: '#ffffff', border: '1px solid #fde68a' }}>
+                        <Typography variant="caption" fontWeight="bold" color="#92400e" sx={{ display: 'block', mb: 0.8 }}>
+                          الأصناف والكميات بالكيلو:
+                        </Typography>
+                        <Stack spacing={0.6}>
+                          {draft.items.map((it, i) => (
+                            <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+                                <Typography variant="body2" fontWeight="700" color="#1e293b">
+                                  {it.product_name || it.description}
+                                </Typography>
+                                <Chip
+                                  size="small"
+                                  label={`${it.kilos || it.qty} كجم`}
+                                  sx={{ height: 20, fontSize: '0.72rem', fontWeight: 800, bgcolor: '#fef3c7', color: '#92400e' }}
+                                />
+                              </Box>
+                              <Typography variant="body2" fontWeight="800" color="#15803d">
+                                {it.total || ((it.price || 0) * (it.kilos || it.qty || 1))} ج.م
+                              </Typography>
+                            </Box>
+                          ))}
+                        </Stack>
+                      </Box>
+                    ) : null}
+
+                    {/* Notes Text */}
+                    {draft.notes && (
+                      <Box sx={{ p: 1.2, mb: 1.5, borderRadius: '8px', bgcolor: 'rgba(254, 243, 199, 0.4)', borderRight: '3px solid #f59e0b' }}>
+                        <Typography variant="body2" color="#78350f" sx={{ whiteSpace: 'pre-wrap', fontSize: '0.88rem' }}>
+                          💬 {draft.notes}
+                        </Typography>
+                      </Box>
+                    )}
+
+                    {/* Total */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1.5, pt: 1.2, borderTop: '1px dashed #fde68a' }}>
+                      <Typography variant="body2" color="#92400e" fontWeight="bold">المبلغ المقدر:</Typography>
+                      <Typography variant="h6" fontWeight="900" color="#15803d">
+                        {parseFloat(draft.amount || 0).toLocaleString()} ج.م
+                      </Typography>
+                    </Box>
+
+                    {/* Actions */}
+                    <Stack direction="row" spacing={1} sx={{ mt: 2 }} alignItems="center">
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        color="success"
+                        size="small"
+                        startIcon={<CheckIcon />}
+                        onClick={() => handleConvertDraftToInvoice(draft)}
+                        sx={{ borderRadius: '8px', fontWeight: 800, bgcolor: '#16a34a', '&:hover': { bgcolor: '#15803d' } }}
+                      >
+                        تحويل لفاتورة 🧾
+                      </Button>
+
+                      <Tooltip title="تعديل المسودة">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleOpenCreateModal(draft, true)}
+                          sx={{ border: '1px solid #cbd5e1', borderRadius: '8px' }}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+
+                      <Tooltip title="مشاركة واتساب">
+                        <IconButton
+                          size="small"
+                          color="success"
+                          component="a"
+                          href={getWhatsAppShareUrl(draft)}
+                          target="_blank"
+                          sx={{ border: '1px solid #86efac', borderRadius: '8px' }}
+                        >
+                          <WhatsAppIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+
+                      <Tooltip title="حذف المسودة">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleDeleteInvoice(draft.id)}
+                          sx={{ border: '1px solid #fca5a5', borderRadius: '8px' }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        )}
       </TabPanel>
 
       {/* CREATE / EDIT INVOICE DIALOG */}
@@ -988,63 +1364,111 @@ export default function InvoicesPage() {
               />
             </Grid>
 
-            {/* Optional detailed items section */}
+            {/* Detailed items: Product name, Kilos (كام كيلو), Price per kilo, Total */}
             <Grid xs={12}>
-              <Typography variant="subtitle2" fontWeight="bold" sx={{ mt: 1, mb: 1 }}>
-                إضافة بنود تفصيلية للفاتورة (اختياري)
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                <TextField
-                  size="small"
-                  label="وصف البند / الصنف"
-                  sx={{ flex: 2 }}
-                  value={newItem.description}
-                  onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1, mb: 1.5 }}>
+                <Typography variant="subtitle2" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 0.8, color: '#0f172a' }}>
+                  <Scale sx={{ fontSize: 20, color: 'primary.main' }} />
+                  أصناف الطلب والأوزان بالكيلو (اسم المنتج & كام كيلو)
+                </Typography>
+                {newItem.total > 0 && (
+                  <Chip
+                    size="small"
+                    label={`إجمالي الصنف: ${newItem.total} ج.م`}
+                    color="primary"
+                    sx={{ fontWeight: 800 }}
+                  />
+                )}
+              </Box>
+
+              <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
+                <Autocomplete
+                  freeSolo
+                  sx={{ flex: { xs: '1 1 100%', md: 2.5 } }}
+                  options={(products || []).map(p => p.name)}
+                  value={newItem.product_name}
+                  onInputChange={(e, val) => handleProductSelect(val)}
+                  onChange={(e, val) => handleProductSelect(val || '')}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      size="small"
+                      label="اسم المنتج (اكتب أو اختر)"
+                      placeholder="مثال: حواوشي لحمة بلدي، عجين..."
+                    />
+                  )}
                 />
+
                 <TextField
                   size="small"
                   type="number"
-                  label="الكمية"
-                  sx={{ flex: 1 }}
-                  value={newItem.qty}
-                  onChange={(e) => setNewItem({ ...newItem, qty: e.target.value })}
+                  inputProps={{ step: 'any', min: '0' }}
+                  label="كام كيلو (الوزن ⚖️)"
+                  placeholder="مثال: 1.5 أو 2"
+                  sx={{ flex: { xs: '1 1 45%', md: 1.2 } }}
+                  value={newItem.kilos}
+                  onChange={(e) => handleKilosChange(e.target.value)}
+                  slotProps={{
+                    input: {
+                      endAdornment: <InputAdornment position="end">كجم</InputAdornment>
+                    }
+                  }}
                 />
+
                 <TextField
                   size="small"
                   type="number"
-                  label="سعر الوحـدة"
-                  sx={{ flex: 1 }}
+                  inputProps={{ step: 'any', min: '0' }}
+                  label="سعر الكيلو (ج.م)"
+                  placeholder="0.00"
+                  sx={{ flex: { xs: '1 1 45%', md: 1.2 } }}
                   value={newItem.price}
-                  onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
+                  onChange={(e) => handleItemPriceChange(e.target.value)}
+                  slotProps={{
+                    input: {
+                      endAdornment: <InputAdornment position="end">ج.م</InputAdornment>
+                    }
+                  }}
                 />
+
                 <Button 
-                  variant="outlined" 
+                  variant="contained" 
                   onClick={handleAddItemToInvoice}
-                  sx={{ borderRadius: '8px' }}
+                  disabled={!newItem.product_name.trim()}
+                  startIcon={<AddIcon />}
+                  sx={{ borderRadius: '8px', px: 2.5, whiteSpace: 'nowrap', fontWeight: 'bold' }}
                 >
                   إضافة
                 </Button>
               </Box>
 
               {formData.items.length > 0 && (
-                <Paper variant="outlined" sx={{ p: 1, borderRadius: '12px' }}>
+                <Paper variant="outlined" sx={{ p: 1, borderRadius: '12px', bgcolor: '#f8fafc' }}>
                   <Table size="small">
                     <TableHead>
-                      <TableRow>
-                        <TableCell>البند</TableCell>
-                        <TableCell>الكمية</TableCell>
-                        <TableCell>سعر الوحدة</TableCell>
-                        <TableCell>الإجمالي</TableCell>
-                        <TableCell align="center">حذف</TableCell>
+                      <TableRow sx={{ bgcolor: '#f1f5f9' }}>
+                        <TableCell sx={{ fontWeight: 800 }}>اسم المنتج</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 800 }}>الوزن (كام كيلو ⚖️)</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 800 }}>سعر الكيلو</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 800 }}>الإجمالي</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 800 }}>حذف</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {formData.items.map((item, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell>{item.description}</TableCell>
-                          <TableCell>{item.qty}</TableCell>
-                          <TableCell>{item.price} ج.م</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold' }}>{item.total} ج.م</TableCell>
+                        <TableRow key={idx} hover>
+                          <TableCell sx={{ fontWeight: 700 }}>{item.product_name || item.description}</TableCell>
+                          <TableCell align="center">
+                            <Chip
+                              size="small"
+                              label={`${item.kilos || item.qty} كجم`}
+                              sx={{ fontWeight: 800, bgcolor: '#e0f2fe', color: '#0369a1' }}
+                            />
+                          </TableCell>
+                          <TableCell align="center">{item.price} ج.م</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 900, color: '#16a34a' }}>
+                            {item.total} ج.م
+                          </TableCell>
                           <TableCell align="center">
                             <IconButton size="small" color="error" onClick={() => handleRemoveItemFromInvoice(idx)}>
                               <DeleteIcon fontSize="small" />
@@ -1059,19 +1483,35 @@ export default function InvoicesPage() {
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
+        <DialogActions sx={{ p: 2, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5 }}>
           <Button onClick={() => setCreateDialogOpen(false)} variant="outlined">
             إلغاء
           </Button>
-          <Button 
-            onClick={handleSaveInvoice} 
-            variant="contained" 
-            size="large"
-            disabled={loading}
-            sx={{ px: 4, borderRadius: '10px', fontWeight: 'bold' }}
-          >
-            {loading ? 'جاري الحفظ...' : editingInvoiceId ? 'حفظ التعديلات' : 'حفظ وإصدار الفاتورة'}
-          </Button>
+
+          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+            <Button
+              onClick={() => handleSaveInvoice(true)}
+              variant="outlined"
+              color="warning"
+              size="large"
+              disabled={loading}
+              startIcon={<StickyNote2 />}
+              sx={{ px: 3, borderRadius: '10px', fontWeight: 'bold' }}
+            >
+              حفظ كمسودة (Note) 📝
+            </Button>
+
+            <Button 
+              onClick={() => handleSaveInvoice(false)} 
+              variant="contained" 
+              size="large"
+              disabled={loading}
+              startIcon={<CheckIcon />}
+              sx={{ px: 3.5, borderRadius: '10px', fontWeight: 'bold' }}
+            >
+              {loading ? 'جاري الحفظ...' : editingInvoiceId ? 'حفظ التعديلات' : 'حفظ وإصدار الفاتورة 🧾'}
+            </Button>
+          </Box>
         </DialogActions>
       </Dialog>
 

@@ -621,14 +621,20 @@ export function printCustomInvoice(invoiceData, settings = {}, isThermal = false
   };
 
   const itemsHtml = Array.isArray(items) && items.length > 0
-    ? items.map((item) => `
+    ? items.map((item) => {
+        const prodName = item.product_name || item.description || item.name || 'بند';
+        const qtyOrWeight = item.kilos ? `${item.kilos} كجم` : `${item.qty || item.quantity || 1}`;
+        const itemPrice = parseFloat(item.price || item.unit_price || 0);
+        const itemTotal = parseFloat(item.total || (itemPrice * (parseFloat(item.kilos) || parseInt(item.qty) || 1)) || 0);
+        return `
         <tr style="border-bottom: 1px solid #ddd;">
-          <td style="padding: 6px; text-align: right;">${item.description || item.name || item.product_name || 'بند'}</td>
-          <td style="padding: 6px; text-align: center;">${item.qty || item.quantity || 1}</td>
-          <td style="padding: 6px; text-align: center;">${parseFloat(item.price || 0).toLocaleString()} ج.م</td>
-          <td style="padding: 6px; text-align: center; font-weight: bold;">${parseFloat(item.total || ((item.price || 0) * (item.qty || item.quantity || 1)) || 0).toLocaleString()} ج.m</td>
+          <td style="padding: 6px; text-align: right;">${prodName}</td>
+          <td style="padding: 6px; text-align: center;">${qtyOrWeight}</td>
+          <td style="padding: 6px; text-align: center;">${itemPrice.toLocaleString()} ج.م</td>
+          <td style="padding: 6px; text-align: center; font-weight: bold;">${itemTotal.toLocaleString()} ج.م</td>
         </tr>
-      `).join('')
+      `;
+      }).join('')
     : '';
 
   const html = isThermal ? `
