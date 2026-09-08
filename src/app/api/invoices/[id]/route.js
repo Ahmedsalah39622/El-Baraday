@@ -57,8 +57,10 @@ export async function PUT(req, { params }) {
           payment_method = COALESCE($8, payment_method),
           invoice_date = COALESCE($9, invoice_date),
           notes = COALESCE($10, notes),
-          items = COALESCE($11, items)
-      WHERE id = $12
+          items = COALESCE($11, items),
+          extra_expenses = COALESCE($12, extra_expenses),
+          extra_expenses_notes = COALESCE($13, extra_expenses_notes)
+      WHERE id = $14
     `;
 
     const queryParams = [
@@ -73,6 +75,8 @@ export async function PUT(req, { params }) {
       body.invoice_date || body.invoiceDate || null,
       body.notes || null,
       body.items ? JSON.stringify(body.items) : null,
+      body.extra_expenses !== undefined ? parseFloat(body.extra_expenses) : null,
+      body.extra_expenses_notes !== undefined ? body.extra_expenses_notes : null,
       id
     ];
 

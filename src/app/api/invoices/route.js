@@ -25,6 +25,8 @@ async function ensureInvoicesTable() {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+    try { await query('ALTER TABLE invoices ADD COLUMN extra_expenses DECIMAL(10, 2) DEFAULT 0.00'); } catch(e) {}
+    try { await query('ALTER TABLE invoices ADD COLUMN extra_expenses_notes VARCHAR(255) DEFAULT NULL'); } catch(e) {}
   } catch(e) {
     console.error('Failed to create invoices table:', e);
   }
@@ -84,6 +86,8 @@ export async function GET(req) {
       amount: parseFloat(row.amount || 0),
       paid_amount: parseFloat(row.paid_amount || 0),
       remaining_amount: parseFloat(row.remaining_amount || 0),
+      extra_expenses: parseFloat(row.extra_expenses || 0),
+      extra_expenses_notes: row.extra_expenses_notes || ''
     }));
 
     return NextResponse.json(formatted);
@@ -133,19 +137,23 @@ export async function POST(req) {
     const itemsJson = body.items ? JSON.stringify(body.items) : null;
     const branchId = body.branch_id || body.branchId || 'b1';
     const createdBy = body.created_by || body.createdBy || 'administrator';
+    const extraExpenses = parseFloat(body.extra_expenses || 0);
+    const extraExpensesNotes = body.extra_expenses_notes || null;
 
     const insertSql = `
       INSERT INTO invoices (
         id, invoice_number, title, customer_name, customer_phone,
         amount, paid_amount, remaining_amount, payment_status,
-        payment_method, invoice_date, notes, items, branch_id, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        payment_method, invoice_date, notes, items, branch_id, created_by,
+        extra_expenses, extra_expenses_notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
     `;
 
     const params = [
       id, invoiceNumber, title, customerName, customerPhone,
       amount, paidAmount, remainingAmount, paymentStatus,
-      paymentMethod, invoiceDate, notes, itemsJson, branchId, createdBy
+      paymentMethod, invoiceDate, notes, itemsJson, branchId, createdBy,
+      extraExpenses, extraExpensesNotes
     ];
 
     await query(insertSql, params);
@@ -166,6 +174,8 @@ export async function POST(req) {
       items: body.items || [],
       branch_id: branchId,
       created_by: createdBy,
+      extra_expenses: extraExpenses,
+      extra_expenses_notes: extraExpensesNotes,
       created_at: new Date().toISOString()
     };
 

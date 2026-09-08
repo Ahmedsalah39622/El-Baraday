@@ -595,6 +595,8 @@ export function printCustomInvoice(invoiceData, settings = {}, isThermal = false
     invoice_date = new Date().toISOString().split('T')[0],
     notes = '',
     items = [],
+    extra_expenses = 0,
+    extra_expenses_notes = '',
   } = invoiceData;
 
   const companyName = settings?.company_name || 'مطعم البرادعي للحواوشي';
@@ -751,6 +753,13 @@ export function printCustomInvoice(invoiceData, settings = {}, isThermal = false
         ` : ''}
 
         <div class="solid"></div>
+
+        ${parseFloat(extra_expenses) > 0 ? `
+          <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; color: #92400e; background: #FEF3C7; padding: 3px 6px; border-radius: 4px; margin: 3px 0; border: 1px dashed #D97706;">
+            <span>➕ مصاريف إضافية${extra_expenses_notes ? ` (${extra_expenses_notes})` : ''}:</span>
+            <span style="direction: ltr; font-weight: 900;">+${parseFloat(extra_expenses).toLocaleString()} ج.م</span>
+          </div>
+        ` : ''}
 
         <div class="total-box">
           <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 900;">
@@ -978,6 +987,12 @@ export function printCustomInvoice(invoiceData, settings = {}, isThermal = false
         ` : ''}
 
         <div class="totals-box">
+          ${parseFloat(extra_expenses) > 0 ? `
+            <div class="totals-row" style="color: #92400e; font-size: 14px; margin-bottom: 6px;">
+              <span>➕ مصاريف إضافية${extra_expenses_notes ? ` (${extra_expenses_notes})` : ''}:</span>
+              <span style="font-weight: 900;">+${parseFloat(extra_expenses).toLocaleString()} ج.م</span>
+            </div>
+          ` : ''}
           <div class="totals-row main">
             <span>مبلغ التحصيل الإجمالي:</span>
             <span>${parseFloat(amount).toLocaleString()} ج.م</span>

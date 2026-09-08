@@ -78,7 +78,9 @@ export default function InvoicesPage() {
     payment_status: 'draft',
     payment_method: 'cash',
     notes: '',
-    items: []
+    items: [],
+    extra_expenses: '',
+    extra_expenses_notes: ''
   };
 
   const [formData, setFormData] = useState(initialForm);
@@ -238,7 +240,9 @@ export default function InvoicesPage() {
         payment_status: 'draft',
         payment_method: draftToEdit.payment_method || 'cash',
         notes: draftToEdit.notes || '',
-        items: Array.isArray(draftToEdit.items) ? draftToEdit.items : []
+        items: Array.isArray(draftToEdit.items) ? draftToEdit.items : [],
+        extra_expenses: (draftToEdit.extra_expenses !== undefined && draftToEdit.extra_expenses !== null && draftToEdit.extra_expenses !== 0) ? draftToEdit.extra_expenses.toString() : '',
+        extra_expenses_notes: draftToEdit.extra_expenses_notes || ''
       });
     } else {
       setEditingDraftId(null);
@@ -303,13 +307,15 @@ export default function InvoicesPage() {
       }
     ];
 
-    const sum = updatedItems.reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0);
+    const itemsSum = updatedItems.reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0);
+    const extraExp = parseFloat(formData.extra_expenses) || 0;
+    const totalSum = itemsSum + extraExp;
 
     setFormData({
       ...formData,
       items: updatedItems,
-      amount: sum.toString(),
-      remaining_amount: sum.toString()
+      amount: totalSum.toString(),
+      remaining_amount: totalSum.toString()
     });
 
     setNewItem({ product_name: '', quantity: '1', price: '', total: '' });
@@ -317,13 +323,29 @@ export default function InvoicesPage() {
 
   const handleRemoveItem = (index) => {
     const updatedItems = formData.items.filter((_, i) => i !== index);
-    const sum = updatedItems.reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0);
+    const itemsSum = updatedItems.reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0);
+    const extraExp = parseFloat(formData.extra_expenses) || 0;
+    const totalSum = itemsSum + extraExp;
+
     setFormData({
       ...formData,
       items: updatedItems,
-      amount: sum.toString(),
-      remaining_amount: sum.toString()
+      amount: totalSum.toString(),
+      remaining_amount: totalSum.toString()
     });
+  };
+
+  const handleExtraExpensesChange = (val) => {
+    const extraExp = parseFloat(val) || 0;
+    const itemsSum = (formData.items || []).reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0);
+    const totalSum = itemsSum + extraExp;
+
+    setFormData(prev => ({
+      ...prev,
+      extra_expenses: val,
+      amount: totalSum.toString(),
+      remaining_amount: totalSum.toString()
+    }));
   };
 
   // Save draft directly to DB (via /api/invoices with payment_status: 'draft')
@@ -336,6 +358,8 @@ export default function InvoicesPage() {
     const finalAmount = parseFloat(formData.amount) || 0;
     const payload = {
       ...formData,
+      extra_expenses: parseFloat(formData.extra_expenses) || 0,
+      extra_expenses_notes: formData.extra_expenses_notes || '',
       amount: finalAmount.toString(),
       paid_amount: '0',
       remaining_amount: finalAmount.toString(),
@@ -375,7 +399,11 @@ export default function InvoicesPage() {
     if (Array.isArray(inv.items) && inv.items.length > 0) {
       itemsText = '\n📦 *الأصناف والكميات:*\n' + inv.items.map(it => `• ${it.product_name || it.description} - ${it.kilos || it.quantity || it.qty} (${it.total || ((it.price || 0) * (it.kilos || it.qty || 1))} ج.م)`).join('\n');
     }
-    const text = `📝 *مسودة طلب / نوتة - مطعم البرادعي*\n👤 *الاسم:* ${inv.customer_name}\n📅 *التاريخ:* ${inv.invoice_date?.split('T')[0]}${itemsText}\n💰 *المبلغ التقديري:* ${inv.amount} ج.م${inv.notes ? `\n💬 *ملاحظات:* ${inv.notes}` : ''}`;
+    const extraExpVal = parseFloat(inv.extra_expenses || 0);
+    const extraExpText = extraExpVal > 0 
+      ? `\n➕ *مصاريف إضافية:* ${extraExpVal} ج.م${inv.extra_expenses_notes ? ` (${inv.extra_expenses_notes})` : ''}` 
+      : '';
+    const text = `📝 *مسودة طلب / نوتة - مطعم البرادعي*\n👤 *الاسم:* ${inv.customer_name}\n📅 *التاريخ:* ${inv.invoice_date?.split('T')[0]}${itemsText}${extraExpText}\n💰 *المبلغ التقديري:* ${inv.amount} ج.م${inv.notes ? `\n💬 *ملاحظات:* ${inv.notes}` : ''}`;
     return `https://wa.me/${inv.customer_phone ? '2' + inv.customer_phone.replace(/\D/g, '') : ''}?text=${encodeURIComponent(text)}`;
   };
 
@@ -932,6 +960,18 @@ export default function InvoicesPage() {
                         </Box>
                       )}
 
+                      {/* Extra Expenses display if > 0 */}
+                      {parseFloat(draft.extra_expenses || 0) > 0 && (
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1, mb: 1.5, borderRadius: '8px', bgcolor: '#FFFBEB', border: '1px dashed #F59E0B' }}>
+                          <Typography variant="body2" fontWeight="700" color="#B45309">
+                            ➕ مصاريف إضافية {draft.extra_expenses_notes ? `(${draft.extra_expenses_notes})` : ''}:
+                          </Typography>
+                          <Typography variant="body2" fontWeight="900" color="#B45309">
+                            +{parseFloat(draft.extra_expenses).toLocaleString()} ج.م
+                          </Typography>
+                        </Box>
+                      )}
+
                       {/* Total Estimated Amount */}
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 1.2, borderTop: '1px dashed #E2E8F0' }}>
                         <Typography variant="body2" color="#78350F" fontWeight="bold">المبلغ المقدر:</Typography>
@@ -1170,6 +1210,34 @@ export default function InvoicesPage() {
               </Paper>
             </Grid>
 
+            {/* Extra Expenses Section (مصاريف إضافية) */}
+            <Grid xs={12} sm={6}>
+              <TextField
+                fullWidth
+                type="number"
+                label="مصاريف إضافية (توصيل، خدمة، تغليف...)"
+                placeholder="0.00"
+                value={formData.extra_expenses}
+                onChange={(e) => handleExtraExpensesChange(e.target.value)}
+                slotProps={{
+                  htmlInput: { step: 'any', min: '0' },
+                  input: {
+                    endAdornment: <InputAdornment position="end">ج.م</InputAdornment>,
+                  }
+                }}
+              />
+            </Grid>
+
+            <Grid xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="بيان المصاريف الإضافية (اختياري)"
+                placeholder="مثال: دليفري، علب وتغليف، تجهيز صواني..."
+                value={formData.extra_expenses_notes}
+                onChange={(e) => setFormData(prev => ({ ...prev, extra_expenses_notes: e.target.value }))}
+              />
+            </Grid>
+
             {/* Notes */}
             <Grid xs={12} sm={8}>
               <TextField
@@ -1196,7 +1264,7 @@ export default function InvoicesPage() {
                     endAdornment: <InputAdornment position="end">ج.م</InputAdornment>,
                   }
                 }}
-                helperText="يُحسب تلقائياً من مجموع الأصناف"
+                helperText="يُحسب تلقائياً من مجموع الأصناف والمصاريف الإضافية"
               />
             </Grid>
           </Grid>
