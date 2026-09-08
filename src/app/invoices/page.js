@@ -1087,13 +1087,13 @@ export default function InvoicesPage() {
                   <TextField
                     size="small"
                     type="number"
-                    inputProps={{ step: 'any', min: '0' }}
                     label="العدد / الوزن ⚖️"
                     placeholder="1"
                     sx={{ flex: { xs: '1 1 45%', md: 1.2 } }}
                     value={newItem.quantity}
                     onChange={(e) => handleItemQuantityChange(e.target.value)}
                     slotProps={{
+                      htmlInput: { step: 'any', min: '0' },
                       input: {
                         endAdornment: <InputAdornment position="end">كجم/عدد</InputAdornment>
                       }
@@ -1103,13 +1103,13 @@ export default function InvoicesPage() {
                   <TextField
                     size="small"
                     type="number"
-                    inputProps={{ step: 'any', min: '0' }}
                     label="سعر الوحدة (ج.م)"
                     placeholder="0.00"
                     sx={{ flex: { xs: '1 1 45%', md: 1.2 } }}
                     value={newItem.price}
                     onChange={(e) => handleItemPriceChange(e.target.value)}
                     slotProps={{
+                      htmlInput: { step: 'any', min: '0' },
                       input: {
                         endAdornment: <InputAdornment position="end">ج.م</InputAdornment>
                       }
