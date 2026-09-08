@@ -624,7 +624,7 @@ export default function InvoicesPage() {
           </Box>
 
           {/* Filter Toolbar for the Aggregated Table */}
-          <Grid container spacing={1.5} alignItems="center" sx={{ mb: 2, p: 1.5, bgcolor: '#F8FAFC', borderRadius: '12px' }}>
+          <Grid container spacing={1.5} sx={{ alignItems: 'center', mb: 2, p: 1.5, bgcolor: '#F8FAFC', borderRadius: '12px' }}>
             <Grid xs={12} sm={4} md={3}>
               <TextField
                 fullWidth
@@ -761,7 +761,7 @@ export default function InvoicesPage() {
       <Box>
           {/* Drafts Search and Filter Bar */}
           <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: '16px', border: '1px solid #E2E8F0', bgcolor: '#FFFFFF' }}>
-            <Grid container spacing={2} alignItems="center">
+            <Grid container spacing={2} sx={{ alignItems: 'center' }}>
               <Grid xs={12} md={6}>
                 <TextField
                   fullWidth
