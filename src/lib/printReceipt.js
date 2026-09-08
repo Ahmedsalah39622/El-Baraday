@@ -620,6 +620,9 @@ export function printCustomInvoice(invoiceData, settings = {}, isThermal = false
     }
   };
 
+  const isDraft = payment_status === 'draft' || title?.includes('نوتة') || title?.includes('مسودة');
+  const receiptHeading = isDraft ? `نوتة طلب #${invoice_number}` : `فاتورة تحصيل #${invoice_number}`;
+
   const itemsHtml = Array.isArray(items) && items.length > 0
     ? items.map((item) => {
         const prodName = item.product_name || item.description || item.name || 'بند';
@@ -627,11 +630,11 @@ export function printCustomInvoice(invoiceData, settings = {}, isThermal = false
         const itemPrice = parseFloat(item.price || item.unit_price || 0);
         const itemTotal = parseFloat(item.total || (itemPrice * (parseFloat(item.kilos) || parseInt(item.qty) || 1)) || 0);
         return `
-        <tr style="border-bottom: 1px solid #ddd;">
-          <td style="padding: 6px; text-align: right;">${prodName}</td>
-          <td style="padding: 6px; text-align: center;">${qtyOrWeight}</td>
-          <td style="padding: 6px; text-align: center;">${itemPrice.toLocaleString()} ج.م</td>
-          <td style="padding: 6px; text-align: center; font-weight: bold;">${itemTotal.toLocaleString()} ج.م</td>
+        <tr style="border-bottom: 1px dashed #bbb;">
+          <td style="padding: 3px 1px; text-align: right; font-weight: 800; font-size: 11px;">${prodName}</td>
+          <td style="padding: 3px 1px; text-align: center; font-size: 11px;">${qtyOrWeight}</td>
+          <td style="padding: 3px 1px; text-align: center; font-size: 10px;">${itemPrice > 0 ? `${itemPrice}` : '-'}</td>
+          <td style="padding: 3px 1px; text-align: left; font-weight: 900; font-size: 11px;">${itemTotal.toLocaleString()} ج.م</td>
         </tr>
       `;
       }).join('')
@@ -642,22 +645,29 @@ export function printCustomInvoice(invoiceData, settings = {}, isThermal = false
     <html lang="ar" dir="rtl">
     <head>
       <meta charset="UTF-8">
-      <title>فاتورة ${invoice_number}</title>
+      <title>${receiptHeading}</title>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&display=swap');
+        * {
+          box-sizing: border-box !important;
+          margin: 0;
+          padding: 0;
+          page-break-inside: avoid !important;
+        }
         @page {
-          size: 80mm auto;
-          margin: 0mm !important;
+          size: 72mm auto;
+          margin: 0 !important;
         }
         @media print {
           @page {
-            size: 80mm auto;
-            margin: 0mm !important;
+            size: 72mm auto;
+            margin: 0 !important;
           }
           html, body {
             width: 100% !important;
-            margin: 0 !important;
-            padding: 0 3mm !important;
+            max-width: 72mm !important;
+            margin: 0 auto !important;
+            padding: 0 1.5mm !important;
             background: #ffffff !important;
             color: #000000 !important;
             -webkit-print-color-adjust: exact !important;
@@ -667,8 +677,9 @@ export function printCustomInvoice(invoiceData, settings = {}, isThermal = false
         body {
           font-family: 'Cairo', 'Segoe UI', Tahoma, Arial, sans-serif;
           margin: 0 auto;
-          padding: 0 3mm;
+          padding: 0 1.5mm;
           width: 100%;
+          max-width: 72mm;
           color: #000000;
           background: #ffffff;
           direction: rtl;
@@ -678,10 +689,10 @@ export function printCustomInvoice(invoiceData, settings = {}, isThermal = false
         .dashed { border-bottom: 1.5px dashed #000000; margin: 5px 0; }
         .solid { border-bottom: 2px solid #000000; margin: 6px 0; }
         table.meta { width: 100%; border-collapse: collapse; margin: 4px 0; }
-        table.meta td { font-size: 11px; font-weight: 800; padding: 3px 0; color: #000000; }
+        table.meta td { font-size: 11px; font-weight: 800; padding: 2px 1px; color: #000000; }
         .total-box {
-          border: 2px solid #000000;
-          padding: 6px;
+          border: 1.5px solid #000000;
+          padding: 5px;
           border-radius: 6px;
           margin: 6px 0;
           font-weight: 900;
@@ -690,12 +701,12 @@ export function printCustomInvoice(invoiceData, settings = {}, isThermal = false
       </style>
     </head>
     <body>
-      <div style="padding: 3mm 0;">
+      <div style="padding: 2mm 0; width: 100%;">
         <div class="center">
-          <h2 style="margin: 0; font-size: 16px; font-weight: 900; color: #000000;">${companyName}</h2>
+          <h2 style="margin: 0; font-size: 15px; font-weight: 900; color: #000000;">${companyName}</h2>
           <div style="font-size: 10px; font-weight: 700; color: #000000;">${companyAddress} ${companyPhone ? `| هاتف: ${companyPhone}` : ''}</div>
-          <div style="margin-top: 4px; font-size: 12px; font-weight: 900; background: #E5E7EB; border: 1.5px solid #000000; padding: 2px 8px; display: inline-block; border-radius: 4px; color: #000000;">
-            فاتورة تحصيل #${invoice_number}
+          <div style="margin-top: 4px; font-size: 11px; font-weight: 900; background: #E5E7EB; border: 1.5px solid #000000; padding: 2px 8px; display: inline-block; border-radius: 4px; color: #000000;">
+            ${receiptHeading}
           </div>
         </div>
 
@@ -703,7 +714,7 @@ export function printCustomInvoice(invoiceData, settings = {}, isThermal = false
 
         <table class="meta">
           <tr>
-            <td style="width: 40%;">العميل / الجهة:</td>
+            <td style="width: 35%;">العميل / الجهة:</td>
             <td style="font-weight: 900; text-align: left;">${customer_name}</td>
           </tr>
           ${customer_phone ? `
@@ -713,23 +724,24 @@ export function printCustomInvoice(invoiceData, settings = {}, isThermal = false
             </tr>
           ` : ''}
           <tr>
-            <td>تاريخ الفاتورة:</td>
+            <td>التاريخ:</td>
             <td style="font-weight: 900; text-align: left;">${invoice_date ? invoice_date.split('T')[0] : ''}</td>
           </tr>
           <tr>
-            <td>البيان / الوصف:</td>
-            <td style="font-weight: 900; text-align: left;">${title || 'فاتورة تحصيل'}</td>
+            <td>البيان:</td>
+            <td style="font-weight: 900; text-align: left;">${title || 'نوتة طلب'}</td>
           </tr>
         </table>
 
         ${itemsHtml ? `
           <div class="solid"></div>
-          <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #000000;">
+          <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #000000; margin: 3px 0;">
             <thead>
               <tr style="background: #E5E7EB;">
-                <th style="font-size: 10px; padding: 3px; text-align: right; border-bottom: 1.5px solid #000;">البند</th>
-                <th style="font-size: 10px; padding: 3px; text-align: center; border-bottom: 1.5px solid #000;">العدد</th>
-                <th style="font-size: 10px; padding: 3px; text-align: center; border-bottom: 1.5px solid #000;">الإجمالي</th>
+                <th style="font-size: 10px; padding: 3px 1px; text-align: right; border-bottom: 1.5px solid #000;">البند</th>
+                <th style="font-size: 10px; padding: 3px 1px; text-align: center; border-bottom: 1.5px solid #000;">العدد</th>
+                <th style="font-size: 10px; padding: 3px 1px; text-align: center; border-bottom: 1.5px solid #000;">السعر</th>
+                <th style="font-size: 10px; padding: 3px 1px; text-align: left; border-bottom: 1.5px solid #000;">الإجمالي</th>
               </tr>
             </thead>
             <tbody>
@@ -741,24 +753,26 @@ export function printCustomInvoice(invoiceData, settings = {}, isThermal = false
         <div class="solid"></div>
 
         <div class="total-box">
-          <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: 900;">
-            <span>مبلغ التحصيل:</span>
-            <span>${parseFloat(amount).toLocaleString()} ج.م</span>
+          <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 900;">
+            <span>${isDraft ? 'المبلغ المقدر:' : 'مبلغ التحصيل:'}</span>
+            <span style="direction: ltr; font-weight: 900;">${parseFloat(amount).toLocaleString()} ج.م</span>
           </div>
-          <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; color: #166534; margin-top: 3px;">
-            <span>المحصل (المدفوع):</span>
-            <span>${parseFloat(paid_amount).toLocaleString()} ج.م</span>
-          </div>
-          ${parseFloat(remaining_amount) > 0 ? `
-            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 900; color: #991b1b; margin-top: 3px;">
-              <span>المتبقي (الآجل):</span>
-              <span>${parseFloat(remaining_amount).toLocaleString()} ج.م</span>
+          ${!isDraft ? `
+            <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; color: #166534; margin-top: 3px;">
+              <span>المحصل (المدفوع):</span>
+              <span style="direction: ltr;">${parseFloat(paid_amount).toLocaleString()} ج.م</span>
+            </div>
+            ${parseFloat(remaining_amount) > 0 ? `
+              <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 900; color: #991b1b; margin-top: 3px;">
+                <span>المتبقي (الآجل):</span>
+                <span style="direction: ltr;">${parseFloat(remaining_amount).toLocaleString()} ج.م</span>
+              </div>
+            ` : ''}
+            <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; margin-top: 5px; border-top: 1px dashed #000; padding-top: 4px;">
+              <span>طريقة الدفع: ${getPaymentMethodLabel(payment_method)}</span>
+              <span>الحالة: ${getStatusLabel(payment_status)}</span>
             </div>
           ` : ''}
-          <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; margin-top: 5px; border-top: 1px dashed #000; padding-top: 4px;">
-            <span>طريقة الدفع: ${getPaymentMethodLabel(payment_method)}</span>
-            <span>الحالة: ${getStatusLabel(payment_status)}</span>
-          </div>
         </div>
 
         ${notes ? `

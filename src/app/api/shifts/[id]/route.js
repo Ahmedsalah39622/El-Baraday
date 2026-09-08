@@ -1,5 +1,6 @@
 import { query, isSchemaChecked, markSchemaChecked } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { syncDailyTopProducts } from '@/lib/dailyTopProducts';
 
 export async function ensureShiftCols() {
   if (isSchemaChecked('shiftCols')) return;
@@ -45,25 +46,12 @@ export async function PUT(request, { params }) {
       [actual, expected, cashDifference, differenceType, cash_sales || 0, total_orders || 0, notes || '', id]
     );
 
-    // 3. Clean/delete orders and order_items for this branch from DB tables
+    // 3. Persist and snapshot daily top products permanently to daily_top_products in DB
     try {
-      if (shiftBranch && shiftBranch !== 'all') {
-        await query(
-          `DELETE FROM order_items WHERE order_id IN (
-            SELECT id FROM orders WHERE branch_id = $1
-          )`,
-          [shiftBranch]
-        );
-        await query(
-          `DELETE FROM orders WHERE branch_id = $1`,
-          [shiftBranch]
-        );
-      } else {
-        await query(`DELETE FROM order_items`);
-        await query(`DELETE FROM orders`);
-      }
+      const todayStr = new Date().toISOString().split('T')[0];
+      await syncDailyTopProducts(todayStr, shiftBranch);
     } catch (err) {
-      console.warn('⚠️ Order purge on shift close failed:', err.message);
+      console.warn('⚠️ Daily top products sync on shift close failed:', err.message);
     }
 
     const updatedShift = (result.rows && result.rows[0]) ? result.rows[0] : {

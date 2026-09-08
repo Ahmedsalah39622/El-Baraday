@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
-  Box, Typography, Tabs, Tab, TextField, Button,
+  Box, Typography, TextField, Button,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
   InputAdornment, Dialog, DialogTitle, DialogContent, DialogActions, Grid,
   Card, CardContent, Chip, IconButton, MenuItem, Select, FormControl, InputLabel,
-  Tooltip, Alert, CircularProgress, Divider, Stack, Autocomplete
+  Tooltip, Alert, CircularProgress, Divider, Stack, Autocomplete, Tabs, Tab
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -15,22 +15,17 @@ import {
   Receipt as ReceiptIcon,
   Delete as DeleteIcon,
   Edit as EditIcon,
-  Visibility as ViewIcon,
   WhatsApp as WhatsAppIcon,
   FilterAlt as FilterIcon,
-  AttachMoney as MoneyIcon,
-  AccountBalanceWallet as WalletIcon,
-  CheckCircle as CheckIcon,
-  Pending as PendingIcon,
-  Replay as ReturnIcon,
-  Refresh as RefreshIcon,
-  CalendarToday as CalendarIcon,
-  PictureAsPdf,
   Clear as ClearIcon,
   StickyNote2,
-  NoteAlt,
   Scale,
-  Send
+  CheckCircle as CheckIcon,
+  PictureAsPdf,
+  CalendarToday as CalendarIcon,
+  Layers as LayersIcon,
+  AttachMoney as MoneyIcon,
+  ShoppingBag as BagIcon
 } from '@mui/icons-material';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
@@ -40,506 +35,421 @@ import { useProductStore } from '@/store/useProductStore';
 import { printCustomInvoice } from '@/lib/printReceipt';
 import { generateReportPDF } from '@/lib/reportPdfExport';
 
-function TabPanel(props) {
-  const { children, value, index, ...other } = props;
-  return (
-    <div role="tabpanel" hidden={value !== index} {...other}>
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
-    </div>
-  );
-}
-
 export default function InvoicesPage() {
-  const [tabValue, setTabValue] = useState(0);
   const { 
-    invoices, 
     customInvoices, 
     loading, 
     fetchCustomInvoices, 
     addCustomInvoice, 
     updateCustomInvoice, 
-    deleteCustomInvoice,
-    fetchInvoices 
+    deleteCustomInvoice 
   } = useInvoiceStore();
   const { settings } = useSettingsStore();
   const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
-  const { user, canViewSafeBalance } = useAuthStore();
+  const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin' || !user?.role;
-  const canSeeSafe = isAdmin || (typeof canViewSafeBalance === 'function' ? canViewSafeBalance() : user?.permissions?.includes('show_safe_balance'));
   const effectiveBranch = (user && user.role !== 'admin' && user.branch_id) ? user.branch_id : selectedBranchId;
 
-  // Filters & State for Custom Invoices
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterDate, setFilterDate] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-
   const { products, fetchProducts } = useProductStore();
-  const [draftSearchQuery, setDraftSearchQuery] = useState('');
 
-  // New Invoice Modal Form State
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [editingInvoiceId, setEditingInvoiceId] = useState(null);
-  const [formData, setFormData] = useState({
-    title: 'فاتورة تحصيل',
+  // Search and date filters for drafts list
+  const [draftSearchQuery, setDraftSearchQuery] = useState('');
+  const [draftDateFilter, setDraftDateFilter] = useState('');
+
+  // Filters specifically for Aggregated Items Table
+  const [aggDatePreset, setAggDatePreset] = useState('all');
+  const [aggCustomDate, setAggCustomDate] = useState('');
+  const [aggSearchItem, setAggSearchItem] = useState('');
+
+  // Create / Edit Draft Modal State
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingDraftId, setEditingDraftId] = useState(null);
+  const [formError, setFormError] = useState('');
+
+  const initialForm = {
+    title: 'نوتة طلب',
     customer_name: '',
     customer_phone: '',
-    amount: '',
-    paid_amount: '',
-    remaining_amount: '0',
-    payment_status: 'paid',
-    payment_method: 'cash',
     invoice_date: new Date().toISOString().split('T')[0],
+    amount: '0',
+    paid_amount: '0',
+    remaining_amount: '0',
+    payment_status: 'draft',
+    payment_method: 'cash',
     notes: '',
     items: []
-  });
+  };
 
-  // Detailed Product Item State (اسم المنتج، كام كيلو، سعر الكيلو، الإجمالي)
+  const [formData, setFormData] = useState(initialForm);
+
+  // New item input state inside modal
   const [newItem, setNewItem] = useState({
     product_name: '',
-    kilos: '',
+    quantity: '1',
     price: '',
     total: ''
   });
-  const [formError, setFormError] = useState('');
 
   // Printable View Dialog State
   const [viewInvoice, setViewInvoice] = useState(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
 
-  // Return dialog state for POS tab
-  const [returnDialogOpen, setReturnDialogOpen] = useState(false);
-  const [selectedPosItem, setSelectedPosItem] = useState(null);
-  const [returnQty, setReturnQty] = useState(1);
-  const [returnReason, setReturnReason] = useState('');
-  const [posSearchQuery, setPosSearchQuery] = useState('');
-
   useEffect(() => {
     fetchCustomInvoices();
-    fetchInvoices(100, effectiveBranch || 'all');
     fetchProducts();
   }, [effectiveBranch, selectedBranchId, user]);
 
-  const handleTabChange = (event, newValue) => setTabValue(newValue);
+  // Notes and Drafts
+  const allDrafts = useMemo(() => {
+    return customInvoices.filter(inv => {
+      const isDraft = inv.payment_status === 'draft';
+      if (!isDraft) return false;
+      const matchBranch = !effectiveBranch || effectiveBranch === 'all' || inv.branch_id === effectiveBranch || inv.branchId === effectiveBranch;
+      return matchBranch;
+    });
+  }, [customInvoices, effectiveBranch]);
 
-  // Product Selection & Auto-Price
+  // Filtered Drafts for the cards grid
+  const filteredDrafts = useMemo(() => {
+    return allDrafts.filter(draft => {
+      if (draftDateFilter) {
+        const invDate = draft.invoice_date ? draft.invoice_date.split('T')[0] : '';
+        if (invDate !== draftDateFilter) return false;
+      }
+      if (draftSearchQuery.trim()) {
+        const q = draftSearchQuery.toLowerCase().trim();
+        const matchCustomer = draft.customer_name?.toLowerCase().includes(q);
+        const matchPhone = draft.customer_phone?.includes(q);
+        const matchNotes = draft.notes?.toLowerCase().includes(q);
+        const matchItems = Array.isArray(draft.items) && draft.items.some(it => 
+          (it.product_name && it.product_name.toLowerCase().includes(q)) ||
+          (it.description && it.description.toLowerCase().includes(q))
+        );
+        if (!matchCustomer && !matchPhone && !matchNotes && !matchItems) return false;
+      }
+      return true;
+    });
+  }, [allDrafts, draftDateFilter, draftSearchQuery]);
+
+  // ========================================================
+  // AGGREGATED ITEMS TABLE DATA & FILTERING
+  // ========================================================
+  const aggregatedItemsData = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // 1. Filter drafts according to agg table filters
+    const eligibleDrafts = allDrafts.filter(draft => {
+      const invDate = draft.invoice_date ? draft.invoice_date.split('T')[0] : '';
+      if (!invDate) return aggDatePreset === 'all';
+
+      if (aggDatePreset === 'today') {
+        return invDate === todayStr;
+      } else if (aggDatePreset === 'yesterday') {
+        const y = new Date();
+        y.setDate(y.getDate() - 1);
+        return invDate === y.toISOString().split('T')[0];
+      } else if (aggDatePreset === 'week') {
+        const d = new Date();
+        d.setDate(d.getDate() - 7);
+        return invDate >= d.toISOString().split('T')[0];
+      } else if (aggDatePreset === 'month') {
+        const d = new Date();
+        d.setDate(1);
+        return invDate >= d.toISOString().split('T')[0];
+      } else if (aggDatePreset === 'custom' && aggCustomDate) {
+        return invDate === aggCustomDate;
+      }
+      return true;
+    });
+
+    // 2. Aggregate items across all eligible drafts
+    const map = {};
+    eligibleDrafts.forEach(draft => {
+      const items = Array.isArray(draft.items) ? draft.items : [];
+      items.forEach(it => {
+        const rawName = (it.product_name || it.description || '').trim();
+        if (!rawName) return;
+
+        if (aggSearchItem.trim() && !rawName.toLowerCase().includes(aggSearchItem.toLowerCase().trim())) {
+          return;
+        }
+
+        const qty = parseFloat(it.kilos || it.quantity || it.qty || 1);
+        const price = parseFloat(it.price || 0);
+        const total = parseFloat(it.total || (qty * price));
+        const unit = it.kilos ? 'كجم' : 'عدد';
+
+        if (!map[rawName]) {
+          map[rawName] = {
+            name: rawName,
+            totalQty: 0,
+            unit: unit,
+            totalAmount: 0,
+            notesCount: 0,
+            draftIds: new Set()
+          };
+        }
+
+        map[rawName].totalQty += qty;
+        map[rawName].totalAmount += total;
+        map[rawName].draftIds.add(draft.id);
+      });
+    });
+
+    return Object.values(map).map(row => ({
+      ...row,
+      notesCount: row.draftIds.size,
+      avgPrice: row.totalQty > 0 ? (row.totalAmount / row.totalQty) : 0
+    })).sort((a, b) => b.totalQty - a.totalQty);
+
+  }, [allDrafts, aggDatePreset, aggCustomDate, aggSearchItem]);
+
+  // Aggregated Table Totals
+  const aggGrandTotalQty = aggregatedItemsData.reduce((s, r) => s + r.totalQty, 0);
+  const aggGrandTotalAmount = aggregatedItemsData.reduce((s, r) => s + r.totalAmount, 0);
+
+  // Stats KPI cards for Drafts
+  const totalDraftsCount = allDrafts.length;
+  const totalDraftsAmount = allDrafts.reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayDraftsCount = allDrafts.filter(d => d.invoice_date && d.invoice_date.startsWith(todayStr)).length;
+  const todayDraftsAmount = allDrafts
+    .filter(d => d.invoice_date && d.invoice_date.startsWith(todayStr))
+    .reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
+
+  // ========================================================
+  // MODAL HANDLERS (ADD / EDIT DRAFT)
+  // ========================================================
+  const handleOpenCreateModal = (draftToEdit = null) => {
+    setFormError('');
+    setNewItem({ product_name: '', quantity: '1', price: '', total: '' });
+
+    if (draftToEdit) {
+      setEditingDraftId(draftToEdit.id);
+      setFormData({
+        title: draftToEdit.title || 'مسودة / نوتة',
+        customer_name: draftToEdit.customer_name || '',
+        customer_phone: draftToEdit.customer_phone || '',
+        invoice_date: draftToEdit.invoice_date ? draftToEdit.invoice_date.split('T')[0] : todayStr,
+        amount: draftToEdit.amount ? draftToEdit.amount.toString() : '0',
+        paid_amount: '0',
+        remaining_amount: draftToEdit.amount ? draftToEdit.amount.toString() : '0',
+        payment_status: 'draft',
+        payment_method: draftToEdit.payment_method || 'cash',
+        notes: draftToEdit.notes || '',
+        items: Array.isArray(draftToEdit.items) ? draftToEdit.items : []
+      });
+    } else {
+      setEditingDraftId(null);
+      setFormData({
+        ...initialForm,
+        invoice_date: todayStr
+      });
+    }
+    setDialogOpen(true);
+  };
+
+  // Product selection / typing
   const handleProductSelect = (val) => {
     const prodName = typeof val === 'string' ? val : (val?.name || '');
     const found = (products || []).find(p => p.name === prodName);
-    const unitPrice = found && found.price ? found.price.toString() : newItem.price;
-    const kilosNum = parseFloat(newItem.kilos) || 0;
-    const priceNum = parseFloat(unitPrice) || 0;
-    const totalVal = (kilosNum > 0 && priceNum > 0) ? (kilosNum * priceNum).toFixed(2) : '';
+    const unitPrice = (found && found.price) ? found.price.toString() : newItem.price;
+    const qNum = parseFloat(newItem.quantity) || 1;
+    const pNum = parseFloat(unitPrice) || 0;
+    const tot = (qNum > 0 && pNum > 0) ? (qNum * pNum).toFixed(2) : '';
 
     setNewItem(prev => ({
       ...prev,
       product_name: prodName,
       price: unitPrice,
-      total: totalVal
+      total: tot
     }));
   };
 
-  const handleKilosChange = (kilosVal) => {
-    const kilosNum = parseFloat(kilosVal) || 0;
-    const priceNum = parseFloat(newItem.price) || 0;
-    const totalVal = (kilosNum > 0 && priceNum > 0) ? (kilosNum * priceNum).toFixed(2) : '';
-    setNewItem(prev => ({
-      ...prev,
-      kilos: kilosVal,
-      total: totalVal
-    }));
+  const handleItemQuantityChange = (val) => {
+    const qNum = parseFloat(val) || 0;
+    const pNum = parseFloat(newItem.price) || 0;
+    const tot = (qNum > 0 && pNum > 0) ? (qNum * pNum).toFixed(2) : '';
+    setNewItem(prev => ({ ...prev, quantity: val, total: tot }));
   };
 
-  const handleItemPriceChange = (priceVal) => {
-    const priceNum = parseFloat(priceVal) || 0;
-    const kilosNum = parseFloat(newItem.kilos) || 0;
-    const totalVal = (kilosNum > 0 && priceNum > 0) ? (kilosNum * priceNum).toFixed(2) : '';
-    setNewItem(prev => ({
-      ...prev,
-      price: priceVal,
-      total: totalVal
-    }));
+  const handleItemPriceChange = (val) => {
+    const pNum = parseFloat(val) || 0;
+    const qNum = parseFloat(newItem.quantity) || 0;
+    const tot = (qNum > 0 && pNum > 0) ? (qNum * pNum).toFixed(2) : '';
+    setNewItem(prev => ({ ...prev, price: val, total: tot }));
   };
 
-  // Auto calculate remaining when amount or paid_amount changes
-  const handleAmountChange = (val, field) => {
-    const updated = { ...formData, [field]: val };
-    const amount = parseFloat(field === 'amount' ? val : updated.amount) || 0;
-    const paid = parseFloat(field === 'paid_amount' ? val : updated.paid_amount) || 0;
-    
-    if (field === 'amount' && formData.paid_amount === '') {
-      updated.paid_amount = val;
-      updated.remaining_amount = '0';
-      updated.payment_status = formData.payment_status === 'draft' ? 'draft' : 'paid';
-    } else {
-      const rem = Math.max(0, amount - paid);
-      updated.remaining_amount = rem.toString();
-      if (formData.payment_status !== 'draft') {
-        if (rem === 0 && amount > 0) updated.payment_status = 'paid';
-        else if (paid > 0 && rem > 0) updated.payment_status = 'partial';
-        else if (paid === 0 && amount > 0) updated.payment_status = 'unpaid';
-      }
-    }
-
-    setFormData(updated);
-  };
-
-  const handleAddItemToInvoice = () => {
+  // Add Item to Draft (DOES NOT touch products or inventory!)
+  const handleAddItemToDraft = () => {
     const prodName = (newItem.product_name || '').trim();
     if (!prodName) return;
 
-    const kilosVal = parseFloat(newItem.kilos) || 1;
-    const itemPrice = parseFloat(newItem.price) || 0;
-    const itemTotal = parseFloat(newItem.total) || (kilosVal * itemPrice);
+    const qtyVal = parseFloat(newItem.quantity) || 1;
+    const priceVal = parseFloat(newItem.price) || 0;
+    const totalVal = parseFloat(newItem.total) || (qtyVal * priceVal);
 
-    const items = [...formData.items, {
-      product_name: prodName,
-      description: `${prodName} (${kilosVal} كجم)`,
-      kilos: kilosVal,
-      qty: kilosVal,
-      price: itemPrice,
-      total: itemTotal
-    }];
+    const updatedItems = [
+      ...formData.items,
+      {
+        product_name: prodName,
+        description: prodName,
+        quantity: qtyVal,
+        kilos: qtyVal,
+        qty: qtyVal,
+        price: priceVal,
+        total: totalVal
+      }
+    ];
 
-    const sum = items.reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0);
-    const isDraft = formData.payment_status === 'draft';
+    const sum = updatedItems.reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0);
 
     setFormData({
       ...formData,
-      items,
+      items: updatedItems,
       amount: sum.toString(),
-      paid_amount: isDraft ? '0' : sum.toString(),
-      remaining_amount: isDraft ? sum.toString() : '0',
-      payment_status: isDraft ? 'draft' : 'paid'
+      remaining_amount: sum.toString()
     });
 
-    setNewItem({ product_name: '', kilos: '', price: '', total: '' });
+    setNewItem({ product_name: '', quantity: '1', price: '', total: '' });
   };
 
-  const handleRemoveItemFromInvoice = (index) => {
-    const items = formData.items.filter((_, i) => i !== index);
-    const sum = items.reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0);
-    const isDraft = formData.payment_status === 'draft';
+  const handleRemoveItem = (index) => {
+    const updatedItems = formData.items.filter((_, i) => i !== index);
+    const sum = updatedItems.reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0);
     setFormData({
       ...formData,
-      items,
-      amount: sum > 0 ? sum.toString() : (formData.amount || '0'),
-      paid_amount: isDraft ? '0' : (sum > 0 ? sum.toString() : formData.paid_amount),
-      remaining_amount: isDraft ? (sum > 0 ? sum.toString() : '0') : formData.remaining_amount
+      items: updatedItems,
+      amount: sum.toString(),
+      remaining_amount: sum.toString()
     });
   };
 
-  const handleOpenCreateModal = (inv = null, isDraft = false) => {
-    setFormError('');
-    setNewItem({ product_name: '', kilos: '', price: '', total: '' });
-    if (inv) {
-      setEditingInvoiceId(inv.id);
-      setFormData({
-        title: inv.title || (inv.payment_status === 'draft' ? 'مسودة / نوتة' : 'فاتورة تحصيل'),
-        customer_name: inv.customer_name || '',
-        customer_phone: inv.customer_phone || '',
-        amount: inv.amount ? inv.amount.toString() : '',
-        paid_amount: inv.paid_amount ? inv.paid_amount.toString() : '',
-        remaining_amount: inv.remaining_amount ? inv.remaining_amount.toString() : '0',
-        payment_status: inv.payment_status || (isDraft ? 'draft' : 'paid'),
-        payment_method: inv.payment_method || 'cash',
-        invoice_date: inv.invoice_date ? inv.invoice_date.split('T')[0] : new Date().toISOString().split('T')[0],
-        notes: inv.notes || '',
-        items: Array.isArray(inv.items) ? inv.items : []
-      });
-    } else {
-      setEditingInvoiceId(null);
-      setFormData({
-        title: isDraft ? 'مسودة / نوتة' : 'فاتورة تحصيل',
-        customer_name: '',
-        customer_phone: '',
-        amount: '',
-        paid_amount: '',
-        remaining_amount: '0',
-        payment_status: isDraft ? 'draft' : 'paid',
-        payment_method: 'cash',
-        invoice_date: new Date().toISOString().split('T')[0],
-        notes: '',
-        items: []
-      });
-    }
-    setCreateDialogOpen(true);
-  };
-
-  const handleSaveInvoice = async (isDraft = false) => {
+  // Save draft directly to DB (via /api/invoices with payment_status: 'draft')
+  const handleSaveDraft = async () => {
     if (!formData.customer_name.trim()) {
-      setFormError(isDraft ? 'الرجاء إدخال اسم العميل أو عنوان المسودة' : 'الرجاء إدخال اسم العميل أو الجهة (باسم كذا)');
-      return;
-    }
-    const finalAmount = parseFloat(formData.amount) || 0;
-    if (!isDraft && finalAmount <= 0) {
-      setFormError('الرجاء إدخال مبلغ التحصيل أو إضافة منتجات');
+      setFormError('الرجاء إدخال اسم العميل أو عنوان المسودة');
       return;
     }
 
+    const finalAmount = parseFloat(formData.amount) || 0;
     const payload = {
       ...formData,
       amount: finalAmount.toString(),
-      payment_status: isDraft ? 'draft' : (formData.payment_status === 'draft' ? 'paid' : formData.payment_status),
-      title: isDraft ? (formData.title && formData.title !== 'فاتورة تحصيل' ? formData.title : 'مسودة / نوتة') : (formData.title || 'فاتورة تحصيل'),
-      paid_amount: isDraft ? '0' : (formData.paid_amount || finalAmount.toString()),
-      remaining_amount: isDraft ? finalAmount.toString() : (formData.remaining_amount || '0')
+      paid_amount: '0',
+      remaining_amount: finalAmount.toString(),
+      payment_status: 'draft',
+      branch_id: effectiveBranch && effectiveBranch !== 'all' ? effectiveBranch : 'b1'
     };
 
-    if (editingInvoiceId) {
-      const res = await updateCustomInvoice(editingInvoiceId, payload);
+    if (editingDraftId) {
+      const res = await updateCustomInvoice(editingDraftId, payload);
       if (res.success) {
-        setCreateDialogOpen(false);
-        if (isDraft) setTabValue(3);
+        setDialogOpen(false);
       } else {
-        setFormError(res.error || 'حدث خطأ أثناء تعديل المسودة/الفاتورة');
+        setFormError(res.error || 'حدث خطأ أثناء تعديل المسودة');
       }
     } else {
       const res = await addCustomInvoice(payload);
       if (res.success) {
-        setCreateDialogOpen(false);
-        if (isDraft) setTabValue(3);
+        setDialogOpen(false);
       } else {
-        setFormError(res.error || 'حدث خطأ أثناء إضافة المسودة/الفاتورة');
+        setFormError(res.error || 'حدث خطأ أثناء إضافة المسودة');
       }
     }
   };
 
-  const handleConvertDraftToInvoice = (draft) => {
-    setFormError('');
-    setEditingInvoiceId(draft.id);
-    setFormData({
-      title: 'فاتورة تحصيل',
-      customer_name: draft.customer_name || '',
-      customer_phone: draft.customer_phone || '',
-      amount: draft.amount ? draft.amount.toString() : '',
-      paid_amount: draft.amount ? draft.amount.toString() : '',
-      remaining_amount: '0',
-      payment_status: 'paid',
-      payment_method: draft.payment_method && draft.payment_method !== 'draft' ? draft.payment_method : 'cash',
-      invoice_date: new Date().toISOString().split('T')[0],
-      notes: draft.notes || '',
-      items: Array.isArray(draft.items) ? draft.items : []
-    });
-    setCreateDialogOpen(true);
-  };
-
-  const handleDeleteInvoice = async (id) => {
-    if (confirm('هل أنت متأكد من رغبتك في حذف هذا العنصر؟')) {
+  const handleDeleteDraft = async (id) => {
+    if (confirm('هل أنت متأكد من رغبتك في حذف هذه المسودة من قاعدة البيانات؟')) {
       await deleteCustomInvoice(id);
     }
   };
 
-  const handleViewInvoiceDetails = (inv) => {
-    setViewInvoice(inv);
-    setViewDialogOpen(true);
-  };
-
-  const handlePrint = (invToPrint = null) => {
-    const target = invToPrint || viewInvoice;
-    if (target) {
-      printCustomInvoice(target, settings);
-    }
+  const handlePrint = (draft) => {
+    printCustomInvoice(draft, settings, true);
   };
 
   const getWhatsAppShareUrl = (inv) => {
-    const isDraft = inv.payment_status === 'draft';
     let itemsText = '';
     if (Array.isArray(inv.items) && inv.items.length > 0) {
-      itemsText = '\n📦 *الأصناف والكميات:*\n' + inv.items.map(it => `• ${it.product_name || it.description} - ${it.kilos ? `${it.kilos} كجم` : `${it.qty} عدد`} (${it.total || ((it.price || 0) * (it.kilos || it.qty || 1))} ج.م)`).join('\n');
+      itemsText = '\n📦 *الأصناف والكميات:*\n' + inv.items.map(it => `• ${it.product_name || it.description} - ${it.kilos || it.quantity || it.qty} (${it.total || ((it.price || 0) * (it.kilos || it.qty || 1))} ج.م)`).join('\n');
     }
-    const text = isDraft 
-      ? `📝 *مسودة طلب / نوتة - مطعم البرادعي*\n👤 *الاسم:* ${inv.customer_name}\n📅 *التاريخ:* ${inv.invoice_date?.split('T')[0]}${itemsText}\n💰 *المبلغ التقديري:* ${inv.amount} ج.م${inv.notes ? `\n💬 *ملاحظات:* ${inv.notes}` : ''}`
-      : `🧾 *مطعم البرادعي للحواوشي*\n📌 *فاتورة رقم:* ${inv.invoice_number}\n👤 *الاسم:* ${inv.customer_name}\n📅 *التاريخ:* ${inv.invoice_date?.split('T')[0]}${itemsText}\n💰 *مبلغ التحصيل:* ${inv.amount} ج.م\n✅ *المدفوع:* ${inv.paid_amount} ج.م\n🔻 *المتبقي:* ${inv.remaining_amount} ج.م${inv.notes ? `\n💬 *ملاحظات:* ${inv.notes}` : ''}`;
+    const text = `📝 *مسودة طلب / نوتة - مطعم البرادعي*\n👤 *الاسم:* ${inv.customer_name}\n📅 *التاريخ:* ${inv.invoice_date?.split('T')[0]}${itemsText}\n💰 *المبلغ التقديري:* ${inv.amount} ج.م${inv.notes ? `\n💬 *ملاحظات:* ${inv.notes}` : ''}`;
     return `https://wa.me/${inv.customer_phone ? '2' + inv.customer_phone.replace(/\D/g, '') : ''}?text=${encodeURIComponent(text)}`;
   };
 
-  // Official custom invoices (excluding drafts)
-  const officialCustomInvoices = useMemo(() => {
-    return customInvoices.filter(inv => inv.payment_status !== 'draft');
-  }, [customInvoices]);
-
-  // Draft invoices (Notes)
-  const draftCustomInvoices = useMemo(() => {
-    return customInvoices.filter(inv => inv.payment_status === 'draft');
-  }, [customInvoices]);
-
-  // Filtered Official Invoices
-  const filteredCustomInvoices = useMemo(() => {
-    return officialCustomInvoices.filter((inv) => {
-      const matchesSearch = 
-        !searchQuery ||
-        inv.customer_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        inv.invoice_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        inv.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        inv.customer_phone?.includes(searchQuery) ||
-        (Array.isArray(inv.items) && inv.items.some(it => 
-          (it.product_name && it.product_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-          (it.description && it.description.toLowerCase().includes(searchQuery.toLowerCase()))
-        ));
-
-      const matchesDate = !filterDate || inv.invoice_date?.startsWith(filterDate);
-      const matchesStatus = filterStatus === 'all' || inv.payment_status === filterStatus;
-
-      return matchesSearch && matchesDate && matchesStatus;
-    });
-  }, [officialCustomInvoices, searchQuery, filterDate, filterStatus]);
-
-  // Filtered Draft Invoices (Notes)
-  const filteredDraftInvoices = useMemo(() => {
-    return draftCustomInvoices.filter((d) => {
-      if (!draftSearchQuery.trim()) return true;
-      const q = draftSearchQuery.toLowerCase().trim();
-      return (
-        d.customer_name?.toLowerCase().includes(q) ||
-        d.customer_phone?.includes(q) ||
-        d.notes?.toLowerCase().includes(q) ||
-        (Array.isArray(d.items) && d.items.some(it => 
-          (it.product_name && it.product_name.toLowerCase().includes(q)) ||
-          (it.description && it.description.toLowerCase().includes(q))
-        ))
-      );
-    });
-  }, [draftCustomInvoices, draftSearchQuery]);
-
-  // Calculate Statistics (Only for official invoices)
-  const totalInvoicesCount = officialCustomInvoices.length;
-  const totalAmountSum = officialCustomInvoices.reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
-  const totalPaidSum = officialCustomInvoices.reduce((acc, curr) => acc + (parseFloat(curr.paid_amount) || 0), 0);
-  const totalRemainingSum = officialCustomInvoices.reduce((acc, curr) => acc + (parseFloat(curr.remaining_amount) || 0), 0);
-  
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todayCollectedSum = officialCustomInvoices
-    .filter(inv => inv.invoice_date && inv.invoice_date.startsWith(todayStr))
-    .reduce((acc, curr) => acc + (parseFloat(curr.paid_amount) || 0), 0);
-
-  const getStatusChip = (status) => {
-    switch (status) {
-      case 'paid':
-        return <Chip label="محصل بالكامل" color="success" size="small" sx={{ fontWeight: 'bold' }} />;
-      case 'partial':
-        return <Chip label="تحصيل جزئي" color="warning" size="small" sx={{ fontWeight: 'bold' }} />;
-      case 'unpaid':
-        return <Chip label="غير محصل" color="error" size="small" sx={{ fontWeight: 'bold' }} />;
-      case 'draft':
-        return <Chip label="مسودة 📝" sx={{ bgcolor: '#FEF3C7', color: '#B45309', fontWeight: 'bold' }} size="small" />;
-      default:
-        return <Chip label="مكتمل" color="default" size="small" />;
-    }
-  };
-
-  const getPaymentMethodLabel = (method) => {
-    switch (method) {
-      case 'cash': return '💵 كاش';
-      case 'instapay': return '⚡ إنستا باي';
-      case 'vodafone_cash': return '📱 فودافون كاش';
-      case 'card':
-      case 'visa': return '💳 شبكة / فيزا';
-      case 'transfer': return '🏦 تحويل بنكي';
-      default: return method || 'كاش';
-    }
-  };
-
-  const handlePrintInvoicesReport = () => {
-    const dataToPrint = filteredCustomInvoices;
-    
-    const stats = [
-      { title: 'إجمالي الفواتير', value: `${totalAmountSum.toLocaleString()} ج.م (${totalInvoicesCount})` },
-      { title: 'تحصيل اليوم', value: `${todayCollectedSum.toLocaleString()} ج.م` },
-      { title: 'إجمالي المحصل', value: `${totalPaidSum.toLocaleString()} ج.م` },
-      { title: 'المتبقي / الآجل', value: `${totalRemainingSum.toLocaleString()} ج.م` },
-    ];
-
+  // Export Aggregated Items Table as PDF
+  const handlePrintAggregatedReport = () => {
     const columns = [
       { label: '#', accessor: (_, idx) => idx + 1 },
-      { label: 'رقم الفاتورة', accessor: 'invoice_number' },
-      { label: 'العميل / الجهة (باسم كذا)', accessor: 'customer_name' },
-      { label: 'البيان', accessor: 'title' },
-      { label: 'التاريخ (يوم كذا)', accessor: (r) => r.invoice_date?.split('T')[0] || '' },
-      { label: 'التحصيل الإجمالي', accessor: (r) => `${parseFloat(r.amount || 0).toLocaleString()} ج.م` },
-      { label: 'المحصل', accessor: (r) => `${parseFloat(r.paid_amount || 0).toLocaleString()} ج.م` },
-      { label: 'المتبقي', accessor: (r) => `${parseFloat(r.remaining_amount || 0).toLocaleString()} ج.م` },
-      { label: 'طريقة الدفع', accessor: (r) => getPaymentMethodLabel(r.payment_method) },
-      { label: 'الحالة', accessor: (r) => (r.payment_status === 'paid' ? 'محصل بالكامل' : r.payment_status === 'partial' ? 'تحصيل جزئي' : 'غير محصل') },
+      { label: 'اسم الصنف', accessor: 'name' },
+      { label: 'إجمالي الكمية / العدد', accessor: (r) => `${r.totalQty} ${r.unit}` },
+      { label: 'عدد المسودات المسجل بها', accessor: (r) => `${r.notesCount} مسودة` },
+      { label: 'متوسط السعر', accessor: (r) => `${r.avgPrice.toFixed(2)} ج.م` },
+      { label: 'إجمالي المبلغ التقديري', accessor: (r) => `${r.totalAmount.toLocaleString()} ج.م` }
+    ];
+
+    const stats = [
+      { title: 'إجمالي الأصناف المختلفة', value: `${aggregatedItemsData.length} صنف` },
+      { title: 'إجمالي الكميات المطلوبة', value: `${aggGrandTotalQty} كجم/قطعة` },
+      { title: 'إجمالي المبالغ التقديرية', value: `${aggGrandTotalAmount.toLocaleString()} ج.م` },
+      { title: 'الفترة الزمنية', value: aggDatePreset === 'today' ? 'اليوم' : aggDatePreset === 'yesterday' ? 'أمس' : aggDatePreset === 'all' ? 'كافة الفترات' : aggCustomDate || 'مخصصة' }
     ];
 
     const totals = {
       0: '',
       1: 'الإجمالي الكلي',
-      2: '',
+      2: `${aggGrandTotalQty}`,
       3: '',
       4: '',
-      5: `${totalAmountSum.toLocaleString()} ج.م`,
-      6: `${totalPaidSum.toLocaleString()} ج.م`,
-      7: `${totalRemainingSum.toLocaleString()} ج.م`,
-      8: '',
-      9: ''
+      5: `${aggGrandTotalAmount.toLocaleString()} ج.م`
     };
 
     generateReportPDF({
-      title: 'تقرير الفواتير والتحصيل المالي',
+      title: 'تقرير إجمالي الأصناف والكميات المطلوبة في المسودات',
       subtitle: 'مطعم البرادعي للحواوشي',
-      branchName: 'الفرع الرئيسي',
-      dateRangeStr: filterDate ? `يوم ${filterDate}` : 'كافة الفترات',
+      branchName: effectiveBranch === 'b2' ? 'فرع المسلة' : 'فرع عزت',
+      dateRangeStr: aggDatePreset === 'today' ? `يوم ${todayStr}` : 'كافة الفترات',
       stats,
       columns,
-      data: dataToPrint,
+      data: aggregatedItemsData,
       totals
     });
   };
 
-  // Listen for Ctrl+P / Cmd+P shortcut to trigger clean isolated iframe printing
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
-        e.preventDefault();
-        if (viewInvoice) {
-          printCustomInvoice(viewInvoice, settings);
-        } else {
-          handlePrintInvoicesReport();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [viewInvoice, filteredCustomInvoices, settings]);
-
   return (
-    <Box sx={{ p: { xs: 1.5, md: 3 }, height: '100%', overflowY: 'auto', pb: 8 }}>
+    <Box sx={{ p: { xs: 1.5, md: 3 }, height: '100%', overflowY: 'auto', pb: 10 }}>
 
       {/* Main Page Header */}
       <Box className="no-print" sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 2, mb: 3 }}>
         <Box>
-          <Typography variant="h4" fontWeight="900" sx={{ color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1 }}>
-            <ReceiptIcon sx={{ fontSize: 36 }} />
-            الفواتير والتحصيل المالي
+          <Typography variant="h4" fontWeight="900" sx={{ color: '#d97706', display: 'flex', alignItems: 'center', gap: 1 }}>
+            <StickyNote2 sx={{ fontSize: 38, color: '#d97706' }} />
+            مسودات ونوتات الطلبات (Notes)
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            إنشاء وإدارة فواتير التحصيل لأي جهة أو عميل، مع إمكانية عرض الفواتير وطباعتها وتصفيتها.
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            تسجيل وإدارة طلبات العملاء وحساب الكيلوهات والأسعار بحرية وسهولة، مع حصر إجمالي للأصناف المطلوبة.
           </Typography>
         </Box>
+
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Branch Switch Control (Admin Only) */}
           {isAdmin && (
-            <Paper elevation={0} sx={{ borderRadius: '14px', p: 0.5, bgcolor: '#F1F5F9', border: '1px solid #E2E8F0' }}>
+            <Paper elevation={0} sx={{ borderRadius: '12px', p: 0.5, bgcolor: '#F1F5F9', border: '1px solid #E2E8F0' }}>
               <Tabs
                 value={selectedBranchId || 'all'}
                 onChange={(e, val) => setSelectedBranchId(val)}
                 sx={{
-                  minHeight: 38,
+                  minHeight: 36,
                   '& .MuiTab-root': {
-                    minHeight: 38,
+                    minHeight: 36,
                     fontWeight: 800,
-                    fontSize: '0.88rem',
-                    borderRadius: '10px',
+                    fontSize: '0.85rem',
+                    borderRadius: '8px',
                     mx: 0.2,
-                    px: 2,
+                    px: 1.8,
                     color: '#64748B',
-                    transition: 'all 0.2s ease',
-                    '&.Mui-selected': {
-                      bgcolor: '#FFFFFF',
-                      color: '#0F172A',
-                      boxShadow: '0 2px 6px rgba(0,0,0,0.08)'
-                    }
+                    '&.Mui-selected': { bgcolor: '#FFFFFF', color: '#0F172A', boxShadow: '0 2px 6px rgba(0,0,0,0.08)' }
                   },
                   '& .MuiTabs-indicator': { display: 'none' }
                 }}
@@ -551,42 +461,7 @@ export default function InvoicesPage() {
             </Paper>
           )}
 
-          <Button
-            variant="outlined"
-            size="large"
-            startIcon={<PictureAsPdf />}
-            onClick={handlePrintInvoicesReport}
-            sx={{
-              borderRadius: '12px',
-              px: 2.5,
-              py: 1.2,
-              fontWeight: 'bold',
-              borderColor: '#0F172A',
-              color: '#0F172A',
-              '&:hover': { bgcolor: '#F1F5F9', borderColor: '#0F172A' }
-            }}
-          >
-            طباعة تقرير الفواتير (ERP A4)
-          </Button>
-
-          <Button
-            variant="contained"
-            size="large"
-            startIcon={<StickyNote2 />}
-            onClick={() => handleOpenCreateModal(null, true)}
-            sx={{
-              borderRadius: '12px',
-              px: 2.5,
-              py: 1.2,
-              fontWeight: 'bold',
-              bgcolor: '#d97706',
-              '&:hover': { bgcolor: '#b45309' },
-              boxShadow: '0 8px 20px rgba(217, 119, 6, 0.25)'
-            }}
-          >
-            + مسودة / نوتة جديدة 📝
-          </Button>
-
+          {/* Primary Action Button */}
           <Button
             variant="contained"
             size="large"
@@ -596,58 +471,37 @@ export default function InvoicesPage() {
               borderRadius: '12px',
               px: 3,
               py: 1.2,
-              fontWeight: 'bold',
-              boxShadow: '0 8px 20px rgba(66, 133, 244, 0.3)',
-              background: 'linear-gradient(135deg, #4285F4 0%, #1967D2 100%)'
+              fontWeight: 900,
+              fontSize: '1rem',
+              bgcolor: '#d97706',
+              '&:hover': { bgcolor: '#b45309' },
+              boxShadow: '0 8px 20px rgba(217, 119, 6, 0.3)'
             }}
           >
-            عمل فاتورة جديدة
+            + إضافة نوتة جديدة 📝
           </Button>
         </Stack>
       </Box>
 
-      {/* Stats KPI Cards */}
+      {/* KPI Cards for Drafts */}
       <Grid container spacing={2} sx={{ mb: 3 }} className="no-print">
         <Grid xs={12} sm={6} md={3}>
-          <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.06)', borderRight: '4px solid #4285F4' }}>
+          <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #d97706', bgcolor: '#fffdf8' }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box>
                   <Typography variant="caption" color="text.secondary" fontWeight="700">
-                    إجمالي الفواتير
+                    إجمالي المسودات المسجلة
                   </Typography>
-                  <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5 }}>
-                    {totalAmountSum.toLocaleString()} ج.م
-                  </Typography>
-                  <Typography variant="caption" color="primary.main" fontWeight="bold">
-                    {totalInvoicesCount} فاتورة مسجلة
-                  </Typography>
-                </Box>
-                <Box sx={{ width: 48, height: 48, borderRadius: '12px', bgcolor: 'rgba(66,133,244,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <ReceiptIcon color="primary" sx={{ fontSize: 28 }} />
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid xs={12} sm={6} md={3}>
-          <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.06)', borderRight: '4px solid #2E7D32' }}>
-            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary" fontWeight="700">
-                    تحصيل اليوم
-                  </Typography>
-                  <Typography variant="h5" fontWeight="900" color="success.main" sx={{ mt: 0.5 }}>
-                    {canSeeSafe ? `${todayCollectedSum.toLocaleString()} ج.م` : '🔒 مخفي'}
+                  <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5, color: '#92400e' }}>
+                    {totalDraftsCount} مسودة
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    تاريخ اليوم: {todayStr}
+                    محفوظة بالداتابيز للرجوع إليها
                   </Typography>
                 </Box>
-                <Box sx={{ width: 48, height: 48, borderRadius: '12px', bgcolor: 'rgba(46,125,50,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <MoneyIcon color="success" sx={{ fontSize: 28 }} />
+                <Box sx={{ width: 46, height: 46, borderRadius: '12px', bgcolor: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <StickyNote2 sx={{ color: '#d97706', fontSize: 26 }} />
                 </Box>
               </Box>
             </CardContent>
@@ -655,22 +509,22 @@ export default function InvoicesPage() {
         </Grid>
 
         <Grid xs={12} sm={6} md={3}>
-          <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.06)', borderRight: '4px solid #1565C0' }}>
+          <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #16a34a', bgcolor: '#f8fdf9' }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box>
                   <Typography variant="caption" color="text.secondary" fontWeight="700">
-                    إجمالي المحصّل
+                    إجمالي المبالغ التقديرية
                   </Typography>
-                  <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5, color: '#1565C0' }}>
-                    {canSeeSafe ? `${totalPaidSum.toLocaleString()} ج.م` : '🔒 مخفي'}
+                  <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5, color: '#15803d' }}>
+                    {totalDraftsAmount.toLocaleString()} ج.م
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    المبالغ المستلمة بالخزنة
+                    قيمة كافة الطلبات بالمسودات
                   </Typography>
                 </Box>
-                <Box sx={{ width: 48, height: 48, borderRadius: '12px', bgcolor: 'rgba(21,101,192,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <CheckIcon sx={{ color: '#1565C0', fontSize: 28 }} />
+                <Box sx={{ width: 46, height: 46, borderRadius: '12px', bgcolor: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <MoneyIcon sx={{ color: '#16a34a', fontSize: 26 }} />
                 </Box>
               </Box>
             </CardContent>
@@ -678,22 +532,45 @@ export default function InvoicesPage() {
         </Grid>
 
         <Grid xs={12} sm={6} md={3}>
-          <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.06)', borderRight: '4px solid #D32F2F' }}>
+          <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #2563eb', bgcolor: '#f8faff' }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box>
                   <Typography variant="caption" color="text.secondary" fontWeight="700">
-                    المتبقي / الآجل
+                    أصناف النوتات المطلوبة
                   </Typography>
-                  <Typography variant="h5" fontWeight="900" color="error.main" sx={{ mt: 0.5 }}>
-                    {canSeeSafe ? `${totalRemainingSum.toLocaleString()} ج.م` : '🔒 مخفي'}
+                  <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5, color: '#1d4ed8' }}>
+                    {aggregatedItemsData.length} صنف مختلف
                   </Typography>
-                  <Typography variant="caption" color="error.main" fontWeight="bold">
-                    مبالغ متبقية للتحصيل
+                  <Typography variant="caption" color="text.secondary">
+                    إجمالي كميات: {aggGrandTotalQty} كجم/قطعة
                   </Typography>
                 </Box>
-                <Box sx={{ width: 48, height: 48, borderRadius: '12px', bgcolor: 'rgba(211,47,47,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <PendingIcon color="error" sx={{ fontSize: 28 }} />
+                <Box sx={{ width: 46, height: 46, borderRadius: '12px', bgcolor: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <BagIcon sx={{ color: '#2563eb', fontSize: 26 }} />
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid xs={12} sm={6} md={3}>
+          <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #7c3aed', bgcolor: '#faf5ff' }}>
+            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" fontWeight="700">
+                    مسودات اليوم ({todayStr})
+                  </Typography>
+                  <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5, color: '#6d28d9' }}>
+                    {todayDraftsCount} مسودة
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    بقيمة: {todayDraftsAmount.toLocaleString()} ج.م
+                  </Typography>
+                </Box>
+                <Box sx={{ width: 46, height: 46, borderRadius: '12px', bgcolor: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <CalendarIcon sx={{ color: '#7c3aed', fontSize: 26 }} />
                 </Box>
               </Box>
             </CardContent>
@@ -701,527 +578,442 @@ export default function InvoicesPage() {
         </Grid>
       </Grid>
 
-      {/* Tabs */}
-      <Paper sx={{ width: '100%', mb: 2, borderRadius: '12px' }} className="no-print">
-        <Tabs 
-          value={tabValue} 
-          onChange={handleTabChange} 
-          indicatorColor="primary" 
-          textColor="primary" 
-          variant="fullWidth"
-          sx={{ '& .MuiTab-root': { fontWeight: 'bold', fontSize: '1rem' } }}
-        >
-          <Tab label={`سجل الفواتير والتحصيل (${officialCustomInvoices.length})`} />
-          <Tab label="فواتير طلبات المطعم (POS)" />
-          <Tab label="مرتجعات المنتجات" />
-          <Tab 
-            label={`المسودات والملاحظات (Notes) ${draftCustomInvoices.length > 0 ? `(${draftCustomInvoices.length})` : ''} 📝`} 
-            sx={{ color: draftCustomInvoices.length > 0 ? '#b45309 !important' : 'inherit' }}
-          />
-        </Tabs>
-      </Paper>
+      {/* ========================================================
+          SECTION: AGGREGATED ITEMS TABLE (جدول الأصناف في كل النوتات)
+          ======================================================== */}
+      <Paper 
+        elevation={0}
+        sx={{ 
+          p: 2.5, 
+          mb: 4, 
+          borderRadius: '16px', 
+          border: '1.5px solid #E2E8F0', 
+          bgcolor: '#FFFFFF',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.04)'
+        }}
+        className="no-print"
+      >
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 2, mb: 2.5 }}>
+            <Box>
+              <Typography variant="h6" fontWeight="900" sx={{ color: '#0F172A', display: 'flex', alignItems: 'center', gap: 1 }}>
+                <LayersIcon sx={{ color: '#d97706' }} />
+                جدول إجمالي الأصناف والكميات في كافة المسودات والنوتات 📊
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                حصر مجمع لكافة الأصناف والكيلوهات المطلوبة في النوتات مع إمكانية التصفية بحسب التاريخ والبحث.
+              </Typography>
+            </Box>
 
-      {/* TAB 0: Custom Invoices & Collections */}
-      <TabPanel value={tabValue} index={0} className="no-print">
-        {/* Filters bar */}
-        <Paper sx={{ p: 2, mb: 3, borderRadius: '16px', bgcolor: 'background.paper' }}>
-          <Grid container spacing={2} sx={{ alignItems: 'center' }}>
-            <Grid xs={12} md={4}>
-              <TextField
-                fullWidth
-                placeholder="بحث باسم العميل (باسم كذا)، رقم الفاتورة، أو البيان..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                slotProps={{
-                  input: {
-                    startAdornment: <InputAdornment position="start"><SearchIcon color="action" /></InputAdornment>,
-                  }
-                }}
-              />
-            </Grid>
-            
-            <Grid xs={12} sm={6} md={3}>
-              <TextField
-                fullWidth
-                type="date"
-                label="تاريخ الفاتورة (يوم كذا)"
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-            </Grid>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<PictureAsPdf />}
+              onClick={handlePrintAggregatedReport}
+              disabled={aggregatedItemsData.length === 0}
+              sx={{
+                borderRadius: '10px',
+                fontWeight: 800,
+                color: '#0F172A',
+                borderColor: '#CBD5E1',
+                '&:hover': { bgcolor: '#F8FAFC' }
+              }}
+            >
+              طباعة كشف الأصناف المجمعة (PDF)
+            </Button>
+          </Box>
 
-            <Grid xs={12} sm={6} md={3}>
-              <FormControl fullWidth>
-                <InputLabel>حالة التحصيل</InputLabel>
-                <Select
-                  value={filterStatus}
-                  label="حالة التحصيل"
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                >
-                  <MenuItem value="all">كل الحالات</MenuItem>
-                  <MenuItem value="paid">محصل بالكامل</MenuItem>
-                  <MenuItem value="partial">تحصيل جزئي</MenuItem>
-                  <MenuItem value="unpaid">غير محصل</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid xs={12} md={2} sx={{ display: 'flex', gap: 1 }}>
-              <Button
-                fullWidth
-                variant="outlined"
-                startIcon={<RefreshIcon />}
-                onClick={() => {
-                  setSearchQuery('');
-                  setFilterDate('');
-                  setFilterStatus('all');
-                  fetchCustomInvoices();
-                }}
-                sx={{ borderRadius: '10px', py: 1.5 }}
-              >
-                إعادة ضبط
-              </Button>
-            </Grid>
-          </Grid>
-        </Paper>
-
-        {/* Table of Custom Invoices */}
-        <TableContainer component={Paper} sx={{ borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-          <Table>
-            <TableHead sx={{ bgcolor: 'action.hover' }}>
-              <TableRow>
-                <TableCell sx={{ fontWeight: '900' }}>رقم الفاتورة</TableCell>
-                <TableCell sx={{ fontWeight: '900' }}>اسم العميل / الجهة (باسم كذا)</TableCell>
-                <TableCell sx={{ fontWeight: '900' }}>البيان / الوصف</TableCell>
-                <TableCell sx={{ fontWeight: '900' }}>التاريخ (يوم كذا)</TableCell>
-                <TableCell sx={{ fontWeight: '900' }}>التحصيل (المبلغ)</TableCell>
-                <TableCell sx={{ fontWeight: '900' }}>المحصل والـمتبقي</TableCell>
-                <TableCell sx={{ fontWeight: '900' }}>طريقة الدفع</TableCell>
-                <TableCell sx={{ fontWeight: '900' }}>الحالة</TableCell>
-                <TableCell sx={{ fontWeight: '900' }} align="center">إجراءات وطباعة</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {(loading && customInvoices.length === 0) ? (
-                <TableRow>
-                  <TableCell colSpan={9} align="center" sx={{ py: 6 }}>
-                    <CircularProgress />
-                    <Typography variant="body2" sx={{ mt: 1 }}>جاري تحميل الفواتير...</Typography>
-                  </TableCell>
-                </TableRow>
-              ) : filteredCustomInvoices.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} align="center" sx={{ py: 6 }}>
-                    <ReceiptIcon sx={{ fontSize: 48, color: 'text.secondary', opacity: 0.4, mb: 1 }} />
-                    <Typography variant="h6" color="text.secondary">لا توجد فواتير مطابقة للبحث</Typography>
-                    <Typography variant="caption" color="text.secondary">اضغط على "عمل فاتورة جديدة" لإضافة فاتورة تحصيل جديدة</Typography>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredCustomInvoices.map((inv) => (
-                  <TableRow key={inv.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                    <TableCell sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                      {inv.invoice_number}
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>
-                      {inv.customer_name}
-                      {inv.customer_phone && (
-                        <Typography variant="caption" display="block" color="text.secondary">
-                          📞 {inv.customer_phone}
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight="600">{inv.title || 'فاتورة تحصيل'}</Typography>
-                      {Array.isArray(inv.items) && inv.items.length > 0 && (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
-                          {inv.items.map((it, idx) => (
-                            <Chip
-                              key={idx}
-                              size="small"
-                              label={`${it.product_name || it.description} (${it.kilos ? `${it.kilos} كجم` : `${it.qty}`})`}
-                              sx={{ height: 20, fontSize: '0.72rem', bgcolor: '#f1f5f9', fontWeight: 600 }}
-                            />
-                          ))}
-                        </Box>
-                      )}
-                    </TableCell>
-                    <TableCell>{inv.invoice_date?.split('T')[0]}</TableCell>
-                    <TableCell sx={{ fontWeight: '900', fontSize: '1.05rem', color: '#1A1A2E' }}>
-                      {parseFloat(inv.amount).toLocaleString()} ج.م
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="success.main" fontWeight="bold">
-                        محصل: {parseFloat(inv.paid_amount).toLocaleString()} ج.م
-                      </Typography>
-                      {parseFloat(inv.remaining_amount) > 0 && (
-                        <Typography variant="caption" color="error.main" fontWeight="bold" display="block">
-                          متبقي: {parseFloat(inv.remaining_amount).toLocaleString()} ج.م
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Chip label={getPaymentMethodLabel(inv.payment_method)} variant="outlined" size="small" />
-                    </TableCell>
-                    <TableCell>{getStatusChip(inv.payment_status)}</TableCell>
-                    <TableCell align="center">
-                      <Stack direction="row" spacing={1} sx={{ justifyContent: 'center' }}>
-                        <Tooltip title="معاينة وطباعة الفاتورة">
-                          <IconButton color="primary" size="small" onClick={() => handleViewInvoiceDetails(inv)}>
-                            <PrintIcon />
-                          </IconButton>
-                        </Tooltip>
-
-                        {inv.customer_phone && (
-                          <Tooltip title="إرسال عبر واتساب">
-                            <IconButton 
-                              color="success" 
-                              size="small" 
-                              component="a" 
-                              href={getWhatsAppShareUrl(inv)} 
-                              target="_blank"
-                            >
-                              <WhatsAppIcon />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-
-                        <Tooltip title="تعديل الفاتورة">
-                          <IconButton color="info" size="small" onClick={() => handleOpenCreateModal(inv)}>
-                            <EditIcon />
-                          </IconButton>
-                        </Tooltip>
-
-                        <Tooltip title="حذف الفاتورة">
-                          <IconButton color="error" size="small" onClick={() => handleDeleteInvoice(inv.id)}>
-                            <DeleteIcon />
-                          </IconButton>
-                        </Tooltip>
-                      </Stack>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </TabPanel>
-
-      {/* TAB 1: POS Orders Invoices */}
-      <TabPanel value={tabValue} index={1} className="no-print">
-        <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
-          سجل فواتير طلبات المبيعات بالـ POS ({invoices.length} فاتورة)
-        </Typography>
-        <TableContainer component={Paper} sx={{ borderRadius: '16px' }}>
-          <Table>
-            <TableHead sx={{ bgcolor: 'action.hover' }}>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 'bold' }}>رقم الطلب / الفاتورة</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>نوع الطلب</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>اسم العميل</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>التاريخ والوقت</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>الإجمالي</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>طريقة الدفع</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }} align="center">عرض الفاتورة والطباعة</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {invoices.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 4 }}>لا توجد طلبات سابقة</TableCell>
-                </TableRow>
-              ) : (
-                invoices.map((inv) => (
-                  <TableRow key={inv.id} hover>
-                    <TableCell sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                      {inv.invoiceNumber || `INV-${inv.orderNumber}`}
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={inv.orderType === 'dine_in' ? 'صالة' : inv.orderType === 'takeaway' ? 'تيك أواي' : 'دليفري'} 
-                        color={inv.orderType === 'delivery' ? 'warning' : inv.orderType === 'dine_in' ? 'primary' : 'secondary'}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>{inv.customerName || 'عميل نقدي'}</TableCell>
-                    <TableCell>{inv.createdAt ? new Date(inv.createdAt).toLocaleString('ar-EG') : '-'}</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>{inv.total} ج.م</TableCell>
-                    <TableCell>{getPaymentMethodLabel(inv.paymentMethod)}</TableCell>
-                    <TableCell align="center">
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={<PrintIcon />}
-                        onClick={() => handleViewInvoiceDetails({
-                          invoice_number: inv.invoiceNumber,
-                          customer_name: inv.customerName || 'عميل نقدي',
-                          customer_phone: inv.customerPhone,
-                          amount: inv.total,
-                          paid_amount: inv.paidAmount || inv.total,
-                          remaining_amount: inv.remainingAmount || 0,
-                          payment_status: 'paid',
-                          payment_method: inv.paymentMethod || 'cash',
-                          invoice_date: inv.createdAt ? inv.createdAt.split('T')[0] : todayStr,
-                          title: `طلب مطعم (${inv.orderType === 'dine_in' ? 'صالة' : inv.orderType === 'takeaway' ? 'تيك أواي' : 'دليفري'})`,
-                          items: inv.items?.map(i => ({ description: i.name || i.product_name, qty: i.quantity, price: i.price, total: i.price * i.quantity })) || []
-                        })}
-                      >
-                        معاينة وطباعة
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </TabPanel>
-
-      {/* TAB 2: Returns */}
-      <TabPanel value={tabValue} index={2} className="no-print">
-        <Box sx={{ mb: 3 }}>
-          <TextField
-            placeholder="بحث برقم الفاتورة لإرجاع عنصر..."
-            variant="outlined"
-            value={posSearchQuery}
-            onChange={(e) => setPosSearchQuery(e.target.value)}
-            slotProps={{
-              input: {
-                startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
-              }
-            }}
-            sx={{ width: '400px' }}
-          />
-        </Box>
-        <Typography color="text.secondary" align="center" sx={{ my: 4 }}>
-          أدخل رقم الفاتورة أو اختر طلب لعرض عناصره وإجراء المرتجع
-        </Typography>
-      </TabPanel>
-
-      {/* TAB 3: DRAFTS & QUICK NOTES (المسودات والملاحظات زي الـ Notes) */}
-      <TabPanel value={tabValue} index={3} className="no-print">
-        <Box sx={{ mb: 3 }}>
-          <Grid container spacing={2} alignItems="center" justifyContent="space-between">
-            <Grid xs={12} sm={6}>
+          {/* Filter Toolbar for the Aggregated Table */}
+          <Grid container spacing={1.5} alignItems="center" sx={{ mb: 2, p: 1.5, bgcolor: '#F8FAFC', borderRadius: '12px' }}>
+            <Grid xs={12} sm={4} md={3}>
               <TextField
                 fullWidth
                 size="small"
-                placeholder="ابحث في المسودات (باسم العميل، اسم المنتج، الملاحظات)..."
-                value={draftSearchQuery}
-                onChange={(e) => setDraftSearchQuery(e.target.value)}
+                placeholder="بحث باسم الصنف..."
+                value={aggSearchItem}
+                onChange={(e) => setAggSearchItem(e.target.value)}
                 slotProps={{
                   input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon color="action" />
-                      </InputAdornment>
-                    ),
-                    endAdornment: draftSearchQuery ? (
+                    startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" color="action" /></InputAdornment>,
+                    endAdornment: aggSearchItem ? (
                       <InputAdornment position="end">
-                        <IconButton size="small" onClick={() => setDraftSearchQuery('')}>
-                          <ClearIcon fontSize="small" />
-                        </IconButton>
+                        <IconButton size="small" onClick={() => setAggSearchItem('')}><ClearIcon fontSize="small" /></IconButton>
                       </InputAdornment>
                     ) : null
                   }
                 }}
-                sx={{ borderRadius: '12px' }}
+                sx={{ bgcolor: '#FFFFFF', borderRadius: '8px' }}
               />
             </Grid>
-            <Grid xs={12} sm={6} sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
-              <Button
-                variant="contained"
-                size="large"
-                startIcon={<StickyNote2 />}
-                onClick={() => handleOpenCreateModal(null, true)}
-                sx={{
-                  borderRadius: '12px',
-                  fontWeight: 800,
-                  bgcolor: '#d97706',
-                  '&:hover': { bgcolor: '#b45309' },
-                  px: 3,
-                  py: 1.1,
-                  boxShadow: '0 6px 16px rgba(217, 119, 6, 0.25)'
-                }}
-              >
-                + إضافة مسودة / نوتة جديدة 📝
-              </Button>
+
+            <Grid xs={12} sm={4} md={3}>
+              <FormControl fullWidth size="small" sx={{ bgcolor: '#FFFFFF', borderRadius: '8px' }}>
+                <InputLabel>فترة التقرير والتاريخ</InputLabel>
+                <Select
+                  value={aggDatePreset}
+                  label="فترة التقرير والتاريخ"
+                  onChange={(e) => setAggDatePreset(e.target.value)}
+                >
+                  <MenuItem value="all">📅 كل الفترات (كافة المسودات)</MenuItem>
+                  <MenuItem value="today">⭐ اليوم ({todayStr})</MenuItem>
+                  <MenuItem value="yesterday">🕒 أمس</MenuItem>
+                  <MenuItem value="week">📊 آخر 7 أيام</MenuItem>
+                  <MenuItem value="month">🗓️ هذا الشهر</MenuItem>
+                  <MenuItem value="custom">🔍 يوم مخصص...</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {aggDatePreset === 'custom' && (
+              <Grid xs={12} sm={4} md={3}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="date"
+                  label="اختر التاريخ"
+                  value={aggCustomDate}
+                  onChange={(e) => setAggCustomDate(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  sx={{ bgcolor: '#FFFFFF', borderRadius: '8px' }}
+                />
+              </Grid>
+            )}
+
+            <Grid xs={12} sm={aggDatePreset === 'custom' ? 12 : 4} md={aggDatePreset === 'custom' ? 3 : 6} sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
+              <Chip
+                label={`عدد الأصناف المحصورة: ${aggregatedItemsData.length} صنف | إجمالي: ${aggGrandTotalQty} كجم/قطعة`}
+                sx={{ fontWeight: 800, bgcolor: '#FEF3C7', color: '#92400E' }}
+              />
             </Grid>
           </Grid>
+
+          {/* Table Container */}
+          {aggregatedItemsData.length === 0 ? (
+            <Box sx={{ p: 4, textAlign: 'center', bgcolor: '#F8FAFC', borderRadius: '12px' }}>
+              <Typography variant="body2" color="text.secondary" fontWeight="bold">
+                لا توجد أصناف مطابقة للفترة المحددة في المسودات المسجلة.
+              </Typography>
+            </Box>
+          ) : (
+            <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #E2E8F0', borderRadius: '12px' }}>
+              <Table size="small">
+                <TableHead sx={{ bgcolor: '#F1F5F9' }}>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 800, width: 60 }}>#</TableCell>
+                    <TableCell sx={{ fontWeight: 800, minWidth: 200 }}>اسم الصنف</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 800 }}>إجمالي العدد / الكمية</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 800 }}>عدد النوتات المسجل بها</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 800 }}>متوسط السعر</TableCell>
+                    <TableCell align="left" sx={{ fontWeight: 800 }}>إجمالي المبلغ التقديري</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {aggregatedItemsData.map((row, idx) => (
+                    <TableRow key={idx} hover sx={{ '&:nth-of-type(even)': { bgcolor: '#F8FAFC' } }}>
+                      <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{idx + 1}</TableCell>
+                      <TableCell sx={{ fontWeight: 800, color: '#0F172A', fontSize: '0.95rem' }}>
+                        {row.name}
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip
+                          label={`${row.totalQty} ${row.unit}`}
+                          size="small"
+                          sx={{ fontWeight: 900, bgcolor: '#DBEAFE', color: '#1D4ED8', fontSize: '0.85rem' }}
+                        />
+                      </TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 700, color: '#64748B' }}>
+                        {row.notesCount} مسودة
+                      </TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 700, color: '#475569' }}>
+                        {row.avgPrice > 0 ? `${row.avgPrice.toFixed(2)} ج.م` : '-'}
+                      </TableCell>
+                      <TableCell align="left" sx={{ fontWeight: 900, color: '#15803D', fontSize: '0.95rem' }}>
+                        {row.totalAmount.toLocaleString()} ج.م
+                      </TableCell>
+                    </TableRow>
+                  ))}
+
+                  {/* Grand Totals Row */}
+                  <TableRow sx={{ bgcolor: '#FEF3C7' }}>
+                    <TableCell colSpan={2} sx={{ fontWeight: 900, color: '#92400E', fontSize: '0.95rem' }}>
+                      الإجمالي الكلي لجميع الأصناف:
+                    </TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 900, color: '#92400E', fontSize: '1rem' }}>
+                      {aggGrandTotalQty} (كجم / قطع)
+                    </TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 800, color: '#92400E' }}>
+                      {allDrafts.length} مسودة
+                    </TableCell>
+                    <TableCell align="center">-</TableCell>
+                    <TableCell align="left" sx={{ fontWeight: 900, color: '#92400E', fontSize: '1.05rem' }}>
+                      {aggGrandTotalAmount.toLocaleString()} ج.م
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Paper>
+
+      {/* ========================================================
+          SECTION: DRAFTS CARDS LIST (كروت المسودات)
+          ======================================================== */}
+      <Box>
+          {/* Drafts Search and Filter Bar */}
+          <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: '16px', border: '1px solid #E2E8F0', bgcolor: '#FFFFFF' }}>
+            <Grid container spacing={2} alignItems="center">
+              <Grid xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="ابحث في المسودات (باسم العميل، اسم الصنف، رقم الهاتف، الملاحظات)..."
+                  value={draftSearchQuery}
+                  onChange={(e) => setDraftSearchQuery(e.target.value)}
+                  slotProps={{
+                    input: {
+                      startAdornment: <InputAdornment position="start"><SearchIcon color="action" /></InputAdornment>,
+                      endAdornment: draftSearchQuery ? (
+                        <InputAdornment position="end">
+                          <IconButton size="small" onClick={() => setDraftSearchQuery('')}><ClearIcon fontSize="small" /></IconButton>
+                        </InputAdornment>
+                      ) : null
+                    }
+                  }}
+                  sx={{ borderRadius: '10px' }}
+                />
+              </Grid>
+
+              <Grid xs={12} sm={6} md={3}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="date"
+                  label="تصفية بتاريخ المسودة"
+                  value={draftDateFilter}
+                  onChange={(e) => setDraftDateFilter(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+              </Grid>
+
+              {draftDateFilter && (
+                <Grid xs={12} sm={6} md={3}>
+                  <Button
+                    variant="text"
+                    size="small"
+                    startIcon={<ClearIcon />}
+                    onClick={() => setDraftDateFilter('')}
+                    sx={{ fontWeight: 'bold', color: 'error.main' }}
+                  >
+                    إلغاء فلتر التاريخ
+                  </Button>
+                </Grid>
+              )}
+            </Grid>
+          </Paper>
+
+          {/* Cards Grid */}
+          {filteredDrafts.length === 0 ? (
+            <Paper elevation={0} sx={{ p: 6, textAlign: 'center', borderRadius: '16px', border: '2px dashed #FDE68A', bgcolor: '#FFFDF5' }}>
+              <StickyNote2 sx={{ fontSize: 64, color: '#D97706', mb: 1.5 }} />
+              <Typography variant="h6" fontWeight="bold" color="#92400E">
+                لا توجد مسودات مطابقة للبحث أو الفلتر
+              </Typography>
+              <Typography variant="body2" color="#B45309" sx={{ mt: 0.5, mb: 2.5 }}>
+                يمكنك كتابة وتسجيل أي طلبات أو أصناف بالكيلو والعدد في مسودة سريعة والرجوع إليها أو تحويلها لفاتورة في أي وقت.
+              </Typography>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => handleOpenCreateModal()}
+                sx={{ borderRadius: '10px', fontWeight: 'bold', bgcolor: '#D97706', '&:hover': { bgcolor: '#B45309' } }}
+              >
+                إنشاء مسودة جديدة الآن 📝
+              </Button>
+            </Paper>
+          ) : (
+            <Grid container spacing={2.5}>
+              {filteredDrafts.map((draft) => (
+                <Grid xs={12} sm={6} md={4} key={draft.id}>
+                  <Card sx={{
+                    borderRadius: '16px',
+                    border: '1.5px solid #FDE68A',
+                    bgcolor: '#FFFFFF',
+                    boxShadow: '0 4px 14px rgba(217, 119, 6, 0.08)',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    '&:hover': {
+                      transform: 'translateY(-3px)',
+                      boxShadow: '0 8px 24px rgba(217, 119, 6, 0.16)',
+                      borderColor: '#F59E0B'
+                    }
+                  }}>
+                    <CardContent sx={{ p: 2.5, pb: 1.5 }}>
+                      {/* Card Header: Customer name & Date */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+                        <Box>
+                          <Typography variant="h6" fontWeight="900" color="#78350F" sx={{ lineHeight: 1.2 }}>
+                            {draft.customer_name}
+                          </Typography>
+                          <Typography variant="caption" color="#92400E" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.4, fontWeight: 700 }}>
+                            <CalendarIcon sx={{ fontSize: 14 }} />
+                            {draft.invoice_date?.split('T')[0] || todayStr}
+                          </Typography>
+                        </Box>
+                        <Chip
+                          icon={<StickyNote2 sx={{ fontSize: '14px !important' }} />}
+                          label="مسودة 📝"
+                          size="small"
+                          sx={{ bgcolor: '#FEF3C7', color: '#B45309', fontWeight: 900 }}
+                        />
+                      </Box>
+
+                      {draft.customer_phone && (
+                        <Typography variant="caption" color="#78350F" sx={{ display: 'block', mb: 1.5, fontWeight: 700 }}>
+                          📞 {draft.customer_phone}
+                        </Typography>
+                      )}
+
+                      {/* Items List (الصنف، العدد، السعر، المبلغ) */}
+                      {Array.isArray(draft.items) && draft.items.length > 0 ? (
+                        <Box sx={{ p: 1.2, mb: 1.5, borderRadius: '10px', bgcolor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+                          <Typography variant="caption" fontWeight="900" color="#475569" sx={{ display: 'block', mb: 0.8 }}>
+                            الأصناف والكميات والأسعار:
+                          </Typography>
+                          <Stack spacing={0.8}>
+                            {draft.items.map((it, i) => {
+                              const itemQty = it.kilos || it.quantity || it.qty || 1;
+                              const itemPrice = parseFloat(it.price || 0);
+                              const itemTotal = parseFloat(it.total || (itemQty * itemPrice));
+                              const unitLabel = it.kilos ? 'كجم' : 'عدد';
+
+                              return (
+                                <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flex: 1, overflow: 'hidden' }}>
+                                    <Typography variant="body2" fontWeight="800" color="#0F172A" noWrap>
+                                      {it.product_name || it.description}
+                                    </Typography>
+                                    <Chip
+                                      size="small"
+                                      label={`${itemQty} ${unitLabel}`}
+                                      sx={{ height: 20, fontSize: '0.72rem', fontWeight: 800, bgcolor: '#FEF3C7', color: '#92400E' }}
+                                    />
+                                  </Box>
+                                  <Box sx={{ textAlign: 'left', pl: 1 }}>
+                                    <Typography variant="body2" fontWeight="900" color="#15803D">
+                                      {itemTotal.toLocaleString()} ج.م
+                                    </Typography>
+                                    {itemPrice > 0 && (
+                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem' }}>
+                                        ({itemPrice} ج.م / {unitLabel})
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                </Box>
+                              );
+                            })}
+                          </Stack>
+                        </Box>
+                      ) : (
+                        <Box sx={{ p: 1.2, mb: 1.5, borderRadius: '8px', bgcolor: '#FFFDF5', border: '1px dashed #FDE68A' }}>
+                          <Typography variant="caption" color="#B45309">
+                            مسودة بدون تفاصيل أصناف محددة
+                          </Typography>
+                        </Box>
+                      )}
+
+                      {/* Notes Text */}
+                      {draft.notes && (
+                        <Box sx={{ p: 1.2, mb: 1.5, borderRadius: '8px', bgcolor: 'rgba(254, 243, 199, 0.4)', borderRight: '3px solid #F59E0B' }}>
+                          <Typography variant="body2" color="#78350F" sx={{ whiteSpace: 'pre-wrap', fontSize: '0.85rem' }}>
+                            💬 {draft.notes}
+                          </Typography>
+                        </Box>
+                      )}
+
+                      {/* Total Estimated Amount */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 1.2, borderTop: '1px dashed #E2E8F0' }}>
+                        <Typography variant="body2" color="#78350F" fontWeight="bold">المبلغ المقدر:</Typography>
+                        <Typography variant="h6" fontWeight="900" color="#15803D">
+                          {parseFloat(draft.amount || 0).toLocaleString()} ج.م
+                        </Typography>
+                      </Box>
+                    </CardContent>
+
+                    {/* Actions Bar */}
+                    <Box sx={{ p: 2, pt: 0 }}>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          size="small"
+                          startIcon={<EditIcon />}
+                          onClick={() => handleOpenCreateModal(draft)}
+                          sx={{
+                            borderRadius: '8px',
+                            fontWeight: 800,
+                            bgcolor: '#d97706',
+                            '&:hover': { bgcolor: '#b45309' }
+                          }}
+                        >
+                          تعديل النوتة ✏️
+                        </Button>
+
+                        <Tooltip title="مشاركة عبر واتساب">
+                          <IconButton
+                            size="small"
+                            component="a"
+                            href={getWhatsAppShareUrl(draft)}
+                            target="_blank"
+                            sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', color: '#16A34A' }}
+                          >
+                            <WhatsAppIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+
+                        <Tooltip title="طباعة النوتة">
+                          <IconButton
+                            size="small"
+                            onClick={() => handlePrint(draft)}
+                            sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', color: '#475569' }}
+                          >
+                            <PrintIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+
+                        <Tooltip title="حذف النوتة من قاعدة البيانات">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteDraft(draft.id)}
+                            sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', color: '#DC2626' }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    </Box>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          )}
         </Box>
 
-        {filteredDraftInvoices.length === 0 ? (
-          <Paper elevation={0} sx={{ p: 6, textAlign: 'center', borderRadius: '16px', border: '2px dashed #fde68a', bgcolor: '#fffbeb' }}>
-            <StickyNote2 sx={{ fontSize: 64, color: '#f59e0b', mb: 1.5 }} />
-            <Typography variant="h6" fontWeight="bold" color="#92400e">
-              لا توجد مسودات أو ملاحظات محفوظة
-            </Typography>
-            <Typography variant="body2" color="#b45309" sx={{ mt: 0.5, mb: 2.5 }}>
-              يمكنك حفظ طلبات العملاء وحساب الكيلوهات والأسعار كمسودات (Notes) والرجوع إليها أو تحويلها لفاتورة رسمية في أي وقت بلمسة واحدة.
-            </Typography>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => handleOpenCreateModal(null, true)}
-              sx={{ borderRadius: '10px', fontWeight: 'bold', bgcolor: '#d97706', '&:hover': { bgcolor: '#b45309' } }}
-            >
-              إنشاء أول مسودة الآن 📝
-            </Button>
-          </Paper>
-        ) : (
-          <Grid container spacing={2.5}>
-            {filteredDraftInvoices.map((draft) => (
-              <Grid xs={12} sm={6} md={4} key={draft.id}>
-                <Card sx={{
-                  borderRadius: '16px',
-                  border: '1.5px solid #fde68a',
-                  bgcolor: '#fffdf5',
-                  boxShadow: '0 4px 14px rgba(245, 158, 11, 0.1)',
-                  transition: 'all 0.2s',
-                  '&:hover': {
-                    transform: 'translateY(-3px)',
-                    boxShadow: '0 8px 24px rgba(245, 158, 11, 0.18)'
-                  }
-                }}>
-                  <CardContent sx={{ p: 2.5 }}>
-                    {/* Header */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-                      <Box>
-                        <Typography variant="h6" fontWeight="900" color="#78350f" sx={{ lineHeight: 1.2 }}>
-                          {draft.customer_name}
-                        </Typography>
-                        <Typography variant="caption" color="#92400e" sx={{ display: 'block', mt: 0.3 }}>
-                          📅 {draft.invoice_date?.split('T')[0] || new Date().toISOString().split('T')[0]}
-                        </Typography>
-                      </Box>
-                      <Chip
-                        icon={<StickyNote2 sx={{ fontSize: '14px !important' }} />}
-                        label="مسودة 📝"
-                        size="small"
-                        sx={{ bgcolor: '#fef3c7', color: '#b45309', fontWeight: 800 }}
-                      />
-                    </Box>
-
-                    {draft.customer_phone && (
-                      <Typography variant="caption" color="#78350f" sx={{ display: 'block', mb: 1.5 }}>
-                        📞 {draft.customer_phone}
-                      </Typography>
-                    )}
-
-                    {/* Products & Kilos */}
-                    {Array.isArray(draft.items) && draft.items.length > 0 ? (
-                      <Box sx={{ p: 1.2, mb: 1.5, borderRadius: '10px', bgcolor: '#ffffff', border: '1px solid #fde68a' }}>
-                        <Typography variant="caption" fontWeight="bold" color="#92400e" sx={{ display: 'block', mb: 0.8 }}>
-                          الأصناف والكميات بالكيلو:
-                        </Typography>
-                        <Stack spacing={0.6}>
-                          {draft.items.map((it, i) => (
-                            <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
-                                <Typography variant="body2" fontWeight="700" color="#1e293b">
-                                  {it.product_name || it.description}
-                                </Typography>
-                                <Chip
-                                  size="small"
-                                  label={`${it.kilos || it.qty} كجم`}
-                                  sx={{ height: 20, fontSize: '0.72rem', fontWeight: 800, bgcolor: '#fef3c7', color: '#92400e' }}
-                                />
-                              </Box>
-                              <Typography variant="body2" fontWeight="800" color="#15803d">
-                                {it.total || ((it.price || 0) * (it.kilos || it.qty || 1))} ج.م
-                              </Typography>
-                            </Box>
-                          ))}
-                        </Stack>
-                      </Box>
-                    ) : null}
-
-                    {/* Notes Text */}
-                    {draft.notes && (
-                      <Box sx={{ p: 1.2, mb: 1.5, borderRadius: '8px', bgcolor: 'rgba(254, 243, 199, 0.4)', borderRight: '3px solid #f59e0b' }}>
-                        <Typography variant="body2" color="#78350f" sx={{ whiteSpace: 'pre-wrap', fontSize: '0.88rem' }}>
-                          💬 {draft.notes}
-                        </Typography>
-                      </Box>
-                    )}
-
-                    {/* Total */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1.5, pt: 1.2, borderTop: '1px dashed #fde68a' }}>
-                      <Typography variant="body2" color="#92400e" fontWeight="bold">المبلغ المقدر:</Typography>
-                      <Typography variant="h6" fontWeight="900" color="#15803d">
-                        {parseFloat(draft.amount || 0).toLocaleString()} ج.م
-                      </Typography>
-                    </Box>
-
-                    {/* Actions */}
-                    <Stack direction="row" spacing={1} sx={{ mt: 2 }} alignItems="center">
-                      <Button
-                        fullWidth
-                        variant="contained"
-                        color="success"
-                        size="small"
-                        startIcon={<CheckIcon />}
-                        onClick={() => handleConvertDraftToInvoice(draft)}
-                        sx={{ borderRadius: '8px', fontWeight: 800, bgcolor: '#16a34a', '&:hover': { bgcolor: '#15803d' } }}
-                      >
-                        تحويل لفاتورة 🧾
-                      </Button>
-
-                      <Tooltip title="تعديل المسودة">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleOpenCreateModal(draft, true)}
-                          sx={{ border: '1px solid #cbd5e1', borderRadius: '8px' }}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-
-                      <Tooltip title="مشاركة واتساب">
-                        <IconButton
-                          size="small"
-                          color="success"
-                          component="a"
-                          href={getWhatsAppShareUrl(draft)}
-                          target="_blank"
-                          sx={{ border: '1px solid #86efac', borderRadius: '8px' }}
-                        >
-                          <WhatsAppIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-
-                      <Tooltip title="حذف المسودة">
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleDeleteInvoice(draft.id)}
-                          sx={{ border: '1px solid #fca5a5', borderRadius: '8px' }}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        )}
-      </TabPanel>
-
-      {/* CREATE / EDIT INVOICE DIALOG */}
-      <Dialog 
-        open={createDialogOpen} 
-        onClose={() => setCreateDialogOpen(false)} 
-        maxWidth="md" 
+      {/* ========================================================
+          DIALOG: ADD / EDIT DRAFT NOTE (نافذة إضافة مسودة سهلة وسريعة)
+          ======================================================== */}
+      <Dialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        maxWidth="md"
         fullWidth
-        slotProps={{ paper: { sx: { borderRadius: '20px', p: 1 } } }}
+        PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}
       >
-        <DialogTitle sx={{ fontWeight: '900', fontSize: '1.3rem', color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1 }}>
-          <ReceiptIcon />
-          {editingInvoiceId ? 'تعديل الفاتورة' : 'إنشاء فاتورة جديدة (تحصيل / بيع / خدمة)'}
+        <DialogTitle sx={{ fontWeight: 900, fontSize: '1.25rem', color: '#92400E', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <StickyNote2 sx={{ color: '#D97706' }} />
+          {editingDraftId ? 'تعديل المسودة / النوتة 📝' : 'إضافة مسودة / نوتة جديدة 📝'}
         </DialogTitle>
+
         <DialogContent dividers>
           {formError && (
             <Alert severity="error" sx={{ mb: 2, borderRadius: '10px' }}>
@@ -1230,446 +1022,205 @@ export default function InvoicesPage() {
           )}
 
           <Grid container spacing={2}>
+            {/* Customer name / Note title */}
             <Grid xs={12} sm={6}>
               <TextField
                 fullWidth
                 required
-                label="اسم العميل أو الجهة (باسم كذا)"
-                placeholder="مثال: شركة الأمل / أحمد محمود / مطعم..."
+                label="اسم العميل أو عنوان النوتة (باسم مين؟)"
+                placeholder="مثال: أمر الله، الحاج إبراهيم، طلب الحفلة..."
                 value={formData.customer_name}
                 onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
+                autoFocus
               />
             </Grid>
 
-            <Grid xs={12} sm={6}>
+            {/* Note Date */}
+            <Grid xs={12} sm={3}>
               <TextField
                 fullWidth
                 type="date"
-                required
-                label="تاريخ الفاتورة (يوم كذا)"
+                label="تاريخ المسودة"
                 value={formData.invoice_date}
                 onChange={(e) => setFormData({ ...formData, invoice_date: e.target.value })}
                 slotProps={{ inputLabel: { shrink: true } }}
               />
             </Grid>
 
-            <Grid xs={12} sm={6}>
+            {/* Phone */}
+            <Grid xs={12} sm={3}>
               <TextField
                 fullWidth
-                label="عنوان / بيان الفاتورة"
-                placeholder="مثال: توريد مواد / صيانة / تحصيل خدمات..."
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              />
-            </Grid>
-
-            <Grid xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="رقم الهاتف (اختياري للإرسال واتساب)"
-                placeholder="01012345678"
+                label="رقم الهاتف (اختياري)"
+                placeholder="010..."
                 value={formData.customer_phone}
                 onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })}
               />
             </Grid>
 
-            <Grid xs={12} sm={4}>
-              <TextField
-                fullWidth
-                required
-                type="number"
-                label="مبلغ التحصيل (التحصيل كذا)"
-                placeholder="0.00"
-                value={formData.amount}
-                onChange={(e) => handleAmountChange(e.target.value, 'amount')}
-                slotProps={{
-                  input: {
-                    endAdornment: <InputAdornment position="end">ج.م</InputAdornment>,
-                  }
-                }}
-              />
-            </Grid>
-
-            <Grid xs={12} sm={4}>
-              <TextField
-                fullWidth
-                type="number"
-                label="المبلغ المحصل فعلياً (المدفوع)"
-                value={formData.paid_amount}
-                onChange={(e) => handleAmountChange(e.target.value, 'paid_amount')}
-                slotProps={{
-                  input: {
-                    endAdornment: <InputAdornment position="end">ج.م</InputAdornment>,
-                  }
-                }}
-              />
-            </Grid>
-
-            <Grid xs={12} sm={4}>
-              <TextField
-                fullWidth
-                disabled
-                type="number"
-                label="المبلغ المتبقي (الآجل)"
-                value={formData.remaining_amount}
-                slotProps={{
-                  input: {
-                    endAdornment: <InputAdornment position="end">ج.م</InputAdornment>,
-                  }
-                }}
-              />
-            </Grid>
-
-            <Grid xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>طريقة الدفع</InputLabel>
-                <Select
-                  value={formData.payment_method}
-                  label="طريقة الدفع"
-                  onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
-                >
-                  <MenuItem value="cash">💵 نقداً (كاش)</MenuItem>
-                  <MenuItem value="instapay">⚡ إنستا باي (InstaPay)</MenuItem>
-                  <MenuItem value="vodafone_cash">📱 فودافون كاش (Vodafone Cash)</MenuItem>
-                  <MenuItem value="card">💳 شبكة / فيزا (Card)</MenuItem>
-                  <MenuItem value="transfer">🏦 تحويل بنكي</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>حالة التحصيل</InputLabel>
-                <Select
-                  value={formData.payment_status}
-                  label="حالة التحصيل"
-                  onChange={(e) => setFormData({ ...formData, payment_status: e.target.value })}
-                >
-                  <MenuItem value="paid">محصل بالكامل</MenuItem>
-                  <MenuItem value="partial">تحصيل جزئي</MenuItem>
-                  <MenuItem value="unpaid">غير محصل (آجل)</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-
+            {/* ADD ITEM SECTION (Free text or autocomplete without touching inventory/products) */}
             <Grid xs={12}>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: '14px', bgcolor: '#FFFDF8', border: '1.5px solid #FDE68A' }}>
+                <Typography variant="subtitle2" fontWeight="900" sx={{ display: 'flex', alignItems: 'center', gap: 0.8, color: '#92400E', mb: 1.5 }}>
+                  <Scale sx={{ fontSize: 20, color: '#D97706' }} />
+                  إضافة أصناف النوتة (اكتب أي صنف بحرية أو اختر من القائمة):
+                </Typography>
+
+                <Box sx={{ display: 'flex', gap: 1.5, flexWrap: { xs: 'wrap', md: 'nowrap' }, alignItems: 'center' }}>
+                  <Autocomplete
+                    freeSolo
+                    sx={{ flex: { xs: '1 1 100%', md: 2.5 } }}
+                    options={(products || []).map(p => p.name)}
+                    value={newItem.product_name}
+                    onInputChange={(e, val) => handleProductSelect(val)}
+                    onChange={(e, val) => handleProductSelect(val || '')}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        size="small"
+                        label="اسم الصنف (حر أو من القائمة)"
+                        placeholder="اكتب أي صنف مثلاً: بصل، عجين، حواوشي..."
+                      />
+                    )}
+                  />
+
+                  <TextField
+                    size="small"
+                    type="number"
+                    inputProps={{ step: 'any', min: '0' }}
+                    label="العدد / الوزن ⚖️"
+                    placeholder="1"
+                    sx={{ flex: { xs: '1 1 45%', md: 1.2 } }}
+                    value={newItem.quantity}
+                    onChange={(e) => handleItemQuantityChange(e.target.value)}
+                    slotProps={{
+                      input: {
+                        endAdornment: <InputAdornment position="end">كجم/عدد</InputAdornment>
+                      }
+                    }}
+                  />
+
+                  <TextField
+                    size="small"
+                    type="number"
+                    inputProps={{ step: 'any', min: '0' }}
+                    label="سعر الوحدة (ج.م)"
+                    placeholder="0.00"
+                    sx={{ flex: { xs: '1 1 45%', md: 1.2 } }}
+                    value={newItem.price}
+                    onChange={(e) => handleItemPriceChange(e.target.value)}
+                    slotProps={{
+                      input: {
+                        endAdornment: <InputAdornment position="end">ج.م</InputAdornment>
+                      }
+                    }}
+                  />
+
+                  <Button
+                    variant="contained"
+                    onClick={handleAddItemToDraft}
+                    disabled={!newItem.product_name.trim()}
+                    startIcon={<AddIcon />}
+                    sx={{
+                      borderRadius: '8px',
+                      px: 2.5,
+                      py: 1,
+                      whiteSpace: 'nowrap',
+                      fontWeight: 'bold',
+                      bgcolor: '#D97706',
+                      '&:hover': { bgcolor: '#B45309' }
+                    }}
+                  >
+                    + إضافة الصنف
+                  </Button>
+                </Box>
+
+                {/* Table of added items */}
+                {formData.items.length > 0 && (
+                  <Box sx={{ mt: 2 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: '#FEF3C7' }}>
+                          <TableCell sx={{ fontWeight: 800 }}>اسم الصنف</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 800 }}>العدد / الوزن</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 800 }}>سعر الوحدة</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 800 }}>الإجمالي</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 800 }}>حذف</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {formData.items.map((item, idx) => (
+                          <TableRow key={idx} hover>
+                            <TableCell sx={{ fontWeight: 800 }}>{item.product_name || item.description}</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 700 }}>{item.kilos || item.quantity || item.qty}</TableCell>
+                            <TableCell align="center">{parseFloat(item.price || 0).toLocaleString()} ج.م</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 900, color: '#15803D' }}>{parseFloat(item.total || 0).toLocaleString()} ج.م</TableCell>
+                            <TableCell align="center">
+                              <IconButton size="small" color="error" onClick={() => handleRemoveItem(idx)}>
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </Box>
+                )}
+              </Paper>
+            </Grid>
+
+            {/* Notes */}
+            <Grid xs={12} sm={8}>
               <TextField
                 fullWidth
                 multiline
                 rows={2}
-                label="ملاحظات وتفاصيل الفاتورة"
-                placeholder="أدخل أي ملاحظات تفصيلية هنا..."
+                label="ملاحظات المسودة"
+                placeholder="أدخل أي تفاصيل خاصة بالطلب أو العنوان أو العميل..."
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               />
             </Grid>
 
-            {/* Detailed items: Product name, Kilos (كام كيلو), Price per kilo, Total */}
-            <Grid xs={12}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1, mb: 1.5 }}>
-                <Typography variant="subtitle2" fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 0.8, color: '#0f172a' }}>
-                  <Scale sx={{ fontSize: 20, color: 'primary.main' }} />
-                  أصناف الطلب والأوزان بالكيلو (اسم المنتج & كام كيلو)
-                </Typography>
-                {newItem.total > 0 && (
-                  <Chip
-                    size="small"
-                    label={`إجمالي الصنف: ${newItem.total} ج.م`}
-                    color="primary"
-                    sx={{ fontWeight: 800 }}
-                  />
-                )}
-              </Box>
-
-              <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
-                <Autocomplete
-                  freeSolo
-                  sx={{ flex: { xs: '1 1 100%', md: 2.5 } }}
-                  options={(products || []).map(p => p.name)}
-                  value={newItem.product_name}
-                  onInputChange={(e, val) => handleProductSelect(val)}
-                  onChange={(e, val) => handleProductSelect(val || '')}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      size="small"
-                      label="اسم المنتج (اكتب أو اختر)"
-                      placeholder="مثال: حواوشي لحمة بلدي، عجين..."
-                    />
-                  )}
-                />
-
-                <TextField
-                  size="small"
-                  type="number"
-                  inputProps={{ step: 'any', min: '0' }}
-                  label="كام كيلو (الوزن ⚖️)"
-                  placeholder="مثال: 1.5 أو 2"
-                  sx={{ flex: { xs: '1 1 45%', md: 1.2 } }}
-                  value={newItem.kilos}
-                  onChange={(e) => handleKilosChange(e.target.value)}
-                  slotProps={{
-                    input: {
-                      endAdornment: <InputAdornment position="end">كجم</InputAdornment>
-                    }
-                  }}
-                />
-
-                <TextField
-                  size="small"
-                  type="number"
-                  inputProps={{ step: 'any', min: '0' }}
-                  label="سعر الكيلو (ج.م)"
-                  placeholder="0.00"
-                  sx={{ flex: { xs: '1 1 45%', md: 1.2 } }}
-                  value={newItem.price}
-                  onChange={(e) => handleItemPriceChange(e.target.value)}
-                  slotProps={{
-                    input: {
-                      endAdornment: <InputAdornment position="end">ج.م</InputAdornment>
-                    }
-                  }}
-                />
-
-                <Button 
-                  variant="contained" 
-                  onClick={handleAddItemToInvoice}
-                  disabled={!newItem.product_name.trim()}
-                  startIcon={<AddIcon />}
-                  sx={{ borderRadius: '8px', px: 2.5, whiteSpace: 'nowrap', fontWeight: 'bold' }}
-                >
-                  إضافة
-                </Button>
-              </Box>
-
-              {formData.items.length > 0 && (
-                <Paper variant="outlined" sx={{ p: 1, borderRadius: '12px', bgcolor: '#f8fafc' }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow sx={{ bgcolor: '#f1f5f9' }}>
-                        <TableCell sx={{ fontWeight: 800 }}>اسم المنتج</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 800 }}>الوزن (كام كيلو ⚖️)</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 800 }}>سعر الكيلو</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 800 }}>الإجمالي</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 800 }}>حذف</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {formData.items.map((item, idx) => (
-                        <TableRow key={idx} hover>
-                          <TableCell sx={{ fontWeight: 700 }}>{item.product_name || item.description}</TableCell>
-                          <TableCell align="center">
-                            <Chip
-                              size="small"
-                              label={`${item.kilos || item.qty} كجم`}
-                              sx={{ fontWeight: 800, bgcolor: '#e0f2fe', color: '#0369a1' }}
-                            />
-                          </TableCell>
-                          <TableCell align="center">{item.price} ج.م</TableCell>
-                          <TableCell align="center" sx={{ fontWeight: 900, color: '#16a34a' }}>
-                            {item.total} ج.م
-                          </TableCell>
-                          <TableCell align="center">
-                            <IconButton size="small" color="error" onClick={() => handleRemoveItemFromInvoice(idx)}>
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </Paper>
-              )}
+            {/* Total Estimated Amount */}
+            <Grid xs={12} sm={4}>
+              <TextField
+                fullWidth
+                type="number"
+                label="المبلغ المقدر الإجمالي (ج.م)"
+                value={formData.amount}
+                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                slotProps={{
+                  input: {
+                    endAdornment: <InputAdornment position="end">ج.م</InputAdornment>,
+                  }
+                }}
+                helperText="يُحسب تلقائياً من مجموع الأصناف"
+              />
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions sx={{ p: 2, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5 }}>
-          <Button onClick={() => setCreateDialogOpen(false)} variant="outlined">
+
+        <DialogActions sx={{ p: 2.5, justifyContent: 'space-between' }}>
+          <Button onClick={() => setDialogOpen(false)} sx={{ fontWeight: 'bold', color: 'text.secondary' }}>
             إلغاء
           </Button>
 
-          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-            <Button
-              onClick={() => handleSaveInvoice(true)}
-              variant="outlined"
-              color="warning"
-              size="large"
-              disabled={loading}
-              startIcon={<StickyNote2 />}
-              sx={{ px: 3, borderRadius: '10px', fontWeight: 'bold' }}
-            >
-              حفظ كمسودة (Note) 📝
-            </Button>
-
-            <Button 
-              onClick={() => handleSaveInvoice(false)} 
-              variant="contained" 
-              size="large"
-              disabled={loading}
-              startIcon={<CheckIcon />}
-              sx={{ px: 3.5, borderRadius: '10px', fontWeight: 'bold' }}
-            >
-              {loading ? 'جاري الحفظ...' : editingInvoiceId ? 'حفظ التعديلات' : 'حفظ وإصدار الفاتورة 🧾'}
-            </Button>
-          </Box>
-        </DialogActions>
-      </Dialog>
-
-      {/* PRINTABLE INVOICE VIEW DIALOG */}
-      <Dialog
-        open={viewDialogOpen}
-        onClose={() => setViewDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-        slotProps={{ paper: { sx: { borderRadius: '20px', p: 2 } } }}
-      >
-        <DialogTitle className="no-print" sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6" fontWeight="bold">معاينة وطباعة الفاتورة</Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button
-              variant="outlined"
-              color="primary"
-              startIcon={<PrintIcon />}
-              onClick={() => printCustomInvoice(viewInvoice, settings, true)}
-              sx={{ borderRadius: '10px' }}
-            >
-              طابعة ريسيت (80mm)
-            </Button>
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<PrintIcon />}
-              onClick={() => printCustomInvoice(viewInvoice, settings, false)}
-              sx={{ borderRadius: '10px' }}
-            >
-              طباعة فاتورة (A4)
-            </Button>
-          </Box>
-        </DialogTitle>
-
-        <DialogContent dividers sx={{ p: 3 }}>
-          {viewInvoice && (
-            <Box id="printable-invoice" sx={{ bgcolor: '#fff', color: '#1A1A2E', p: 2 }}>
-              {/* Receipt Header */}
-              <Box sx={{ textAlign: 'center', pb: 2, mb: 2, borderBottom: '2px dashed #CBD5E1' }}>
-                <Typography variant="h5" fontWeight="900" sx={{ color: '#1E293B', mb: 0.5 }}>
-                  {settings?.company_name || 'مطعم البرادعي للحواوشي'}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {settings?.company_address || 'المحل الرئيسي'} | هاتف: {settings?.company_phone || '01012345678'}
-                </Typography>
-                <Typography variant="h6" fontWeight="800" sx={{ mt: 1.5, color: '#4285F4' }}>
-                  فاتورة تحصيل مالي
-                </Typography>
-              </Box>
-
-              {/* Invoice Meta Grid */}
-              <Grid container spacing={1.5} sx={{ mb: 2, bgcolor: '#F8FAFC', p: 1.5, borderRadius: '12px' }}>
-                <Grid xs={6}>
-                  <Typography variant="caption" color="text.secondary">رقم الفاتورة:</Typography>
-                  <Typography variant="body2" fontWeight="bold">{viewInvoice.invoice_number}</Typography>
-                </Grid>
-                <Grid xs={6}>
-                  <Typography variant="caption" color="text.secondary">التاريخ (يوم كذا):</Typography>
-                  <Typography variant="body2" fontWeight="bold">{viewInvoice.invoice_date?.split('T')[0]}</Typography>
-                </Grid>
-                <Grid xs={6}>
-                  <Typography variant="caption" color="text.secondary">اسم العميل / الجهة (باسم كذا):</Typography>
-                  <Typography variant="body2" fontWeight="bold">{viewInvoice.customer_name}</Typography>
-                </Grid>
-                <Grid xs={6}>
-                  <Typography variant="caption" color="text.secondary">الهاتف:</Typography>
-                  <Typography variant="body2" fontWeight="bold">{viewInvoice.customer_phone || '-'}</Typography>
-                </Grid>
-                <Grid xs={12}>
-                  <Typography variant="caption" color="text.secondary">البيان / الوصف:</Typography>
-                  <Typography variant="body2" fontWeight="bold">{viewInvoice.title || 'فاتورة تحصيل'}</Typography>
-                </Grid>
-              </Grid>
-
-              {/* Items List if any */}
-              {Array.isArray(viewInvoice.items) && viewInvoice.items.length > 0 && (
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1 }}>تفاصيل البنود:</Typography>
-                  <Table size="small" sx={{ border: '1px solid #E2E8F0' }}>
-                    <TableHead sx={{ bgcolor: '#F1F5F9' }}>
-                      <TableRow>
-                        <TableCell sx={{ fontWeight: 'bold' }}>البند</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold' }}>الكمية</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold' }}>السعر</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold' }}>الإجمالي</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {viewInvoice.items.map((item, i) => (
-                        <TableRow key={i}>
-                          <TableCell>{item.description}</TableCell>
-                          <TableCell>{item.qty}</TableCell>
-                          <TableCell>{item.price} ج.م</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold' }}>{item.total} ج.م</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </Box>
-              )}
-
-              {/* Financial Totals Block */}
-              <Box sx={{ bgcolor: '#F1F5F9', p: 2, borderRadius: '12px', mb: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body1" fontWeight="bold">مبلغ التحصيل الإجمالي:</Typography>
-                  <Typography variant="h6" fontWeight="900">{parseFloat(viewInvoice.amount).toLocaleString()} ج.م</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, color: 'success.main' }}>
-                  <Typography variant="body2" fontWeight="bold">المبلغ المستلم (المحصل):</Typography>
-                  <Typography variant="body1" fontWeight="bold">{parseFloat(viewInvoice.paid_amount).toLocaleString()} ج.م</Typography>
-                </Box>
-                {parseFloat(viewInvoice.remaining_amount) > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', color: 'error.main' }}>
-                    <Typography variant="body2" fontWeight="bold">المبلغ المتبقي (الآجل):</Typography>
-                    <Typography variant="body1" fontWeight="bold">{parseFloat(viewInvoice.remaining_amount).toLocaleString()} ج.م</Typography>
-                  </Box>
-                )}
-                <Divider sx={{ my: 1 }} />
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="caption" color="text.secondary">طريقة الدفع: {getPaymentMethodLabel(viewInvoice.payment_method)}</Typography>
-                  {getStatusChip(viewInvoice.payment_status)}
-                </Box>
-              </Box>
-
-              {viewInvoice.notes && (
-                <Box sx={{ mb: 2, p: 1.5, borderLeft: '3px solid #4285F4', bgcolor: '#F8FAFC' }}>
-                  <Typography variant="caption" color="text.secondary">ملاحظات:</Typography>
-                  <Typography variant="body2">{viewInvoice.notes}</Typography>
-                </Box>
-              )}
-
-              {/* Receipt Footer & Signatures */}
-              <Box sx={{ mt: 4, pt: 2, borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', textAlign: 'center' }}>
-                <Box>
-                  <Typography variant="caption" display="block">توقيع الموظف / المسؤول</Typography>
-                  <Box sx={{ mt: 3, width: 100, borderBottom: '1px solid #94A3B8' }} />
-                </Box>
-                <Box>
-                  <Typography variant="caption" display="block">توقيع المستلم / العميل</Typography>
-                  <Box sx={{ mt: 3, width: 100, borderBottom: '1px solid #94A3B8' }} />
-                </Box>
-              </Box>
-
-              <Typography variant="caption" display="block" align="center" color="text.secondary" sx={{ mt: 3 }}>
-                شكراً لتعاملكم معنا!
-              </Typography>
-            </Box>
-          )}
-        </DialogContent>
-
-        <DialogActions className="no-print" sx={{ p: 2 }}>
-          <Button onClick={() => setViewDialogOpen(false)} variant="outlined">إغلاق</Button>
-          <Button onClick={() => printCustomInvoice(viewInvoice, settings, true)} variant="outlined" startIcon={<PrintIcon />}>
-            طابعة حرارية (80mm)
-          </Button>
-          <Button onClick={() => printCustomInvoice(viewInvoice, settings, false)} variant="contained" startIcon={<PrintIcon />}>
-            طباعة فاتورة (A4)
+          <Button
+            variant="contained"
+            onClick={handleSaveDraft}
+            startIcon={<CheckIcon />}
+            disabled={loading}
+            sx={{
+              borderRadius: '10px',
+              fontWeight: 900,
+              px: 3,
+              py: 1,
+              bgcolor: '#D97706',
+              '&:hover': { bgcolor: '#B45309' }
+            }}
+          >
+            {loading ? <CircularProgress size={24} color="inherit" /> : 'حفظ المسودة بالداتابيز 💾'}
           </Button>
         </DialogActions>
       </Dialog>

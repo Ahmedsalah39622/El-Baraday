@@ -43,23 +43,35 @@ export async function GET(request) {
       topProductsWhere += ` AND o.branch_id = $${topParams.length}`;
     }
 
-    // Top selling products for the day isolated per branch
-    const topProducts = await query(
-      `SELECT oi.product_name, SUM(oi.quantity) as total_qty,
-              SUM(oi.price * oi.quantity) as total_revenue
-       FROM order_items oi
-       JOIN orders o ON o.id = oi.order_id
-       ${topProductsWhere}
-       GROUP BY oi.product_name
-       ORDER BY total_qty DESC
-       LIMIT 10`,
-      topParams
-    );
+    // Top selling products for the day permanently recorded in DB
+    let topProductsList = [];
+    try {
+      const { getStoredDailyTopProducts } = await import('@/lib/dailyTopProducts');
+      topProductsList = await getStoredDailyTopProducts(date, branchId, 10);
+    } catch (e) {
+      console.warn('Failed to get stored daily top products:', e);
+    }
+
+    // Fallback directly to live orders if not populated yet
+    if (!topProductsList || topProductsList.length === 0) {
+      const topProducts = await query(
+        `SELECT oi.product_name, SUM(oi.quantity) as total_qty,
+                SUM(oi.price * oi.quantity) as total_revenue
+         FROM order_items oi
+         JOIN orders o ON o.id = oi.order_id
+         ${topProductsWhere}
+         GROUP BY oi.product_name
+         ORDER BY total_qty DESC
+         LIMIT 10`,
+        topParams
+      );
+      topProductsList = topProducts.rows || [];
+    }
 
     return NextResponse.json({
       date,
       stats: statsResult.rows[0] || {},
-      topProducts: topProducts.rows || []
+      topProducts: topProductsList
     });
   } catch (error) {
     console.error('Error fetching daily report:', error);

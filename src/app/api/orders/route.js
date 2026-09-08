@@ -399,6 +399,12 @@ export async function POST(request) {
       }
     }
 
+    // Persist and snapshot daily top products in DB
+    try {
+      const { syncDailyTopProducts } = await import('@/lib/dailyTopProducts');
+      syncDailyTopProducts(new Date().toISOString().split('T')[0], targetBranch).catch(e => console.warn('Daily top products sync error:', e));
+    } catch (e) {}
+
     return NextResponse.json(order, { status: 201 });
   } catch (error) {
     console.error('❌ Error creating order:', error);

@@ -143,7 +143,7 @@ export default function ReportsPage() {
   });
   const driverPerformanceList = Object.values(driverPerformanceMap);
 
-  // Top Products Sold
+  // Top Products Sold (Prioritize stored persistent daily top products from DB)
   const productSalesMap = {};
   filteredInvoices.forEach((inv) => {
     (inv.items || []).forEach((item) => {
@@ -155,7 +155,15 @@ export default function ReportsPage() {
       productSalesMap[pName].totalRevenue += parseFloat(item.price || 0) * (item.quantity || 1);
     });
   });
-  const topProducts = Object.values(productSalesMap).sort((a, b) => b.totalQty - a.totalQty);
+  const calculatedTopProducts = Object.values(productSalesMap).sort((a, b) => b.totalQty - a.totalQty);
+
+  const topProducts = (dailyReportSummary?.topProducts && dailyReportSummary.topProducts.length > 0)
+    ? dailyReportSummary.topProducts.map(tp => ({
+        name: tp.product_name || tp.name,
+        totalQty: parseFloat(tp.total_qty || tp.totalQty || 0),
+        totalRevenue: parseFloat(tp.total_revenue || tp.totalRevenue || 0)
+      }))
+    : calculatedTopProducts;
 
   // Get active branch display name
   const activeBranchName = selectedBranchId === 'all' || !selectedBranchId ? 'كافة الفروع' : (branches.find((b) => b.id === selectedBranchId)?.name || 'الفرع المحدد');
