@@ -65,6 +65,7 @@ export default function InvoicesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDraftId, setEditingDraftId] = useState(null);
   const [formError, setFormError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const initialForm = {
     title: 'نوتة طلب',
@@ -984,7 +985,7 @@ export default function InvoicesPage() {
                         <Tooltip title="حذف النوتة من قاعدة البيانات">
                           <IconButton
                             size="small"
-                            onClick={() => handleDeleteDraft(draft.id)}
+                            onClick={() => setDeleteTarget(draft)}
                             sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', color: '#DC2626' }}
                           >
                             <DeleteIcon fontSize="small" />
@@ -1221,6 +1222,46 @@ export default function InvoicesPage() {
             }}
           >
             {loading ? <CircularProgress size={24} color="inherit" /> : 'حفظ المسودة بالداتابيز 💾'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '16px', p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DeleteIcon color="error" />
+          تأكيد حذف النوتة 🗑️
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mt: 1, color: '#1E293B', fontWeight: 800 }}>
+            هل أنت متأكد من رغبتك في حذف نوتة "{deleteTarget?.customer_name}" نهائياً من قاعدة البيانات؟
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            هذا الإجراء سيقوم بمسح النوتة وأصنافها المسجلة من النظام.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, gap: 1, justifyContent: 'space-between' }}>
+          <Button onClick={() => setDeleteTarget(null)} sx={{ fontWeight: 'bold', color: 'text.secondary' }}>
+            إلغاء
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={async () => {
+              if (deleteTarget?.id) {
+                await deleteCustomInvoice(deleteTarget.id);
+                setDeleteTarget(null);
+              }
+            }}
+            sx={{ borderRadius: '8px', fontWeight: 900, px: 2.5, bgcolor: '#DC2626', '&:hover': { bgcolor: '#B91C1C' } }}
+          >
+            نعم، حذف النوتة 🗑️
           </Button>
         </DialogActions>
       </Dialog>

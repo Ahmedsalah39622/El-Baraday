@@ -168,6 +168,29 @@ export const useInvoiceStore = create((set, get) => ({
     }
   },
 
+  // Delete custom invoice / note
+  deleteCustomInvoice: async (id) => {
+    // Optimistic UI update
+    set((state) => ({
+      customInvoices: state.customInvoices.filter((inv) => String(inv.id) !== String(id))
+    }));
+    try {
+      const res = await fetch(`/api/invoices/${id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        return { success: true };
+      } else {
+        const errData = await res.json();
+        await get().fetchCustomInvoices();
+        return { success: false, error: errData.error };
+      }
+    } catch (err) {
+      await get().fetchCustomInvoices();
+      return { success: false, error: err.message };
+    }
+  },
+
   // Update full POS order (modify items, quantities, totals, customer info, delivery fee, etc.)
   updateOrder: async (orderId, updatedFields) => {
     set({ loading: true });
