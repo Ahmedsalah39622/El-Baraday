@@ -500,13 +500,8 @@ export default function POSPage() {
     if (b1ActiveShift.rawStartTime && inv.createdAt) {
       const invTime = new Date(inv.createdAt).getTime();
       const shiftStartTime = new Date(b1ActiveShift.rawStartTime).getTime();
-      if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 300000)) {
-        const invDate = new Date(invTime);
-        const shiftDate = new Date(shiftStartTime);
-        const isSameDay = invDate.getFullYear() === shiftDate.getFullYear() &&
-                          invDate.getMonth() === shiftDate.getMonth() &&
-                          invDate.getDate() === shiftDate.getDate();
-        if (!isSameDay) return sum;
+      if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 60000)) {
+        return sum;
       }
     }
 
@@ -516,9 +511,10 @@ export default function POSPage() {
       if (!isCashCollected) return sum;
     }
 
-    // استبعاد رسوم التوصيل من نقدية الدرج
-    const invDeliveryFee = isDelivery ? (parseFloat(inv.deliveryFee || inv.delivery_fee) || 0) : 0;
-    return sum + (parseFloat(inv.paidAmount || inv.total || 0)) - invDeliveryFee;
+    const pm = inv.paymentMethod || inv.payment_method || 'cash';
+    if (pm !== 'cash') return sum;
+
+    return sum + (parseFloat(inv.paidAmount || inv.total || 0));
   }, 0);
 
   // Calculate Branch 2 cash drawer amount: Returns 0.00 if Branch 2 shift is CLOSED
@@ -530,13 +526,8 @@ export default function POSPage() {
     if (b2ActiveShift.rawStartTime && inv.createdAt) {
       const invTime = new Date(inv.createdAt).getTime();
       const shiftStartTime = new Date(b2ActiveShift.rawStartTime).getTime();
-      if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 300000)) {
-        const invDate = new Date(invTime);
-        const shiftDate = new Date(shiftStartTime);
-        const isSameDay = invDate.getFullYear() === shiftDate.getFullYear() &&
-                          invDate.getMonth() === shiftDate.getMonth() &&
-                          invDate.getDate() === shiftDate.getDate();
-        if (!isSameDay) return sum;
+      if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 60000)) {
+        return sum;
       }
     }
 
@@ -546,9 +537,10 @@ export default function POSPage() {
       if (!isCashCollected) return sum;
     }
 
-    // استبعاد رسوم التوصيل من نقدية الدرج
-    const invDeliveryFee = isDelivery ? (parseFloat(inv.deliveryFee || inv.delivery_fee) || 0) : 0;
-    return sum + (parseFloat(inv.paidAmount || inv.total || 0)) - invDeliveryFee;
+    const pm = inv.paymentMethod || inv.payment_method || 'cash';
+    if (pm !== 'cash') return sum;
+
+    return sum + (parseFloat(inv.paidAmount || inv.total || 0));
   }, 0);
 
   const isShiftActive = activeShift && activeShift.status === 'active';

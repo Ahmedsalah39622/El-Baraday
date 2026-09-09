@@ -62,7 +62,7 @@ export default function OrdersPage() {
   const canSeeSafe = isAdmin || (typeof canViewSafeBalance === 'function' ? canViewSafeBalance() : user?.permissions?.includes('show_safe_balance'));
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [showPreviousShifts, setShowPreviousShifts] = useState(false);
+  const [filterPeriod, setFilterPeriod] = useState('today'); // 'today' (default), 'shift', 'all'
 
   // View Order Details Modal State
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -152,13 +152,38 @@ export default function OrdersPage() {
     return false;
   }, [allShiftsList, activeShift]);
 
-  // Filter orders strictly by selected branch, shift time, & search query
+  const isToday = useCallback((dateStr) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    const now = new Date();
+    return d.getDate() === now.getDate() &&
+           d.getMonth() === now.getMonth() &&
+           d.getFullYear() === now.getFullYear();
+  }, []);
+
+  const todayOrdersCount = useMemo(() => {
+    return (invoices || []).filter((inv) => {
+      const matchBranch = !targetBranch || targetBranch === 'all' || inv.branchId === targetBranch || inv.branch_id === targetBranch;
+      return matchBranch && isToday(inv.createdAt || inv.created_at);
+    }).length;
+  }, [invoices, targetBranch, isToday]);
+
+  const activeShiftOrdersCount = useMemo(() => {
+    return (invoices || []).filter((inv) => {
+      const matchBranch = !targetBranch || targetBranch === 'all' || inv.branchId === targetBranch || inv.branch_id === targetBranch;
+      return matchBranch && isInvoiceInCurrentShift(inv);
+    }).length;
+  }, [invoices, targetBranch, isInvoiceInCurrentShift]);
+
+  // Filter orders strictly by selected branch, time mode, & search query
   const filteredOrders = (invoices || []).filter((inv) => {
     const matchBranch = !targetBranch || targetBranch === 'all' || inv.branchId === targetBranch || inv.branch_id === targetBranch;
     if (!matchBranch) return false;
 
-    // When NOT showing previous shifts: hide old orders
-    if (!showPreviousShifts) {
+    // Period filter: today (default), shift, or all
+    if (filterPeriod === 'today') {
+      if (!isToday(inv.createdAt || inv.created_at)) return false;
+    } else if (filterPeriod === 'shift') {
       if (!isInvoiceInCurrentShift(inv)) return false;
     }
 
@@ -178,12 +203,14 @@ export default function OrdersPage() {
       const matchBranch = !targetBranch || targetBranch === 'all' || inv.branchId === targetBranch || inv.branch_id === targetBranch;
       if (!matchBranch || inv.status === 'cancelled') return false;
 
-      // When showing previous shifts, include all non-cancelled orders of selected branch/all branches
-      if (showPreviousShifts) return true;
-
-      return isInvoiceInCurrentShift(inv);
+      if (filterPeriod === 'today') {
+        return isToday(inv.createdAt || inv.created_at);
+      } else if (filterPeriod === 'shift') {
+        return isInvoiceInCurrentShift(inv);
+      }
+      return true;
     });
-  }, [invoices, targetBranch, showPreviousShifts, isInvoiceInCurrentShift]);
+  }, [invoices, targetBranch, filterPeriod, isToday, isInvoiceInCurrentShift]);
 
   // 1. Total Cash in Drawer (إجمالي النقدية في الخزنة) - Exactly aligned with POS till logic
   const totalCashInDrawer = useMemo(() => {
@@ -303,33 +330,63 @@ export default function OrdersPage() {
 
           <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="ابحث برقم الطلب أو اسم العميل..." />
 
-          {/* Toggle Previous Shifts Button */}
-          <Button
-            variant={showPreviousShifts ? 'contained' : 'outlined'}
-            startIcon={<History sx={{ fontSize: '18px !important' }} />}
-            onClick={() => setShowPreviousShifts(!showPreviousShifts)}
-            size="small"
-            sx={{
-              borderRadius: '10px',
-              fontWeight: 800,
-              fontSize: '0.78rem',
-              px: 1.8,
-              py: 0.8,
-              minHeight: 36,
-              whiteSpace: 'nowrap',
-              border: '1.5px solid',
-              borderColor: showPreviousShifts ? '#1E40AF' : '#CBD5E1',
-              bgcolor: showPreviousShifts ? '#1E40AF' : '#F8FAFC',
-              color: showPreviousShifts ? '#FFF' : '#475569',
-              boxShadow: showPreviousShifts ? '0 2px 8px rgba(30, 64, 175, 0.3)' : '0 1px 3px rgba(0,0,0,0.06)',
-              '&:hover': {
-                bgcolor: showPreviousShifts ? '#1E3A8A' : '#F1F5F9',
-                borderColor: showPreviousShifts ? '#1E3A8A' : '#94A3B8',
-              },
-            }}
-          >
-            {showPreviousShifts ? '✕ إخفاء السابقة' : '📋 طلبات الشيفتات السابقة'}
-          </Button>
+          {/* Period Filter Toggle */}
+          <Paper elevation={0} sx={{ display: 'flex', bgcolor: '#F1F5F9', p: 0.5, borderRadius: '12px', border: '1px solid #CBD5E1' }}>
+            <Button
+              size="small"
+              onClick={() => setFilterPeriod('today')}
+              sx={{
+                borderRadius: '8px',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                px: 1.5,
+                py: 0.6,
+                minHeight: 34,
+                bgcolor: filterPeriod === 'today' ? '#1E40AF' : 'transparent',
+                color: filterPeriod === 'today' ? '#FFF' : '#475569',
+                boxShadow: filterPeriod === 'today' ? '0 2px 6px rgba(30, 64, 175, 0.3)' : 'none',
+                '&:hover': { bgcolor: filterPeriod === 'today' ? '#1E3A8A' : '#E2E8F0' }
+              }}
+            >
+              📅 طلبات اليوم ({todayOrdersCount})
+            </Button>
+            <Button
+              size="small"
+              onClick={() => setFilterPeriod('shift')}
+              sx={{
+                borderRadius: '8px',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                px: 1.5,
+                py: 0.6,
+                minHeight: 34,
+                bgcolor: filterPeriod === 'shift' ? '#1E40AF' : 'transparent',
+                color: filterPeriod === 'shift' ? '#FFF' : '#475569',
+                boxShadow: filterPeriod === 'shift' ? '0 2px 6px rgba(30, 64, 175, 0.3)' : 'none',
+                '&:hover': { bgcolor: filterPeriod === 'shift' ? '#1E3A8A' : '#E2E8F0' }
+              }}
+            >
+              ⏱️ الوردية الحالية ({activeShiftOrdersCount})
+            </Button>
+            <Button
+              size="small"
+              onClick={() => setFilterPeriod('all')}
+              sx={{
+                borderRadius: '8px',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                px: 1.5,
+                py: 0.6,
+                minHeight: 34,
+                bgcolor: filterPeriod === 'all' ? '#1E40AF' : 'transparent',
+                color: filterPeriod === 'all' ? '#FFF' : '#475569',
+                boxShadow: filterPeriod === 'all' ? '0 2px 6px rgba(30, 64, 175, 0.3)' : 'none',
+                '&:hover': { bgcolor: filterPeriod === 'all' ? '#1E3A8A' : '#E2E8F0' }
+              }}
+            >
+              📂 كل السابقة
+            </Button>
+          </Paper>
         </Box>
       </Box>
 
