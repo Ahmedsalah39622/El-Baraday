@@ -22,6 +22,10 @@ export async function POST(request) {
       );
     }
 
+    if (result.error) {
+      return NextResponse.json({ exists: false, error: 'تعذر الاتصال بقاعدة البيانات، يرجى المحاولة مرة أخرى' }, { status: 500 });
+    }
+
     if (!result.rows || result.rows.length === 0) {
       return NextResponse.json({ exists: false, error: 'المستخدم غير مسجل في داتابيز النظام' }, { status: 404 });
     }

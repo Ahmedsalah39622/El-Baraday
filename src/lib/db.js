@@ -2,45 +2,34 @@ import mysql from 'mysql2/promise';
 import { randomUUID } from 'crypto';
 
 // Serverless-optimized MySQL connection pool for Hostinger phpMyAdmin
-let pool;
-let currentHostFallback = null;
-
 export function getPool() {
-  if (!pool) {
-    if (global._mysqlPool) {
-      pool = global._mysqlPool;
-    } else {
-      const rawHost = (process.env.MYSQL_HOST || process.env.DB_HOST || 'srv1788.hstgr.io').trim();
-      // Bypasses DNS resolution issues on Vercel serverless functions by using direct IP if domain fails
-      let host = (rawHost === 'localhost' || rawHost === '127.0.0.1') ? 'localhost' : (rawHost || 'srv1788.hstgr.io');
+  if (!global._mysqlPool || global._mysqlPool._closed) {
+    const rawHost = (process.env.MYSQL_HOST || process.env.DB_HOST || 'srv1788.hstgr.io').trim();
+    const host = (rawHost === 'localhost' || rawHost === '127.0.0.1') ? 'localhost' : (rawHost || 'srv1788.hstgr.io');
 
-      if (currentHostFallback) {
-        host = currentHostFallback;
-      }
+    const config = {
+      host: host,
+      user: (process.env.MYSQL_USER || process.env.DB_USER || 'u407531143_bara').trim(),
+      password: (process.env.MYSQL_PASSWORD || process.env.DB_PASSWORD || 'Q+x;s3r=n9').trim(),
+      database: (process.env.MYSQL_DATABASE || process.env.DB_NAME || 'u407531143_bara').trim(),
+      port: parseInt(process.env.MYSQL_PORT || process.env.DB_PORT || '3306'),
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+      connectTimeout: 20000,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000,
+      maxIdle: 10,
+      idleTimeout: 60000,
+    };
 
-      const config = {
-        host: host,
-        user: (process.env.MYSQL_USER || process.env.DB_USER || 'u407531143_bara').trim(),
-        password: (process.env.MYSQL_PASSWORD || process.env.DB_PASSWORD || 'Q+x;s3r=n9').trim(),
-        database: (process.env.MYSQL_DATABASE || process.env.DB_NAME || 'u407531143_bara').trim(),
-        port: parseInt(process.env.MYSQL_PORT || process.env.DB_PORT || '3306'),
-        waitForConnections: true,
-        connectionLimit: 5,
-        queueLimit: 0,
-        connectTimeout: 15000, // Sufficient timeout for remote cloud MySQL
-        maxIdle: 5, // Keep connections alive to prevent connection handshake count exhaustion
-        idleTimeout: 60000, // Keep connections in pool for up to 60 seconds
-      };
-
-      if (process.env.MYSQL_SSL === 'true') {
-        config.ssl = { rejectUnauthorized: false };
-      }
-
-      pool = mysql.createPool(config);
-      global._mysqlPool = pool;
+    if (process.env.MYSQL_SSL === 'true') {
+      config.ssl = { rejectUnauthorized: false };
     }
+
+    global._mysqlPool = mysql.createPool(config);
   }
-  return pool;
+  return global._mysqlPool;
 }
 
 // Global set to prevent repeated DDL ALTER/CREATE table checks on serverless warm instances
@@ -168,20 +157,9 @@ export async function query(text, params = []) {
         ].includes(err.code);
 
         if (isConnectionError && attempts < maxAttempts) {
-          const rawHost = (process.env.MYSQL_HOST || process.env.DB_HOST || 'srv1788.hstgr.io').trim();
           console.warn(`⚠️ MySQL Connection error encountered (${err.code}). Recreating pool and retrying (attempt ${attempts}/${maxAttempts})...`);
 
-          if (err.code === 'ENOTFOUND' && rawHost === 'srv1788.hstgr.io') {
-            console.log('Falling back to direct IP address 193.203.168.173 to bypass DNS issues.');
-            currentHostFallback = '193.203.168.173';
-          }
-
-          if (global._mysqlPool) {
-            const oldPool = global._mysqlPool;
-            global._mysqlPool = null;
-            pool = null;
-            oldPool.end().catch(() => { });
-          }
+          global._mysqlPool = null;
 
           await new Promise(resolve => setTimeout(resolve, 500));
           continue;
