@@ -129,9 +129,11 @@ export const useInvoiceStore = create((set, get) => ({
       if (res.ok) {
         const created = await res.json();
         set((state) => ({
-          customInvoices: [created, ...state.customInvoices],
+          customInvoices: [created, ...state.customInvoices.filter(x => x.id !== created.id)],
           loading: false,
         }));
+        // Re-sync with server quietly in background
+        get().fetchCustomInvoices({}, true);
         return { success: true, data: created };
       } else {
         const errData = await res.json();

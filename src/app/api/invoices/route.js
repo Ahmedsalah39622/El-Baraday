@@ -21,6 +21,8 @@ async function ensureInvoicesTable() {
         items JSON DEFAULT NULL,
         branch_id VARCHAR(100) DEFAULT 'b1',
         created_by VARCHAR(100) DEFAULT 'administrator',
+        extra_expenses DECIMAL(10, 2) DEFAULT 0.00,
+        extra_expenses_notes VARCHAR(255) DEFAULT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -110,10 +112,22 @@ export async function POST(req) {
       return NextResponse.json({ error: 'اسم العميل أو الجهة (باسم كذا) مطلوب' }, { status: 400 });
     }
 
-    // Generate unique invoice number: e.g. INV-1001 or INV-YYYYMMDD-XXX
-    const nextNumRes = await query(`SELECT COUNT(*) as cnt FROM invoices`);
-    const count = (nextNumRes.rows && nextNumRes.rows[0] ? parseInt(nextNumRes.rows[0].cnt) : 0) + 1001;
-    const invoiceNumber = body.invoice_number || `INV-${count}`;
+    // Generate unique invoice number safely without count collisions
+    let invoiceNumber = body.invoice_number;
+    if (!invoiceNumber) {
+      const maxNumRes = await query(`SELECT invoice_number FROM invoices ORDER BY created_at DESC LIMIT 100`);
+      let maxNum = 1000;
+      if (maxNumRes.rows && maxNumRes.rows.length > 0) {
+        for (const r of maxNumRes.rows) {
+          const match = (r.invoice_number || '').match(/INV-(\d+)/);
+          if (match) {
+            const n = parseInt(match[1]);
+            if (!isNaN(n) && n > maxNum) maxNum = n;
+          }
+        }
+      }
+      invoiceNumber = `INV-${maxNum + 1}`;
+    }
 
     const id = body.id || `inv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const title = body.title || 'فاتورة تحصيل';

@@ -27,7 +27,7 @@ export function getPool() {
         waitForConnections: true,
         connectionLimit: 5,
         queueLimit: 0,
-        connectTimeout: 5000, // Fail fast to trigger retry/fallback
+        connectTimeout: 15000, // Sufficient timeout for remote cloud MySQL
         maxIdle: 5, // Keep connections alive to prevent connection handshake count exhaustion
         idleTimeout: 60000, // Keep connections in pool for up to 60 seconds
       };
@@ -171,7 +171,7 @@ export async function query(text, params = []) {
           const rawHost = (process.env.MYSQL_HOST || process.env.DB_HOST || 'srv1788.hstgr.io').trim();
           console.warn(`⚠️ MySQL Connection error encountered (${err.code}). Recreating pool and retrying (attempt ${attempts}/${maxAttempts})...`);
 
-          if ((err.code === 'ENOTFOUND' || err.code === 'ETIMEDOUT') && rawHost === 'srv1788.hstgr.io') {
+          if (err.code === 'ENOTFOUND' && rawHost === 'srv1788.hstgr.io') {
             console.log('Falling back to direct IP address 193.203.168.173 to bypass DNS issues.');
             currentHostFallback = '193.203.168.173';
           }

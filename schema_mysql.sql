@@ -359,6 +359,8 @@ CREATE TABLE IF NOT EXISTS `invoices` (
   `items` JSON DEFAULT NULL,
   `branch_id` VARCHAR(100) DEFAULT 'b1',
   `created_by` VARCHAR(100) DEFAULT 'administrator',
+  `extra_expenses` DECIMAL(10, 2) DEFAULT 0.00,
+  `extra_expenses_notes` VARCHAR(255) DEFAULT NULL,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

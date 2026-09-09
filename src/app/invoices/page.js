@@ -105,7 +105,11 @@ export default function InvoicesPage() {
   // Notes and Drafts
   const allDrafts = useMemo(() => {
     return customInvoices.filter(inv => {
-      const isDraft = inv.payment_status === 'draft';
+      const isDraft = inv.payment_status === 'draft' || 
+                      inv.is_draft || 
+                      inv.title?.includes('مسودة') || 
+                      inv.title?.includes('نوتة') || 
+                      !inv.payment_status;
       if (!isDraft) return false;
       const matchBranch = !effectiveBranch || effectiveBranch === 'all' || inv.branch_id === effectiveBranch || inv.branchId === effectiveBranch;
       return matchBranch;
@@ -355,10 +359,33 @@ export default function InvoicesPage() {
       return;
     }
 
-    const finalAmount = parseFloat(formData.amount) || 0;
+    // Auto-include pending item from input fields if user didn't click '+ إضافة الصنف'
+    let currentItems = [...(formData.items || [])];
+    if (newItem.product_name && newItem.product_name.trim()) {
+      const qVal = parseFloat(newItem.quantity) || 1;
+      const pVal = parseFloat(newItem.price) || 0;
+      const tVal = parseFloat(newItem.total) || (qVal * pVal);
+      currentItems.push({
+        product_name: newItem.product_name.trim(),
+        description: newItem.product_name.trim(),
+        quantity: qVal,
+        kilos: qVal,
+        qty: qVal,
+        price: pVal,
+        total: tVal
+      });
+      setNewItem({ product_name: '', quantity: '1', price: '', total: '' });
+    }
+
+    const itemsSum = currentItems.reduce((acc, curr) => acc + (parseFloat(curr.total) || 0), 0);
+    const extraExp = parseFloat(formData.extra_expenses) || 0;
+    const finalAmount = itemsSum > 0 ? (itemsSum + extraExp) : (parseFloat(formData.amount) || 0);
+
     const payload = {
       ...formData,
-      extra_expenses: parseFloat(formData.extra_expenses) || 0,
+      items: currentItems,
+      title: formData.title || 'نوتة طلب',
+      extra_expenses: extraExp,
       extra_expenses_notes: formData.extra_expenses_notes || '',
       amount: finalAmount.toString(),
       paid_amount: '0',
@@ -371,6 +398,7 @@ export default function InvoicesPage() {
       const res = await updateCustomInvoice(editingDraftId, payload);
       if (res.success) {
         setDialogOpen(false);
+        setEditingDraftId(null);
       } else {
         setFormError(res.error || 'حدث خطأ أثناء تعديل المسودة');
       }
