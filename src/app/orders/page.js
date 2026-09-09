@@ -40,7 +40,6 @@ import {
   AccountBalanceWallet,
   DeliveryDining,
   LocalShipping,
-  History,
   CheckCircle,
   EditOutlined,
 } from '@mui/icons-material';
@@ -317,7 +316,6 @@ export default function OrdersPage() {
           {/* Toggle Previous Shifts Button */}
           <Button
             variant={showPreviousShifts ? 'contained' : 'outlined'}
-            startIcon={<History sx={{ fontSize: '18px !important' }} />}
             onClick={() => setShowPreviousShifts(!showPreviousShifts)}
             size="small"
             sx={{
