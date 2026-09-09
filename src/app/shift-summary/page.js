@@ -247,8 +247,23 @@ export default function ShiftSummaryPage() {
 
   const totalDeliveryFees = activeShiftInvoices.reduce((sum, inv) => sum + (parseFloat(inv.deliveryFee || inv.delivery_fee) || 0), 0);
   const totalSales = activeShiftInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0) - returnDeduction;
+
+  // Actual physical cash collected in active drawer (takeaway/dine-in cash + delivery cash collected)
+  const activeShiftCashSales = activeShiftInvoices.reduce((sum, inv) => {
+    const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
+    if (isDelivery) {
+      const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
+      if (!isCashCollected) return sum;
+    }
+
+    const pm = inv.paymentMethod || inv.payment_method || 'cash';
+    if (pm !== 'cash') return sum;
+
+    return sum + (parseFloat(inv.paidAmount || inv.total || 0));
+  }, 0);
+
   const startCash = relevantActiveShifts.reduce((sum, s) => sum + (parseFloat(s.start_amount || s.startAmount || 0)), 0);
-  const expectedDrawerCash = isShiftActive ? (startCash + totalSales) : 0;
+  const expectedDrawerCash = isShiftActive ? Math.max(0, startCash + activeShiftCashSales - returnDeduction) : 0;
 
   // Active shift delivery metrics (صافي أوردرات الدليفري وإجمالي خدمة الدليفري)
   const activeShiftDeliveryInvoices = activeShiftInvoices.filter(
@@ -334,7 +349,8 @@ export default function ShiftSummaryPage() {
     const isLive = !shiftObj;
 
     const startAmt = parseFloat(targetShift?.start_amount || targetShift?.startAmount || startCash);
-    const salesAmt = isLive ? totalSales : parseFloat(targetShift?.cash_sales || 0);
+    const salesAmt = isLive ? activeShiftCashSales : parseFloat(targetShift?.cash_sales || 0);
+    const overallSalesAmt = isLive ? totalSales : parseFloat(targetShift?.total_sales || targetShift?.cash_sales || 0);
     const expAmt = isLive ? expectedDrawerCash : parseFloat(targetShift?.expected_amount || (startAmt + salesAmt));
     const actAmt = isLive ? (actualDrawerCash !== '' ? parseFloat(actualDrawerCash) : expAmt) : parseFloat(targetShift?.end_amount || 0);
     const diff = actAmt - expAmt;
@@ -346,7 +362,7 @@ export default function ShiftSummaryPage() {
     const stats = [
       { title: 'الكاشير مسئول الوردية', value: targetShift?.cashier_name || targetShift?.cashierName || cashierDisplayName },
       { title: 'النقدية الأولى (العهدة)', value: `${startAmt.toFixed(2)} ج.م` },
-      { title: 'إجمالي مبيعات الشيفت', value: `${salesAmt.toFixed(2)} ج.م` },
+      { title: 'إجمالي مبيعات الشيفت', value: `${overallSalesAmt.toFixed(2)} ج.م` },
       { title: 'المبلغ المتوقع بالخزينة', value: `${expAmt.toFixed(2)} ج.م` },
       { title: 'المبلغ الفعلي الخزينة', value: `${actAmt.toFixed(2)} ج.م` },
       { title: 'حالة الخزينة والعجز', value: shiftStatusText }
@@ -362,7 +378,7 @@ export default function ShiftSummaryPage() {
     const data = [
       { item: 'بداية العهدة (النقدية الأولى)', value: `${startAmt.toFixed(2)} ج.م`, notes: 'عهدة استلام الوردية' },
       { item: 'إجمالي مبيعات الكاش', value: `+${salesAmt.toFixed(2)} ج.م`, notes: `${isLive ? activeShiftInvoices.length : (targetShift?.total_orders || 0)} فاتورة` },
-      { item: 'المبلغ المتوقع بالخزينة', value: `${expAmt.toFixed(2)} ج.م`, notes: 'العهدة + المبيعات' },
+      { item: 'المبلغ المتوقع بالخزينة', value: `${expAmt.toFixed(2)} ج.م`, notes: 'العهدة + مبيعات الكاش' },
       { item: 'المبلغ الجردي الفعلي المسلم', value: `${actAmt.toFixed(2)} ج.م`, notes: 'المبلغ المحصّل باليد' },
       { item: 'الفارق (العجز / الزيادة)', value: `${diff.toFixed(2)} ج.م`, notes: targetShift?.notes || deficitNotes || 'تصفية وتسوية خزينة' }
     ];

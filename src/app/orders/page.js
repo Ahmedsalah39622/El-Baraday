@@ -62,7 +62,7 @@ export default function OrdersPage() {
   const canSeeSafe = isAdmin || (typeof canViewSafeBalance === 'function' ? canViewSafeBalance() : user?.permissions?.includes('show_safe_balance'));
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterPeriod, setFilterPeriod] = useState('today'); // 'today' (default), 'shift', 'all'
+  const [showPreviousShifts, setShowPreviousShifts] = useState(false);
 
   // View Order Details Modal State
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -152,38 +152,13 @@ export default function OrdersPage() {
     return false;
   }, [allShiftsList, activeShift]);
 
-  const isToday = useCallback((dateStr) => {
-    if (!dateStr) return false;
-    const d = new Date(dateStr);
-    const now = new Date();
-    return d.getDate() === now.getDate() &&
-           d.getMonth() === now.getMonth() &&
-           d.getFullYear() === now.getFullYear();
-  }, []);
-
-  const todayOrdersCount = useMemo(() => {
-    return (invoices || []).filter((inv) => {
-      const matchBranch = !targetBranch || targetBranch === 'all' || inv.branchId === targetBranch || inv.branch_id === targetBranch;
-      return matchBranch && isToday(inv.createdAt || inv.created_at);
-    }).length;
-  }, [invoices, targetBranch, isToday]);
-
-  const activeShiftOrdersCount = useMemo(() => {
-    return (invoices || []).filter((inv) => {
-      const matchBranch = !targetBranch || targetBranch === 'all' || inv.branchId === targetBranch || inv.branch_id === targetBranch;
-      return matchBranch && isInvoiceInCurrentShift(inv);
-    }).length;
-  }, [invoices, targetBranch, isInvoiceInCurrentShift]);
-
-  // Filter orders strictly by selected branch, time mode, & search query
+  // Filter orders strictly by selected branch, shift time, & search query
   const filteredOrders = (invoices || []).filter((inv) => {
     const matchBranch = !targetBranch || targetBranch === 'all' || inv.branchId === targetBranch || inv.branch_id === targetBranch;
     if (!matchBranch) return false;
 
-    // Period filter: today (default), shift, or all
-    if (filterPeriod === 'today') {
-      if (!isToday(inv.createdAt || inv.created_at)) return false;
-    } else if (filterPeriod === 'shift') {
+    // When NOT showing previous shifts: hide old orders (show active shift / drawer orders)
+    if (!showPreviousShifts) {
       if (!isInvoiceInCurrentShift(inv)) return false;
     }
 
@@ -203,25 +178,34 @@ export default function OrdersPage() {
       const matchBranch = !targetBranch || targetBranch === 'all' || inv.branchId === targetBranch || inv.branch_id === targetBranch;
       if (!matchBranch || inv.status === 'cancelled') return false;
 
-      if (filterPeriod === 'today') {
-        return isToday(inv.createdAt || inv.created_at);
-      } else if (filterPeriod === 'shift') {
-        return isInvoiceInCurrentShift(inv);
-      }
-      return true;
-    });
-  }, [invoices, targetBranch, filterPeriod, isToday, isInvoiceInCurrentShift]);
+      // When showing previous shifts, include all non-cancelled orders of selected branch/all branches
+      if (showPreviousShifts) return true;
 
-  // 1. Total Cash in Drawer (إجمالي النقدية في الخزنة) - Exactly aligned with POS till logic
+      return isInvoiceInCurrentShift(inv);
+    });
+  }, [invoices, targetBranch, showPreviousShifts, isInvoiceInCurrentShift]);
+
+  // 1. Total Cash in Drawer (إجمالي النقدية الفعلية في الدرج)
+  // Strictly represents actual physical cash currently in the till:
+  // startAmount + cash sales of the active shift (takeaway/dine-in cash + delivery where cash was collected)
   const totalCashInDrawer = useMemo(() => {
     const relevantShifts = targetBranch === 'all'
       ? activeShiftsList
       : activeShiftsList.filter(s => s.branch_id === targetBranch || (!s.branch_id && targetBranch === 'b1'));
 
+    if (!relevantShifts || relevantShifts.length === 0) return 0;
+
     const startCash = relevantShifts.reduce((sum, s) => sum + (parseFloat(s.startAmount || s.start_amount || 0)), 0);
 
-    const cashSalesSum = branchSummaryOrders.reduce((sum, inv) => {
-      // Exclude uncollected delivery cash
+    // Cash orders strictly belonging to current active drawer session
+    const activeShiftOrders = (invoices || []).filter(inv => {
+      const matchBranch = !targetBranch || targetBranch === 'all' || inv.branchId === targetBranch || inv.branch_id === targetBranch;
+      if (!matchBranch || inv.status === 'cancelled') return false;
+      return isInvoiceInCurrentShift(inv);
+    });
+
+    const cashSalesSum = activeShiftOrders.reduce((sum, inv) => {
+      // Exclude uncollected delivery cash (still with the driver)
       const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
       if (isDelivery) {
         const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
@@ -236,7 +220,7 @@ export default function OrdersPage() {
     }, 0);
 
     return startCash + cashSalesSum;
-  }, [branchSummaryOrders, targetBranch, activeShiftsList]);
+  }, [invoices, targetBranch, activeShiftsList, isInvoiceInCurrentShift]);
 
   // 2. Total Delivery Sales (إجمالي مبيعات الدليفري)
   const totalDeliverySales = useMemo(() => {
@@ -330,63 +314,33 @@ export default function OrdersPage() {
 
           <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="ابحث برقم الطلب أو اسم العميل..." />
 
-          {/* Period Filter Toggle */}
-          <Paper elevation={0} sx={{ display: 'flex', bgcolor: '#F1F5F9', p: 0.5, borderRadius: '12px', border: '1px solid #CBD5E1' }}>
-            <Button
-              size="small"
-              onClick={() => setFilterPeriod('today')}
-              sx={{
-                borderRadius: '8px',
-                fontWeight: 800,
-                fontSize: '0.8rem',
-                px: 1.5,
-                py: 0.6,
-                minHeight: 34,
-                bgcolor: filterPeriod === 'today' ? '#1E40AF' : 'transparent',
-                color: filterPeriod === 'today' ? '#FFF' : '#475569',
-                boxShadow: filterPeriod === 'today' ? '0 2px 6px rgba(30, 64, 175, 0.3)' : 'none',
-                '&:hover': { bgcolor: filterPeriod === 'today' ? '#1E3A8A' : '#E2E8F0' }
-              }}
-            >
-              📅 طلبات اليوم ({todayOrdersCount})
-            </Button>
-            <Button
-              size="small"
-              onClick={() => setFilterPeriod('shift')}
-              sx={{
-                borderRadius: '8px',
-                fontWeight: 800,
-                fontSize: '0.8rem',
-                px: 1.5,
-                py: 0.6,
-                minHeight: 34,
-                bgcolor: filterPeriod === 'shift' ? '#1E40AF' : 'transparent',
-                color: filterPeriod === 'shift' ? '#FFF' : '#475569',
-                boxShadow: filterPeriod === 'shift' ? '0 2px 6px rgba(30, 64, 175, 0.3)' : 'none',
-                '&:hover': { bgcolor: filterPeriod === 'shift' ? '#1E3A8A' : '#E2E8F0' }
-              }}
-            >
-              ⏱️ الوردية الحالية ({activeShiftOrdersCount})
-            </Button>
-            <Button
-              size="small"
-              onClick={() => setFilterPeriod('all')}
-              sx={{
-                borderRadius: '8px',
-                fontWeight: 800,
-                fontSize: '0.8rem',
-                px: 1.5,
-                py: 0.6,
-                minHeight: 34,
-                bgcolor: filterPeriod === 'all' ? '#1E40AF' : 'transparent',
-                color: filterPeriod === 'all' ? '#FFF' : '#475569',
-                boxShadow: filterPeriod === 'all' ? '0 2px 6px rgba(30, 64, 175, 0.3)' : 'none',
-                '&:hover': { bgcolor: filterPeriod === 'all' ? '#1E3A8A' : '#E2E8F0' }
-              }}
-            >
-              📂 كل السابقة
-            </Button>
-          </Paper>
+          {/* Toggle Previous Shifts Button */}
+          <Button
+            variant={showPreviousShifts ? 'contained' : 'outlined'}
+            startIcon={<History sx={{ fontSize: '18px !important' }} />}
+            onClick={() => setShowPreviousShifts(!showPreviousShifts)}
+            size="small"
+            sx={{
+              borderRadius: '10px',
+              fontWeight: 800,
+              fontSize: '0.78rem',
+              px: 1.8,
+              py: 0.8,
+              minHeight: 36,
+              whiteSpace: 'nowrap',
+              border: '1.5px solid',
+              borderColor: showPreviousShifts ? '#1E40AF' : '#CBD5E1',
+              bgcolor: showPreviousShifts ? '#1E40AF' : '#F8FAFC',
+              color: showPreviousShifts ? '#FFF' : '#475569',
+              boxShadow: showPreviousShifts ? '0 2px 8px rgba(30, 64, 175, 0.3)' : '0 1px 3px rgba(0,0,0,0.06)',
+              '&:hover': {
+                bgcolor: showPreviousShifts ? '#1E3A8A' : '#F1F5F9',
+                borderColor: showPreviousShifts ? '#1E3A8A' : '#94A3B8',
+              },
+            }}
+          >
+            {showPreviousShifts ? '✕ إخفاء السابقة' : '📋 طلبات الشيفتات السابقة'}
+          </Button>
         </Box>
       </Box>
 
@@ -668,19 +622,17 @@ export default function OrdersPage() {
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
                     <ReceiptLong sx={{ fontSize: 48, color: '#D1D5DB' }} />
                     <Typography variant="h6" sx={{ color: '#6B7280', fontWeight: 800 }}>
-                      {filterPeriod === 'shift' && !isShiftActive
+                      {!isShiftActive && !showPreviousShifts
                         ? 'الشيفت مقفول — مفيش طلبات للعرض'
-                        : filterPeriod === 'shift'
+                        : isShiftActive && !showPreviousShifts
                         ? 'لا توجد طلبات في الشيفت الحالي بعد'
-                        : filterPeriod === 'today'
-                        ? 'لا توجد طلبات مسجلة اليوم حتى الآن'
                         : 'لا توجد نتائج بحث مطابقة'}
                     </Typography>
-                    {filterPeriod === 'shift' && (
+                    {!showPreviousShifts && (
                       <Typography variant="body2" sx={{ color: '#9CA3AF', fontWeight: 600 }}>
                         {!isShiftActive
-                          ? 'افتح وردية جديدة من صفحة ملخص الشيفت، أو اضغط "طلبات اليوم" لعرض طلبات اليوم بالكامل.'
-                          : 'الطلبات الجديدة هتظهر هنا تلقائياً. أو اضغط على "طلبات اليوم" أو "كل السابقة".'}
+                          ? 'افتح وردية جديدة من صفحة ملخص الشيفت، أو اضغط "طلبات الشيفتات السابقة" لعرض الطلبات القديمة.'
+                          : 'الطلبات الجديدة هتظهر هنا تلقائياً. أو اضغط على "طلبات الشيفتات السابقة" لعرض الطلبات القديمة.'}
                       </Typography>
                     )}
                   </Box>
