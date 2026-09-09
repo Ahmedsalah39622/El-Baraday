@@ -85,7 +85,7 @@ export async function syncDailyTopProducts(targetDate = null, targetBranch = nul
 /**
  * Fetch top products for a specific date / branch from daily_top_products table
  */
-export async function getStoredDailyTopProducts(targetDate = null, targetBranch = null, limit = 10) {
+export async function getStoredDailyTopProducts(targetDate = null, targetBranch = null, limit = 1000) {
   try {
     await ensureDailyTopProductsTable();
     const dateStr = targetDate || new Date().toISOString().split('T')[0];
@@ -110,7 +110,7 @@ export async function getStoredDailyTopProducts(targetDate = null, targetBranch 
       ${whereClause}
       GROUP BY product_name
       ORDER BY total_qty DESC
-      LIMIT ${parseInt(limit) || 10}
+      LIMIT ${parseInt(limit) || 1000}
     `;
 
     const res = await query(sql, params);

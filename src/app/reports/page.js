@@ -586,9 +586,11 @@ export default function ReportsPage() {
               {activeTab === 'overview' && (
                 <Grid container spacing={3}>
                   <Grid xs={12} md={7}>
-                    <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.5, color: '#1A1A2E' }}>🔥 الأصناف الأكثر مبيعاً</Typography>
-                    <TableContainer component={Paper} sx={{ borderRadius: '12px', border: '1px solid #E2E8F0' }}>
-                      <Table size="small">
+                    <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.5, color: '#1A1A2E' }}>
+                      🔥 مبيعات الأصناف ({topProducts.length} صنف)
+                    </Typography>
+                    <TableContainer component={Paper} sx={{ borderRadius: '12px', border: '1px solid #E2E8F0', maxHeight: 550, overflowY: 'auto' }}>
+                      <Table size="small" stickyHeader>
                         <TableHead sx={{ bgcolor: '#F1F5F9' }}>
                           <TableRow>
                             <TableCell sx={{ fontWeight: 800 }}>اسم الصنف</TableCell>
@@ -597,7 +599,7 @@ export default function ReportsPage() {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {topProducts.slice(0, 10).map((prod, idx) => (
+                          {topProducts.map((prod, idx) => (
                             <TableRow key={idx} hover>
                               <TableCell sx={{ fontWeight: 700 }}>{prod.name}</TableCell>
                               <TableCell align="center" sx={{ fontWeight: 800, color: '#3B82F6' }}>{prod.totalQty} قطعة</TableCell>

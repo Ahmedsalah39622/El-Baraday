@@ -47,7 +47,7 @@ export async function GET(request) {
     let topProductsList = [];
     try {
       const { getStoredDailyTopProducts } = await import('@/lib/dailyTopProducts');
-      topProductsList = await getStoredDailyTopProducts(date, branchId, 10);
+      topProductsList = await getStoredDailyTopProducts(date, branchId, 1000);
     } catch (e) {
       console.warn('Failed to get stored daily top products:', e);
     }
@@ -62,7 +62,7 @@ export async function GET(request) {
          ${topProductsWhere}
          GROUP BY oi.product_name
          ORDER BY total_qty DESC
-         LIMIT 10`,
+         LIMIT 1000`,
         topParams
       );
       topProductsList = topProducts.rows || [];
