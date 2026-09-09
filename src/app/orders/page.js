@@ -668,17 +668,19 @@ export default function OrdersPage() {
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
                     <ReceiptLong sx={{ fontSize: 48, color: '#D1D5DB' }} />
                     <Typography variant="h6" sx={{ color: '#6B7280', fontWeight: 800 }}>
-                      {!isShiftActive && !showPreviousShifts
+                      {filterPeriod === 'shift' && !isShiftActive
                         ? 'الشيفت مقفول — مفيش طلبات للعرض'
-                        : isShiftActive && !showPreviousShifts
+                        : filterPeriod === 'shift'
                         ? 'لا توجد طلبات في الشيفت الحالي بعد'
+                        : filterPeriod === 'today'
+                        ? 'لا توجد طلبات مسجلة اليوم حتى الآن'
                         : 'لا توجد نتائج بحث مطابقة'}
                     </Typography>
-                    {!showPreviousShifts && (
+                    {filterPeriod === 'shift' && (
                       <Typography variant="body2" sx={{ color: '#9CA3AF', fontWeight: 600 }}>
                         {!isShiftActive
-                          ? 'افتح وردية جديدة من صفحة ملخص الشيفت، أو اضغط "عرض طلبات الشيفتات السابقة" لعرض الطلبات القديمة.'
-                          : 'الطلبات الجديدة هتظهر هنا تلقائياً. أو اضغط على "عرض طلبات الشيفتات السابقة" لعرض الطلبات القديمة.'}
+                          ? 'افتح وردية جديدة من صفحة ملخص الشيفت، أو اضغط "طلبات اليوم" لعرض طلبات اليوم بالكامل.'
+                          : 'الطلبات الجديدة هتظهر هنا تلقائياً. أو اضغط على "طلبات اليوم" أو "كل السابقة".'}
                       </Typography>
                     )}
                   </Box>
