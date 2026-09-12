@@ -25,6 +25,7 @@ export async function GET(request) {
     const status = searchParams.get('status');
     const date = searchParams.get('date');
     const branchId = searchParams.get('branch_id');
+    const showAll = searchParams.get('all'); // pass ?all=1 to get all orders without date filter
 
     let sql = `
       SELECT o.*, b.name as branch_name
@@ -42,9 +43,13 @@ export async function GET(request) {
       params.push(status);
       conditions.push(`o.status = $${params.length}`);
     }
+    // فلتر التاريخ — بشكل افتراضي يرجع طلبات اليوم فقط
     if (date) {
       params.push(date);
       conditions.push(`DATE(o.created_at) = $${params.length}`);
+    } else if (!showAll) {
+      // لو مفيش تاريخ محدد ومفيش all=1، رجع طلبات اليوم بس
+      conditions.push(`DATE(o.created_at) = CURDATE()`);
     }
 
     if (conditions.length > 0) sql += ' WHERE ' + conditions.join(' AND ');
@@ -112,10 +117,11 @@ export async function POST(request) {
     const cashCollectedVal = cashCollectedBool ? 1 : 0;
     const cashCollectedAtVal = cashCollectedBool ? new Date().toISOString() : null;
 
-    // Get next sequential order number STIRCTLY SCOPED TO ACTIVE SHIFT & BRANCH
+    // Get next sequential order number STRICTLY SCOPED TO ACTIVE SHIFT & BRANCH
     let nextNum = 1;
+    let activeShiftRecord = null;
     try {
-      let shiftSql = "SELECT start_time FROM shifts WHERE status = 'active'";
+      let shiftSql = "SELECT id, start_time FROM shifts WHERE status = 'active'";
       const shiftParams = [];
       if (targetBranch && targetBranch !== 'all') {
         shiftSql += " AND (branch_id = $1 OR branch_id IS NULL OR branch_id = '' OR branch_id = 'all')";
@@ -124,29 +130,20 @@ export async function POST(request) {
       shiftSql += " ORDER BY start_time DESC LIMIT 1";
 
       const shiftRes = await query(shiftSql, shiftParams);
-      const activeShiftRecord = shiftRes.rows && shiftRes.rows[0];
+      activeShiftRecord = shiftRes.rows && shiftRes.rows[0];
 
-      if (activeShiftRecord && activeShiftRecord.start_time) {
+      if (activeShiftRecord) {
         const sql = (targetBranch && targetBranch !== 'all')
-          ? "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND (created_at >= $2 OR DATE(created_at) = CURRENT_DATE())"
-          : "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE (created_at >= $1 OR DATE(created_at) = CURRENT_DATE())";
-        const params = (targetBranch && targetBranch !== 'all') ? [targetBranch, activeShiftRecord.start_time] : [activeShiftRecord.start_time];
+          ? "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND (shift_id = $2 OR (shift_id IS NULL AND created_at >= $3))"
+          : "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE (shift_id = $1 OR (shift_id IS NULL AND created_at >= $2))";
+        const params = (targetBranch && targetBranch !== 'all') ? [targetBranch, activeShiftRecord.id, activeShiftRecord.start_time] : [activeShiftRecord.id, activeShiftRecord.start_time];
         const nextRes = await query(sql, params);
         if (nextRes && nextRes.rows && nextRes.rows.length > 0 && nextRes.rows[0].next) {
           nextNum = parseInt(nextRes.rows[0].next) || 1;
         }
       } else {
-        // Shift is closed / not active -> find max order number for today so numbers increment sequentially
-        const sql = (targetBranch && targetBranch !== 'all')
-          ? "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND DATE(created_at) = CURRENT_DATE()"
-          : "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE DATE(created_at) = CURRENT_DATE()";
-        const params = (targetBranch && targetBranch !== 'all') ? [targetBranch] : [];
-        const nextRes = await query(sql, params);
-        if (nextRes && nextRes.rows && nextRes.rows.length > 0 && nextRes.rows[0].next) {
-          nextNum = parseInt(nextRes.rows[0].next) || 1;
-        } else {
-          nextNum = 1;
-        }
+        // Shift is closed / not active -> next order will start from 1
+        nextNum = 1;
       }
     } catch (err) {
       console.warn('⚠️ Standard nextNum query failed:', err.message);
@@ -155,18 +152,19 @@ export async function POST(request) {
 
     const orderId = `ord_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
-    // Insert order into DB with branch_id and payment_method
+    // Insert order into DB with branch_id, payment_method, and shift_id
+    const activeShiftId = activeShiftRecord ? activeShiftRecord.id : null;
     const orderResult = await query(
       `INSERT INTO orders (id, order_number, order_type, payment_method, customer_name, customer_phone, customer_area,
         customer_address, customer_floor, customer_apartment, driver_name, driver_id, subtotal, delivery_fee, discount, total,
-        paid_amount, remaining_amount, cashier_name, status, branch_id, source_branch_name, notes, dispatched_at, is_cash_collected, cash_collected_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+        paid_amount, remaining_amount, cashier_name, status, branch_id, source_branch_name, notes, dispatched_at, is_cash_collected, cash_collected_at, shift_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
        RETURNING *`,
       [orderId, nextNum, order_type || 'dine_in', payment_method || 'cash', customer_name || null, customer_phone || null, customer_area || null,
         customer_address || null, customer_floor || null, customer_apartment || null, driver_name || null, driver_id || null, parseFloat(subtotal) || 0, parseFloat(delivery_fee) || 0,
         parseFloat(discount) || 0, parseFloat(total) || 0, parseFloat(paid_amount) || 0, parseFloat(remaining_amount) || 0,
         cashier_name || 'administrator', initialStatus, targetBranch, source_branch_name || null, notes || null, isDispatched ? new Date().toISOString() : null,
-        cashCollectedVal, cashCollectedAtVal]
+        cashCollectedVal, cashCollectedAtVal, activeShiftId]
     );
 
     const order = (orderResult.rows && orderResult.rows.length > 0) ? orderResult.rows[0] : {

@@ -129,6 +129,20 @@ export const useShiftStore = create(
           }));
         }
         useInvoiceStore.getState().fetchNextOrderNumber(targetBranch);
+
+        // تصفير طلبات الأيام السابقة تلقائياً عند فتح شيفت جديد
+        try {
+          fetch('/api/orders/daily-close', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ branch_id: targetBranch })
+          }).then(() => {
+            // Re-fetch invoices after cleanup to show only today's orders
+            useInvoiceStore.getState().fetchInvoices(500, targetBranch);
+          }).catch(e => console.warn('⚠️ Daily close cleanup error:', e.message));
+        } catch (e) {
+          console.warn('⚠️ Daily close error:', e.message);
+        }
       } catch (err) {
         console.warn('⚠️ Shift open network error, setting local fallback:', err.message);
         const newShift = {
@@ -151,10 +165,11 @@ export const useShiftStore = create(
     closeShift: async (endAmount, expectedAmount, totalSales, totalOrders, notes = '') => {
       const current = get().activeShift;
       const shiftId = current?.id;
+      const targetBranch = current?.branch_id || 'b1';
       
-      // Clear active shift from state immediately (no localStorage cache)
+      // Clear active shift from state immediately and reset next order number to 1
       set({ activeShift: null });
-      useInvoiceStore.getState().fetchNextOrderNumber(current?.branch_id || 'b1');
+      useInvoiceStore.setState({ nextOrderNumber: 1 });
 
       if (shiftId) {
         try {
@@ -171,8 +186,10 @@ export const useShiftStore = create(
               status: 'closed',
             }),
           });
+          useInvoiceStore.getState().fetchNextOrderNumber(targetBranch);
         } catch (e) {
           console.warn('⚠️ Error closing shift on server:', e.message);
+          useInvoiceStore.setState({ nextOrderNumber: 1 });
         }
       }
     },

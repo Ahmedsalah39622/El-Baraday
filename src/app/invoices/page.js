@@ -25,7 +25,8 @@ import {
   CalendarToday as CalendarIcon,
   Layers as LayersIcon,
   AttachMoney as MoneyIcon,
-  ShoppingBag as BagIcon
+  ShoppingBag as BagIcon,
+  Undo as UndoIcon
 } from '@mui/icons-material';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
@@ -52,9 +53,26 @@ export default function InvoicesPage() {
 
   const { products, fetchProducts } = useProductStore();
 
+  // Main Navigation Tabs: 0 = المسودات والنوتات المعلقة, 1 = النوتات المحصلة والمنتهية, 2 = جدول حصر الأصناف
+  const [mainTab, setMainTab] = useState(0);
+
   // Search and date filters for drafts list
   const [draftSearchQuery, setDraftSearchQuery] = useState('');
   const [draftDateFilter, setDraftDateFilter] = useState('');
+
+  // Search and filters for collected invoices list
+  const [collectedSearchQuery, setCollectedSearchQuery] = useState('');
+  const [collectedDateFilter, setCollectedDateFilter] = useState('');
+  const [collectedMethodFilter, setCollectedMethodFilter] = useState('all');
+
+  // Collect & Finish Note Modal State (نافذة تحصيل وإنهاء النوتة)
+  const [collectDialogOpen, setCollectDialogOpen] = useState(false);
+  const [selectedNoteForCollect, setSelectedNoteForCollect] = useState(null);
+  const [collectAmount, setCollectAmount] = useState('');
+  const [collectMethod, setCollectMethod] = useState('cash');
+  const [collectDate, setCollectDate] = useState(new Date().toISOString().split('T')[0]);
+  const [collectNotes, setCollectNotes] = useState('');
+  const [isSubmittingCollect, setIsSubmittingCollect] = useState(false);
 
   // Filters specifically for Aggregated Items Table
   const [aggDatePreset, setAggDatePreset] = useState('all');
@@ -102,15 +120,13 @@ export default function InvoicesPage() {
     fetchProducts();
   }, [effectiveBranch, selectedBranchId, user]);
 
-  // Notes and Drafts
+  // 1. Pending / Unpaid Drafts (المسودات والنوتات المعلقة)
   const allDrafts = useMemo(() => {
     return customInvoices.filter(inv => {
-      const isDraft = inv.payment_status === 'draft' || 
-                      inv.is_draft || 
-                      inv.title?.includes('مسودة') || 
-                      inv.title?.includes('نوتة') || 
-                      !inv.payment_status;
-      if (!isDraft) return false;
+      const isCollected = inv.payment_status === 'paid' || 
+                          inv.payment_status === 'collected' || 
+                          (inv.payment_status !== 'draft' && parseFloat(inv.paid_amount || 0) > 0 && parseFloat(inv.remaining_amount || 0) <= 0);
+      if (isCollected) return false;
       const matchBranch = !effectiveBranch || effectiveBranch === 'all' || inv.branch_id === effectiveBranch || inv.branchId === effectiveBranch;
       return matchBranch;
     });
@@ -137,6 +153,44 @@ export default function InvoicesPage() {
       return true;
     });
   }, [allDrafts, draftDateFilter, draftSearchQuery]);
+
+  // 2. Collected / Finished Notes (النوتات والفواتير المحصلة والمنتهية)
+  const allCollectedInvoices = useMemo(() => {
+    return customInvoices.filter(inv => {
+      const isCollected = inv.payment_status === 'paid' || 
+                          inv.payment_status === 'collected' || 
+                          (inv.payment_status !== 'draft' && parseFloat(inv.paid_amount || 0) > 0 && parseFloat(inv.remaining_amount || 0) <= 0);
+      if (!isCollected) return false;
+      const matchBranch = !effectiveBranch || effectiveBranch === 'all' || inv.branch_id === effectiveBranch || inv.branchId === effectiveBranch;
+      return matchBranch;
+    });
+  }, [customInvoices, effectiveBranch]);
+
+  // Filtered Collected Invoices for the table
+  const filteredCollectedInvoices = useMemo(() => {
+    return allCollectedInvoices.filter(inv => {
+      if (collectedDateFilter) {
+        const invDate = inv.invoice_date ? inv.invoice_date.split('T')[0] : '';
+        if (invDate !== collectedDateFilter) return false;
+      }
+      if (collectedMethodFilter && collectedMethodFilter !== 'all') {
+        if (inv.payment_method !== collectedMethodFilter) return false;
+      }
+      if (collectedSearchQuery.trim()) {
+        const q = collectedSearchQuery.toLowerCase().trim();
+        const matchCustomer = inv.customer_name?.toLowerCase().includes(q);
+        const matchPhone = inv.customer_phone?.includes(q);
+        const matchInvNum = inv.invoice_number?.toLowerCase().includes(q);
+        const matchNotes = inv.notes?.toLowerCase().includes(q);
+        const matchItems = Array.isArray(inv.items) && inv.items.some(it => 
+          (it.product_name && it.product_name.toLowerCase().includes(q)) ||
+          (it.description && it.description.toLowerCase().includes(q))
+        );
+        if (!matchCustomer && !matchPhone && !matchInvNum && !matchNotes && !matchItems) return false;
+      }
+      return true;
+    });
+  }, [allCollectedInvoices, collectedDateFilter, collectedMethodFilter, collectedSearchQuery]);
 
   // ========================================================
   // AGGREGATED ITEMS TABLE DATA & FILTERING
@@ -223,6 +277,14 @@ export default function InvoicesPage() {
   const todayDraftsAmount = allDrafts
     .filter(d => d.invoice_date && d.invoice_date.startsWith(todayStr))
     .reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
+
+  // Stats KPI cards for Collected Invoices (النوتات المحصلة)
+  const totalCollectedCount = allCollectedInvoices.length;
+  const totalCollectedAmount = allCollectedInvoices.reduce((acc, curr) => acc + (parseFloat(curr.paid_amount || curr.amount) || 0), 0);
+  const todayCollectedCount = allCollectedInvoices.filter(d => d.invoice_date && d.invoice_date.startsWith(todayStr)).length;
+  const todayCollectedAmount = allCollectedInvoices
+    .filter(d => d.invoice_date && d.invoice_date.startsWith(todayStr))
+    .reduce((acc, curr) => acc + (parseFloat(curr.paid_amount || curr.amount) || 0), 0);
 
   // ========================================================
   // MODAL HANDLERS (ADD / EDIT DRAFT)
@@ -435,6 +497,129 @@ export default function InvoicesPage() {
     return `https://wa.me/${inv.customer_phone ? '2' + inv.customer_phone.replace(/\D/g, '') : ''}?text=${encodeURIComponent(text)}`;
   };
 
+  // Open Collect Dialog
+  const handleOpenCollectDialog = (draft) => {
+    setSelectedNoteForCollect(draft);
+    setCollectAmount(draft.amount ? draft.amount.toString() : '0');
+    setCollectMethod(draft.payment_method && draft.payment_method !== 'draft' ? draft.payment_method : 'cash');
+    setCollectDate(todayStr);
+    setCollectNotes('');
+    setCollectDialogOpen(true);
+  };
+
+  // Confirm Collect & Finish Note
+  const handleConfirmCollect = async () => {
+    if (!selectedNoteForCollect) return;
+    setIsSubmittingCollect(true);
+    try {
+      const totalAmt = parseFloat(selectedNoteForCollect.amount || 0);
+      const paidAmt = parseFloat(collectAmount) || totalAmt;
+      const remAmt = Math.max(0, totalAmt - paidAmt);
+      const status = remAmt <= 0 ? 'paid' : 'partial';
+
+      const payload = {
+        ...selectedNoteForCollect,
+        amount: totalAmt.toString(),
+        paid_amount: paidAmt.toString(),
+        remaining_amount: remAmt.toString(),
+        payment_status: status,
+        payment_method: collectMethod,
+        invoice_date: collectDate || todayStr,
+        notes: collectNotes 
+          ? `${selectedNoteForCollect.notes ? selectedNoteForCollect.notes + ' | ' : ''}تحصيل: ${collectNotes}`
+          : (selectedNoteForCollect.notes || null)
+      };
+
+      const res = await updateCustomInvoice(selectedNoteForCollect.id, payload);
+      if (res.success) {
+        setCollectDialogOpen(false);
+        setSelectedNoteForCollect(null);
+        setMainTab(1); // Switch to collected table automatically
+      } else {
+        alert(res.error || 'حدث خطأ أثناء تسجيل التحصيل');
+      }
+    } catch (e) {
+      alert('حدث خطأ أثناء التحصيل: ' + e.message);
+    } finally {
+      setIsSubmittingCollect(false);
+    }
+  };
+
+  // Reopen Collected Note as Draft
+  const handleReopenAsDraft = async (invoice) => {
+    if (!confirm(`هل تريد إلغاء تحصيل نوتة (${invoice.customer_name}) وإعادتها كمسودة جارية؟`)) return;
+    try {
+      const res = await updateCustomInvoice(invoice.id, {
+        ...invoice,
+        payment_status: 'draft',
+        paid_amount: '0',
+        remaining_amount: (invoice.amount || 0).toString()
+      });
+      if (res.success) {
+        setMainTab(0);
+      } else {
+        alert(res.error || 'فشلت إعادة النوتة لمسودة');
+      }
+    } catch (e) {
+      alert('حدث خطأ: ' + e.message);
+    }
+  };
+
+  const getWhatsAppCollectedUrl = (inv) => {
+    let itemsText = '';
+    if (Array.isArray(inv.items) && inv.items.length > 0) {
+      itemsText = '\n📦 *الأصناف والكميات:*\n' + inv.items.map(it => `• ${it.product_name || it.description} - ${it.kilos || it.quantity || it.qty} (${it.total || ((it.price || 0) * (it.kilos || it.qty || 1))} ج.م)`).join('\n');
+    }
+    const extraExpVal = parseFloat(inv.extra_expenses || 0);
+    const extraExpText = extraExpVal > 0 
+      ? `\n➕ *مصاريف إضافية:* ${extraExpVal} ج.م${inv.extra_expenses_notes ? ` (${inv.extra_expenses_notes})` : ''}` 
+      : '';
+    const methodText = inv.payment_method === 'cash' ? 'كاش الخزنة 💵' : inv.payment_method === 'vodafone_cash' ? 'فودافون كاش 📱' : inv.payment_method === 'visa' ? 'فيزا 💳' : (inv.payment_method || 'نقدي');
+    const text = `🧾 *إيصال تحصيل نوتة - مطعم البرادعي*\n👤 *الاسم:* ${inv.customer_name}\n📅 *تاريخ التحصيل:* ${inv.invoice_date?.split('T')[0]}${itemsText}${extraExpText}\n💰 *المبلغ المحصل:* ${parseFloat(inv.paid_amount || inv.amount).toLocaleString()} ج.م\n💳 *طريقة الدفع:* ${methodText}\n✅ *الحالة:* تم التحصيل والإنهاء بنجاح.\n\nشكراً لتعاملكم معنا ❤️`;
+    return `https://wa.me/${inv.customer_phone ? '2' + inv.customer_phone.replace(/\D/g, '') : ''}?text=${encodeURIComponent(text)}`;
+  };
+
+  const handlePrintCollectedReport = () => {
+    const columns = [
+      { label: '#', accessor: (_, idx) => idx + 1 },
+      { label: 'رقم الفاتورة', accessor: (r) => r.invoice_number || `#${r.id?.slice(0, 6)}` },
+      { label: 'تاريخ التحصيل', accessor: (r) => r.invoice_date ? r.invoice_date.split('T')[0] : '-' },
+      { label: 'العميل', accessor: (r) => r.customer_name || 'عميل' },
+      { label: 'الهاتف', accessor: (r) => r.customer_phone || '-' },
+      { label: 'طريقة الدفع', accessor: (r) => r.payment_method === 'cash' ? 'كاش الخزنة' : r.payment_method === 'vodafone_cash' ? 'فودافون كاش' : r.payment_method === 'visa' ? 'فيزا' : (r.payment_method || 'نقدي') },
+      { label: 'المبلغ المحصل', accessor: (r) => `${(parseFloat(r.paid_amount || r.amount) || 0).toLocaleString()} ج.م` }
+    ];
+
+    const totalAmt = filteredCollectedInvoices.reduce((s, r) => s + (parseFloat(r.paid_amount || r.amount) || 0), 0);
+
+    const stats = [
+      { title: 'إجمالي الفواتير المحصلة', value: `${filteredCollectedInvoices.length} فاتورة` },
+      { title: 'إجمالي المبالغ المحصلة', value: `${totalAmt.toLocaleString()} ج.م` },
+      { title: 'الفرع', value: effectiveBranch === 'b2' ? 'فرع المسلة' : (effectiveBranch === 'b1' ? 'فرع عزت' : 'كافة الفروع') }
+    ];
+
+    const totals = {
+      0: '',
+      1: '',
+      2: '',
+      3: 'الإجمالي الكلي',
+      4: '',
+      5: '',
+      6: `${totalAmt.toLocaleString()} ج.م`
+    };
+
+    generateReportPDF({
+      title: 'سجل النوتات والفواتير المحصلة والمنتهية',
+      subtitle: 'مطعم البرادعي للحواوشي',
+      branchName: effectiveBranch === 'b2' ? 'فرع المسلة' : 'فرع عزت',
+      dateRangeStr: todayStr,
+      stats,
+      columns,
+      data: filteredCollectedInvoices,
+      totals
+    });
+  };
+
   // Export Aggregated Items Table as PDF
   const handlePrintAggregatedReport = () => {
     const columns = [
@@ -540,8 +725,73 @@ export default function InvoicesPage() {
         </Stack>
       </Box>
 
-      {/* KPI Cards for Drafts */}
-      <Grid container spacing={2} sx={{ mb: 3 }} className="no-print">
+      {/* Navigation Tabs between Drafts, Collected Table, and Aggregated Items */}
+      <Paper elevation={0} sx={{ borderRadius: '16px', border: '1px solid #E2E8F0', mb: 3, bgcolor: '#FFFFFF', p: 0.8 }} className="no-print">
+        <Tabs
+          value={mainTab}
+          onChange={(e, val) => setMainTab(val)}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{
+            '& .MuiTab-root': {
+              fontWeight: 800,
+              fontSize: '0.95rem',
+              py: 1.5,
+              px: 3,
+              borderRadius: '12px',
+              minHeight: 46,
+              mx: 0.5,
+              transition: 'all 0.2s',
+              color: '#64748B',
+              '&.Mui-selected': {
+                bgcolor: mainTab === 0 ? '#FEF3C7' : (mainTab === 1 ? '#DCFCE7' : '#EFF6FF'),
+                color: mainTab === 0 ? '#92400E' : (mainTab === 1 ? '#15803D' : '#1D4ED8'),
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+              }
+            },
+            '& .MuiTabs-indicator': { display: 'none' }
+          }}
+        >
+          <Tab
+            icon={<StickyNote2 />}
+            iconPosition="start"
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <span>📝 المسودات والنوتات المعلقة</span>
+                <Chip label={allDrafts.length} size="small" sx={{ height: 22, fontWeight: 900, bgcolor: '#F59E0B', color: '#FFF' }} />
+              </Box>
+            }
+          />
+          <Tab
+            icon={<CheckIcon />}
+            iconPosition="start"
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <span>✅ النوتات المحصلة والمنتهية</span>
+                <Chip label={allCollectedInvoices.length} size="small" sx={{ height: 22, fontWeight: 900, bgcolor: '#16A34A', color: '#FFF' }} />
+              </Box>
+            }
+          />
+          <Tab
+            icon={<LayersIcon />}
+            iconPosition="start"
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <span>📊 حصر الأصناف المجمعة</span>
+                <Chip label={aggregatedItemsData.length} size="small" sx={{ height: 22, fontWeight: 900, bgcolor: '#3B82F6', color: '#FFF' }} />
+              </Box>
+            }
+          />
+        </Tabs>
+      </Paper>
+
+      {/* ========================================================
+          TAB 0: PENDING DRAFTS (المسودات والنوتات المعلقة)
+          ======================================================== */}
+      {mainTab === 0 && (
+        <Box>
+          {/* KPI Cards for Drafts */}
+          <Grid container spacing={2} sx={{ mb: 3 }} className="no-print">
         <Grid xs={12} sm={6} md={3}>
           <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #d97706', bgcolor: '#fffdf8' }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
@@ -635,181 +885,35 @@ export default function InvoicesPage() {
         </Grid>
       </Grid>
 
-      {/* ========================================================
-          SECTION: AGGREGATED ITEMS TABLE (جدول الأصناف في كل النوتات)
-          ======================================================== */}
-      <Paper 
-        elevation={0}
-        sx={{ 
-          p: 2.5, 
-          mb: 4, 
-          borderRadius: '16px', 
-          border: '1.5px solid #E2E8F0', 
-          bgcolor: '#FFFFFF',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.04)'
-        }}
-        className="no-print"
-      >
-          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 2, mb: 2.5 }}>
-            <Box>
-              <Typography variant="h6" fontWeight="900" sx={{ color: '#0F172A', display: 'flex', alignItems: 'center', gap: 1 }}>
-                <LayersIcon sx={{ color: '#d97706' }} />
-                جدول إجمالي الأصناف والكميات في كافة المسودات والنوتات 📊
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                حصر مجمع لكافة الأصناف والكيلوهات المطلوبة في النوتات مع إمكانية التصفية بحسب التاريخ والبحث.
-              </Typography>
-            </Box>
-
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<PictureAsPdf />}
-              onClick={handlePrintAggregatedReport}
-              disabled={aggregatedItemsData.length === 0}
-              sx={{
-                borderRadius: '10px',
-                fontWeight: 800,
-                color: '#0F172A',
-                borderColor: '#CBD5E1',
-                '&:hover': { bgcolor: '#F8FAFC' }
-              }}
-            >
-              طباعة كشف الأصناف المجمعة (PDF)
-            </Button>
-          </Box>
-
-          {/* Filter Toolbar for the Aggregated Table */}
-          <Grid container spacing={1.5} sx={{ alignItems: 'center', mb: 2, p: 1.5, bgcolor: '#F8FAFC', borderRadius: '12px' }}>
-            <Grid xs={12} sm={4} md={3}>
-              <TextField
-                fullWidth
-                size="small"
-                placeholder="بحث باسم الصنف..."
-                value={aggSearchItem}
-                onChange={(e) => setAggSearchItem(e.target.value)}
-                slotProps={{
-                  input: {
-                    startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" color="action" /></InputAdornment>,
-                    endAdornment: aggSearchItem ? (
-                      <InputAdornment position="end">
-                        <IconButton size="small" onClick={() => setAggSearchItem('')}><ClearIcon fontSize="small" /></IconButton>
-                      </InputAdornment>
-                    ) : null
-                  }
-                }}
-                sx={{ bgcolor: '#FFFFFF', borderRadius: '8px' }}
-              />
-            </Grid>
-
-            <Grid xs={12} sm={4} md={3}>
-              <FormControl fullWidth size="small" sx={{ bgcolor: '#FFFFFF', borderRadius: '8px' }}>
-                <InputLabel>فترة التقرير والتاريخ</InputLabel>
-                <Select
-                  value={aggDatePreset}
-                  label="فترة التقرير والتاريخ"
-                  onChange={(e) => setAggDatePreset(e.target.value)}
-                >
-                  <MenuItem value="all">📅 كل الفترات (كافة المسودات)</MenuItem>
-                  <MenuItem value="today">⭐ اليوم ({todayStr})</MenuItem>
-                  <MenuItem value="yesterday">🕒 أمس</MenuItem>
-                  <MenuItem value="week">📊 آخر 7 أيام</MenuItem>
-                  <MenuItem value="month">🗓️ هذا الشهر</MenuItem>
-                  <MenuItem value="custom">🔍 يوم مخصص...</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-
-            {aggDatePreset === 'custom' && (
-              <Grid xs={12} sm={4} md={3}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  type="date"
-                  label="اختر التاريخ"
-                  value={aggCustomDate}
-                  onChange={(e) => setAggCustomDate(e.target.value)}
-                  slotProps={{ inputLabel: { shrink: true } }}
-                  sx={{ bgcolor: '#FFFFFF', borderRadius: '8px' }}
-                />
-              </Grid>
-            )}
-
-            <Grid xs={12} sm={aggDatePreset === 'custom' ? 12 : 4} md={aggDatePreset === 'custom' ? 3 : 6} sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
-              <Chip
-                label={`عدد الأصناف المحصورة: ${aggregatedItemsData.length} صنف | إجمالي: ${aggGrandTotalQty} كجم/قطعة`}
-                sx={{ fontWeight: 800, bgcolor: '#FEF3C7', color: '#92400E' }}
-              />
-            </Grid>
-          </Grid>
-
-          {/* Table Container */}
-          {aggregatedItemsData.length === 0 ? (
-            <Box sx={{ p: 4, textAlign: 'center', bgcolor: '#F8FAFC', borderRadius: '12px' }}>
-              <Typography variant="body2" color="text.secondary" fontWeight="bold">
-                لا توجد أصناف مطابقة للفترة المحددة في المسودات المسجلة.
-              </Typography>
-            </Box>
-          ) : (
-            <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #E2E8F0', borderRadius: '12px' }}>
-              <Table size="small">
-                <TableHead sx={{ bgcolor: '#F1F5F9' }}>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 800, width: 60 }}>#</TableCell>
-                    <TableCell sx={{ fontWeight: 800, minWidth: 200 }}>اسم الصنف</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 800 }}>إجمالي العدد / الكمية</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 800 }}>عدد النوتات المسجل بها</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 800 }}>متوسط السعر</TableCell>
-                    <TableCell align="left" sx={{ fontWeight: 800 }}>إجمالي المبلغ التقديري</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {aggregatedItemsData.map((row, idx) => (
-                    <TableRow key={idx} hover sx={{ '&:nth-of-type(even)': { bgcolor: '#F8FAFC' } }}>
-                      <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{idx + 1}</TableCell>
-                      <TableCell sx={{ fontWeight: 800, color: '#0F172A', fontSize: '0.95rem' }}>
-                        {row.name}
-                      </TableCell>
-                      <TableCell align="center">
-                        <Chip
-                          label={`${row.totalQty} ${row.unit}`}
-                          size="small"
-                          sx={{ fontWeight: 900, bgcolor: '#DBEAFE', color: '#1D4ED8', fontSize: '0.85rem' }}
-                        />
-                      </TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 700, color: '#64748B' }}>
-                        {row.notesCount} مسودة
-                      </TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 700, color: '#475569' }}>
-                        {row.avgPrice > 0 ? `${row.avgPrice.toFixed(2)} ج.م` : '-'}
-                      </TableCell>
-                      <TableCell align="left" sx={{ fontWeight: 900, color: '#15803D', fontSize: '0.95rem' }}>
-                        {row.totalAmount.toLocaleString()} ج.م
-                      </TableCell>
-                    </TableRow>
-                  ))}
-
-                  {/* Grand Totals Row */}
-                  <TableRow sx={{ bgcolor: '#FEF3C7' }}>
-                    <TableCell colSpan={2} sx={{ fontWeight: 900, color: '#92400E', fontSize: '0.95rem' }}>
-                      الإجمالي الكلي لجميع الأصناف:
-                    </TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 900, color: '#92400E', fontSize: '1rem' }}>
-                      {aggGrandTotalQty} (كجم / قطع)
-                    </TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 800, color: '#92400E' }}>
-                      {allDrafts.length} مسودة
-                    </TableCell>
-                    <TableCell align="center">-</TableCell>
-                    <TableCell align="left" sx={{ fontWeight: 900, color: '#92400E', fontSize: '1.05rem' }}>
-                      {aggGrandTotalAmount.toLocaleString()} ج.م
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </Paper>
+      {/* Quick Summary Banner linking to collected notes and items */}
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 1.5, p: 1.8, mb: 3, bgcolor: '#FFFBEB', borderRadius: '14px', border: '1.5px solid #FDE68A' }} className="no-print">
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <StickyNote2 sx={{ color: '#D97706' }} />
+          <Typography variant="body2" fontWeight="800" color="#92400E">
+            لديك {allDrafts.length} مسودة معلقة بقيمة {totalDraftsAmount.toLocaleString()} ج.م | تم تحصيل {allCollectedInvoices.length} نوتة بقيمة {totalCollectedAmount.toLocaleString()} ج.م
+          </Typography>
+        </Box>
+        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+          <Button
+            size="small"
+            variant="contained"
+            startIcon={<CheckIcon />}
+            onClick={() => setMainTab(1)}
+            sx={{ bgcolor: '#16A34A', '&:hover': { bgcolor: '#15803D' }, fontWeight: 800, borderRadius: '8px' }}
+          >
+            عرض جدول المحصل ({allCollectedInvoices.length}) ✅
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<LayersIcon />}
+            onClick={() => setMainTab(2)}
+            sx={{ borderColor: '#D97706', color: '#B45309', fontWeight: 800, borderRadius: '8px' }}
+          >
+            كشف الأصناف المجمعة 📊
+          </Button>
+        </Stack>
+      </Box>
 
       {/* ========================================================
           SECTION: DRAFTS CARDS LIST (كروت المسودات)
@@ -1010,19 +1114,41 @@ export default function InvoicesPage() {
                     </CardContent>
 
                     {/* Actions Bar */}
-                    <Box sx={{ p: 2, pt: 0 }}>
-                      <Stack direction="row" spacing={1} alignItems="center">
+                    <Box sx={{ p: 2, pt: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      {/* Primary Collect and Finish Button */}
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        size="medium"
+                        startIcon={<CheckIcon />}
+                        onClick={() => handleOpenCollectDialog(draft)}
+                        sx={{
+                          borderRadius: '10px',
+                          fontWeight: 900,
+                          fontSize: '0.95rem',
+                          py: 0.9,
+                          bgcolor: '#16a34a',
+                          '&:hover': { bgcolor: '#15803d' },
+                          boxShadow: '0 4px 12px rgba(22, 163, 74, 0.25)',
+                          color: '#FFFFFF'
+                        }}
+                      >
+                        تحصيل وإنهاء النوتة 💰✅
+                      </Button>
+
+                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                         <Button
                           fullWidth
-                          variant="contained"
+                          variant="outlined"
                           size="small"
                           startIcon={<EditIcon />}
                           onClick={() => handleOpenCreateModal(draft)}
                           sx={{
                             borderRadius: '8px',
                             fontWeight: 800,
-                            bgcolor: '#d97706',
-                            '&:hover': { bgcolor: '#b45309' }
+                            borderColor: '#d97706',
+                            color: '#d97706',
+                            '&:hover': { bgcolor: '#FFFBEB', borderColor: '#b45309' }
                           }}
                         >
                           تعديل النوتة ✏️
@@ -1067,6 +1193,670 @@ export default function InvoicesPage() {
             </Grid>
           )}
         </Box>
+        </Box>
+      )}
+
+      {/* ========================================================
+          TAB 1: COLLECTED INVOICES TABLE (جدول النوتات والفواتير المحصلة والمنتهية)
+          ======================================================== */}
+      {mainTab === 1 && (
+        <Box>
+          {/* KPI Cards for Collected Invoices */}
+          <Grid container spacing={2} sx={{ mb: 3 }} className="no-print">
+            <Grid xs={12} sm={6} md={3}>
+              <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #16a34a', bgcolor: '#f8fdf9' }}>
+                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" fontWeight="700">
+                        إجمالي المبالغ المحصلة
+                      </Typography>
+                      <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5, color: '#15803d' }}>
+                        {totalCollectedAmount.toLocaleString()} ج.م
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        نقدية مستلمة ومنتهية
+                      </Typography>
+                    </Box>
+                    <Box sx={{ width: 46, height: 46, borderRadius: '12px', bgcolor: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <MoneyIcon sx={{ color: '#16a34a', fontSize: 26 }} />
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid xs={12} sm={6} md={3}>
+              <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #059669', bgcolor: '#f0fdf4' }}>
+                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" fontWeight="700">
+                        عدد النوتات المنتهية
+                      </Typography>
+                      <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5, color: '#047857' }}>
+                        {totalCollectedCount} نوتة
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        تم تحصيلها وإغلاقها
+                      </Typography>
+                    </Box>
+                    <Box sx={{ width: 46, height: 46, borderRadius: '12px', bgcolor: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <CheckIcon sx={{ color: '#059669', fontSize: 26 }} />
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid xs={12} sm={6} md={3}>
+              <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #2563eb', bgcolor: '#f8faff' }}>
+                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" fontWeight="700">
+                        تحصيلات اليوم ({todayStr})
+                      </Typography>
+                      <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5, color: '#1d4ed8' }}>
+                        {todayCollectedAmount.toLocaleString()} ج.م
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        عدد {todayCollectedCount} نوتة اليوم
+                      </Typography>
+                    </Box>
+                    <Box sx={{ width: 46, height: 46, borderRadius: '12px', bgcolor: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <CalendarIcon sx={{ color: '#2563eb', fontSize: 26 }} />
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid xs={12} sm={6} md={3}>
+              <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #d97706', bgcolor: '#fffdf8' }}>
+                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" fontWeight="700">
+                        المسودات المعلقة المتبقية
+                      </Typography>
+                      <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5, color: '#92400e' }}>
+                        {totalDraftsCount} مسودة
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        بقيمة {totalDraftsAmount.toLocaleString()} ج.م
+                      </Typography>
+                    </Box>
+                    <Box sx={{ width: 46, height: 46, borderRadius: '12px', bgcolor: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <StickyNote2 sx={{ color: '#d97706', fontSize: 26 }} />
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          {/* Search & Filter Bar for Collected Table */}
+          <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: '16px', border: '1px solid #E2E8F0', bgcolor: '#FFFFFF' }} className="no-print">
+            <Grid container spacing={2} sx={{ alignItems: 'center' }}>
+              <Grid xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="ابحث في المحصل (العميل، الهاتف، الفاتورة)..."
+                  value={collectedSearchQuery}
+                  onChange={(e) => setCollectedSearchQuery(e.target.value)}
+                  slotProps={{
+                    input: {
+                      startAdornment: <InputAdornment position="start"><SearchIcon color="action" /></InputAdornment>,
+                      endAdornment: collectedSearchQuery ? (
+                        <InputAdornment position="end">
+                          <IconButton size="small" onClick={() => setCollectedSearchQuery('')}><ClearIcon fontSize="small" /></IconButton>
+                        </InputAdornment>
+                      ) : null
+                    }
+                  }}
+                  sx={{ borderRadius: '10px' }}
+                />
+              </Grid>
+
+              <Grid xs={12} sm={6} md={3}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="date"
+                  label="تصفية بتاريخ التحصيل"
+                  value={collectedDateFilter}
+                  onChange={(e) => setCollectedDateFilter(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+              </Grid>
+
+              <Grid xs={12} sm={6} md={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>طريقة الدفع</InputLabel>
+                  <Select
+                    value={collectedMethodFilter}
+                    label="طريقة الدفع"
+                    onChange={(e) => setCollectedMethodFilter(e.target.value)}
+                  >
+                    <MenuItem value="all">كافة طرق الدفع</MenuItem>
+                    <MenuItem value="cash">💵 كاش الخزنة</MenuItem>
+                    <MenuItem value="vodafone_cash">📱 فودافون كاش</MenuItem>
+                    <MenuItem value="visa">💳 فيزا / شبكة</MenuItem>
+                    <MenuItem value="bank_transfer">🏦 تحويل بنكي</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid xs={12} md={2} sx={{ display: 'flex', gap: 1 }}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  startIcon={<PictureAsPdf />}
+                  onClick={handlePrintCollectedReport}
+                  disabled={filteredCollectedInvoices.length === 0}
+                  sx={{
+                    borderRadius: '10px',
+                    fontWeight: 800,
+                    borderColor: '#CBD5E1',
+                    color: '#0F172A',
+                    py: 1
+                  }}
+                >
+                  طباعة الكشف
+                </Button>
+                {collectedDateFilter && (
+                  <IconButton size="small" onClick={() => setCollectedDateFilter('')} sx={{ color: 'error.main' }}>
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                )}
+              </Grid>
+            </Grid>
+          </Paper>
+
+          {/* Table Container */}
+          {filteredCollectedInvoices.length === 0 ? (
+            <Paper elevation={0} sx={{ p: 6, textAlign: 'center', borderRadius: '16px', border: '2px dashed #BBF7D0', bgcolor: '#F0FDF4' }}>
+              <CheckIcon sx={{ fontSize: 64, color: '#16A34A', mb: 1.5 }} />
+              <Typography variant="h6" fontWeight="bold" color="#14532D">
+                لا توجد نوتات محصلة مطابقة للبحث أو الفلتر
+              </Typography>
+              <Typography variant="body2" color="#166534" sx={{ mt: 0.5, mb: 2.5 }}>
+                عند النقر على زر "تحصيل وإنهاء النوتة" في أي مسودة، ستظهر هنا في هذا السجل مع حفظها بالكامل.
+              </Typography>
+              <Button
+                variant="outlined"
+                startIcon={<StickyNote2 />}
+                onClick={() => setMainTab(0)}
+                sx={{ borderRadius: '10px', fontWeight: 'bold', color: '#16A34A', borderColor: '#16A34A' }}
+              >
+                الرجوع لقائمة المسودات 📝
+              </Button>
+            </Paper>
+          ) : (
+            <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #E2E8F0', borderRadius: '16px', overflow: 'hidden' }}>
+              <Table size="small">
+                <TableHead sx={{ bgcolor: '#F1F5F9' }}>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 800, width: 50 }}>#</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>رقم الفاتورة</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>تاريخ التحصيل</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>العميل والهاتف</TableCell>
+                    <TableCell sx={{ fontWeight: 800, minWidth: 220 }}>الأصناف والكميات</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 800 }}>المبلغ الإجمالي</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 800 }}>المحصل فعلياً</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 800 }}>طريقة الدفع</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 800 }}>الحالة</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 800, width: 140 }}>إجراءات</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredCollectedInvoices.map((inv, idx) => {
+                    const itemsSummary = Array.isArray(inv.items) && inv.items.length > 0
+                      ? inv.items.map(it => `${it.product_name || it.description} (${it.kilos || it.quantity || it.qty} ${it.kilos ? 'كجم' : ''})`).join(' ، ')
+                      : 'طلب عام';
+
+                    return (
+                      <TableRow key={inv.id} hover sx={{ '&:nth-of-type(even)': { bgcolor: '#F8FAFC' } }}>
+                        <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{idx + 1}</TableCell>
+                        <TableCell sx={{ fontWeight: 800, color: '#0F172A' }}>
+                          {inv.invoice_number || `#${inv.id?.slice(0, 6)}`}
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 700, color: '#475569' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <CalendarIcon sx={{ fontSize: 14, color: 'action.active' }} />
+                            {inv.invoice_date ? inv.invoice_date.split('T')[0] : '-'}
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight="800" color="#0F172A">
+                            {inv.customer_name}
+                          </Typography>
+                          {inv.customer_phone && (
+                            <Typography variant="caption" color="text.secondary">
+                              📞 {inv.customer_phone}
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell sx={{ fontSize: '0.85rem', color: '#334155' }}>
+                          {itemsSummary}
+                          {parseFloat(inv.extra_expenses || 0) > 0 && (
+                            <Typography variant="caption" color="#B45309" sx={{ display: 'block', mt: 0.3, fontWeight: 700 }}>
+                              ➕ مصاريف إضافية: {parseFloat(inv.extra_expenses)} ج.م
+                            </Typography>
+                          )}
+                          {inv.notes && (
+                            <Typography variant="caption" color="#64748B" sx={{ display: 'block', mt: 0.3 }}>
+                              💬 {inv.notes}
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 700, color: '#475569' }}>
+                          {parseFloat(inv.amount || 0).toLocaleString()} ج.م
+                        </TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 900, color: '#15803D', fontSize: '0.95rem' }}>
+                          {parseFloat(inv.paid_amount || inv.amount || 0).toLocaleString()} ج.م
+                        </TableCell>
+                        <TableCell align="center">
+                          <Chip
+                            label={
+                              inv.payment_method === 'cash' ? '💵 كاش الخزنة' :
+                              inv.payment_method === 'vodafone_cash' ? '📱 فودافون كاش' :
+                              inv.payment_method === 'visa' ? '💳 فيزا' :
+                              inv.payment_method === 'bank_transfer' ? '🏦 تحويل بنكي' :
+                              (inv.payment_method || 'نقدي')
+                            }
+                            size="small"
+                            sx={{ fontWeight: 800, bgcolor: '#DCFCE7', color: '#166534' }}
+                          />
+                        </TableCell>
+                        <TableCell align="center">
+                          <Chip
+                            icon={<CheckIcon sx={{ fontSize: '14px !important' }} />}
+                            label="تم التحصيل ✅"
+                            size="small"
+                            sx={{ fontWeight: 900, bgcolor: '#BBF7D0', color: '#14532D' }}
+                          />
+                        </TableCell>
+                        <TableCell align="center">
+                          <Stack direction="row" spacing={0.5} justifyContent="center">
+                            <Tooltip title="مشاركة وصل التحصيل عبر واتساب">
+                              <IconButton
+                                size="small"
+                                component="a"
+                                href={getWhatsAppCollectedUrl(inv)}
+                                target="_blank"
+                                sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', color: '#16A34A' }}
+                              >
+                                <WhatsAppIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="طباعة وصل التحصيل">
+                              <IconButton
+                                size="small"
+                                onClick={() => handlePrint(inv)}
+                                sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', color: '#475569' }}
+                              >
+                                <PrintIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="إلغاء التحصيل وإعادتها كمسودة جارية">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleReopenAsDraft(inv)}
+                                sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', color: '#D97706' }}
+                              >
+                                <UndoIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="حذف السجل">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleDeleteDraft(inv.id)}
+                                sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', color: '#DC2626' }}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+
+                  {/* Grand Totals Row */}
+                  <TableRow sx={{ bgcolor: '#DCFCE7' }}>
+                    <TableCell colSpan={5} sx={{ fontWeight: 900, color: '#14532D', fontSize: '1rem' }}>
+                      إجمالي المبالغ المحصلة والمنتهية ({filteredCollectedInvoices.length} فاتورة):
+                    </TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 800, color: '#14532D', fontSize: '0.95rem' }}>
+                      {filteredCollectedInvoices.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0).toLocaleString()} ج.م
+                    </TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 900, color: '#15803D', fontSize: '1.05rem' }}>
+                      {filteredCollectedInvoices.reduce((s, r) => s + (parseFloat(r.paid_amount || r.amount) || 0), 0).toLocaleString()} ج.م
+                    </TableCell>
+                    <TableCell colSpan={3} />
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Box>
+      )}
+
+      {/* ========================================================
+          TAB 2: AGGREGATED ITEMS TABLE (حصر الأصناف المجمعة في المسودات)
+          ======================================================== */}
+      {mainTab === 2 && (
+        <Paper 
+          elevation={0}
+          sx={{ 
+            p: 2.5, 
+            mb: 4, 
+            borderRadius: '16px', 
+            border: '1.5px solid #E2E8F0', 
+            bgcolor: '#FFFFFF',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.04)'
+          }}
+          className="no-print"
+        >
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 2, mb: 2.5 }}>
+            <Box>
+              <Typography variant="h6" fontWeight="900" sx={{ color: '#0F172A', display: 'flex', alignItems: 'center', gap: 1 }}>
+                <LayersIcon sx={{ color: '#d97706' }} />
+                جدول إجمالي الأصناف والكميات في كافة المسودات والنوتات 📊
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                حصر مجمع لكافة الأصناف والكيلوهات المطلوبة في النوتات مع إمكانية التصفية بحسب التاريخ والبحث.
+              </Typography>
+            </Box>
+
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<PictureAsPdf />}
+              onClick={handlePrintAggregatedReport}
+              disabled={aggregatedItemsData.length === 0}
+              sx={{
+                borderRadius: '10px',
+                fontWeight: 800,
+                color: '#0F172A',
+                borderColor: '#CBD5E1',
+                '&:hover': { bgcolor: '#F8FAFC' }
+              }}
+            >
+              طباعة كشف الأصناف المجمعة (PDF)
+            </Button>
+          </Box>
+
+          {/* Filter Toolbar for the Aggregated Table */}
+          <Grid container spacing={1.5} sx={{ alignItems: 'center', mb: 2, p: 1.5, bgcolor: '#F8FAFC', borderRadius: '12px' }}>
+            <Grid xs={12} sm={4} md={3}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="بحث باسم الصنف..."
+                value={aggSearchItem}
+                onChange={(e) => setAggSearchItem(e.target.value)}
+                slotProps={{
+                  input: {
+                    startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" color="action" /></InputAdornment>,
+                    endAdornment: aggSearchItem ? (
+                      <InputAdornment position="end">
+                        <IconButton size="small" onClick={() => setAggSearchItem('')}><ClearIcon fontSize="small" /></IconButton>
+                      </InputAdornment>
+                    ) : null
+                  }
+                }}
+                sx={{ bgcolor: '#FFFFFF', borderRadius: '8px' }}
+              />
+            </Grid>
+
+            <Grid xs={12} sm={4} md={3}>
+              <FormControl fullWidth size="small" sx={{ bgcolor: '#FFFFFF', borderRadius: '8px' }}>
+                <InputLabel>فترة التقرير والتاريخ</InputLabel>
+                <Select
+                  value={aggDatePreset}
+                  label="فترة التقرير والتاريخ"
+                  onChange={(e) => setAggDatePreset(e.target.value)}
+                >
+                  <MenuItem value="all">📅 كل الفترات (كافة المسودات)</MenuItem>
+                  <MenuItem value="today">⭐ اليوم ({todayStr})</MenuItem>
+                  <MenuItem value="yesterday">🕒 أمس</MenuItem>
+                  <MenuItem value="week">📊 آخر 7 أيام</MenuItem>
+                  <MenuItem value="month">🗓️ هذا الشهر</MenuItem>
+                  <MenuItem value="custom">🔍 يوم مخصص...</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {aggDatePreset === 'custom' && (
+              <Grid xs={12} sm={4} md={3}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="date"
+                  label="اختر التاريخ"
+                  value={aggCustomDate}
+                  onChange={(e) => setAggCustomDate(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  sx={{ bgcolor: '#FFFFFF', borderRadius: '8px' }}
+                />
+              </Grid>
+            )}
+
+            <Grid xs={12} sm={aggDatePreset === 'custom' ? 12 : 4} md={aggDatePreset === 'custom' ? 3 : 6} sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
+              <Chip
+                label={`عدد الأصناف المحصورة: ${aggregatedItemsData.length} صنف | إجمالي: ${aggGrandTotalQty} كجم/قطعة`}
+                sx={{ fontWeight: 800, bgcolor: '#FEF3C7', color: '#92400E' }}
+              />
+            </Grid>
+          </Grid>
+
+          {/* Table Container */}
+          {aggregatedItemsData.length === 0 ? (
+            <Box sx={{ p: 4, textAlign: 'center', bgcolor: '#F8FAFC', borderRadius: '12px' }}>
+              <Typography variant="body2" color="text.secondary" fontWeight="bold">
+                لا توجد أصناف مطابقة للفترة المحددة في المسودات المسجلة.
+              </Typography>
+            </Box>
+          ) : (
+            <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #E2E8F0', borderRadius: '12px' }}>
+              <Table size="small">
+                <TableHead sx={{ bgcolor: '#F1F5F9' }}>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 800, width: 60 }}>#</TableCell>
+                    <TableCell sx={{ fontWeight: 800, minWidth: 200 }}>اسم الصنف</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 800 }}>إجمالي العدد / الكمية</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 800 }}>عدد النوتات المسجل بها</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 800 }}>متوسط السعر</TableCell>
+                    <TableCell align="left" sx={{ fontWeight: 800 }}>إجمالي المبلغ التقديري</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {aggregatedItemsData.map((row, idx) => (
+                    <TableRow key={idx} hover sx={{ '&:nth-of-type(even)': { bgcolor: '#F8FAFC' } }}>
+                      <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{idx + 1}</TableCell>
+                      <TableCell sx={{ fontWeight: 800, color: '#0F172A', fontSize: '0.95rem' }}>
+                        {row.name}
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip
+                          label={`${row.totalQty} ${row.unit}`}
+                          size="small"
+                          sx={{ fontWeight: 900, bgcolor: '#DBEAFE', color: '#1D4ED8', fontSize: '0.85rem' }}
+                        />
+                      </TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 700, color: '#64748B' }}>
+                        {row.notesCount} مسودة
+                      </TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 700, color: '#475569' }}>
+                        {row.avgPrice > 0 ? `${row.avgPrice.toFixed(2)} ج.م` : '-'}
+                      </TableCell>
+                      <TableCell align="left" sx={{ fontWeight: 900, color: '#15803D', fontSize: '0.95rem' }}>
+                        {row.totalAmount.toLocaleString()} ج.م
+                      </TableCell>
+                    </TableRow>
+                  ))}
+
+                  {/* Grand Totals Row */}
+                  <TableRow sx={{ bgcolor: '#FEF3C7' }}>
+                    <TableCell colSpan={2} sx={{ fontWeight: 900, color: '#92400E', fontSize: '0.95rem' }}>
+                      الإجمالي الكلي لجميع الأصناف:
+                    </TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 900, color: '#92400E', fontSize: '1rem' }}>
+                      {aggGrandTotalQty} (كجم / قطع)
+                    </TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 800, color: '#92400E' }}>
+                      {allDrafts.length} مسودة
+                    </TableCell>
+                    <TableCell align="center">-</TableCell>
+                    <TableCell align="left" sx={{ fontWeight: 900, color: '#92400E', fontSize: '1.05rem' }}>
+                      {aggGrandTotalAmount.toLocaleString()} ج.م
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Paper>
+      )}
+
+      {/* ========================================================
+          DIALOG: COLLECT & COMPLETE NOTE (نافذة تحصيل وإنهاء النوتة)
+          ======================================================== */}
+      <Dialog
+        open={collectDialogOpen}
+        onClose={() => setCollectDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+            <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CheckIcon sx={{ color: '#16A34A', fontSize: 28 }} />
+            </Box>
+            <Box>
+              <Typography variant="h6" fontWeight="900" color="#166534">
+                تحصيل وإنهاء النوتة 💰
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                تسجيل استلام النقدية ونقل النوتة لجدول النوتات المنتهية
+              </Typography>
+            </Box>
+          </Box>
+          <IconButton size="small" onClick={() => setCollectDialogOpen(false)}>
+            <ClearIcon />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, py: 2.5 }}>
+          {/* Note Info Banner */}
+          <Paper elevation={0} sx={{ p: 2, bgcolor: '#F0FDF4', border: '1.5px solid #BBF7D0', borderRadius: '14px' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Typography variant="subtitle1" fontWeight="900" color="#14532D">
+                👤 العميل: {selectedNoteForCollect?.customer_name}
+              </Typography>
+              {selectedNoteForCollect?.customer_phone && (
+                <Typography variant="caption" fontWeight="700" color="#166534">
+                  📞 {selectedNoteForCollect.customer_phone}
+                </Typography>
+              )}
+            </Box>
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 1, borderTop: '1px dashed #86EFAC' }}>
+              <Typography variant="body2" fontWeight="700" color="#166534">
+                المبلغ المقدر للنوتة:
+              </Typography>
+              <Typography variant="h5" fontWeight="900" color="#15803D">
+                {parseFloat(selectedNoteForCollect?.amount || 0).toLocaleString()} ج.م
+              </Typography>
+            </Box>
+          </Paper>
+
+          {/* Amount to collect */}
+          <TextField
+            fullWidth
+            label="المبلغ المحصل فعلياً (ج.م)"
+            type="number"
+            value={collectAmount}
+            onChange={(e) => setCollectAmount(e.target.value)}
+            slotProps={{
+              input: {
+                startAdornment: <InputAdornment position="start">ج.م</InputAdornment>
+              }
+            }}
+            helperText={
+              parseFloat(collectAmount || 0) < parseFloat(selectedNoteForCollect?.amount || 0)
+                ? `⚠️ تحصيل جزئي: سيتبقى ${(parseFloat(selectedNoteForCollect?.amount || 0) - parseFloat(collectAmount || 0)).toLocaleString()} ج.م`
+                : 'سيتم تسجيل النوتة كمدفوعة ومحصلة بالكامل'
+            }
+          />
+
+          {/* Payment Method */}
+          <FormControl fullWidth>
+            <InputLabel>طريقة التحصيل / الدفع</InputLabel>
+            <Select
+              value={collectMethod}
+              label="طريقة التحصيل / الدفع"
+              onChange={(e) => setCollectMethod(e.target.value)}
+            >
+              <MenuItem value="cash">💵 كاش الخزنة (نقدية بالدرج)</MenuItem>
+              <MenuItem value="vodafone_cash">📱 فودافون كاش / محفظة إلكترونية</MenuItem>
+              <MenuItem value="visa">💳 فيزا / شبكة بنكية</MenuItem>
+              <MenuItem value="bank_transfer">🏦 تحويل بنكي / إنستاباي</MenuItem>
+            </Select>
+          </FormControl>
+
+          {/* Collection Date */}
+          <TextField
+            fullWidth
+            type="date"
+            label="تاريخ التحصيل"
+            value={collectDate}
+            onChange={(e) => setCollectDate(e.target.value)}
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
+
+          {/* Notes */}
+          <TextField
+            fullWidth
+            multiline
+            rows={2}
+            label="ملاحظات التحصيل (اختياري)"
+            placeholder="مثال: تم الاستلام نقداً من العميل يد بيد بالفرع..."
+            value={collectNotes}
+            onChange={(e) => setCollectNotes(e.target.value)}
+          />
+        </DialogContent>
+
+        <DialogActions sx={{ p: 2.5, gap: 1 }}>
+          <Button
+            variant="outlined"
+            onClick={() => setCollectDialogOpen(false)}
+            sx={{ borderRadius: '10px', fontWeight: 800, color: 'text.secondary' }}
+          >
+            إلغاء
+          </Button>
+          <Button
+            variant="contained"
+            disabled={isSubmittingCollect || !collectAmount || parseFloat(collectAmount) <= 0}
+            onClick={handleConfirmCollect}
+            sx={{
+              borderRadius: '10px',
+              fontWeight: 900,
+              bgcolor: '#16A34A',
+              '&:hover': { bgcolor: '#15803D' },
+              px: 3
+            }}
+          >
+            {isSubmittingCollect ? 'جاري التحصيل...' : 'تأكيد التحصيل وإنهاء النوتة ✅'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* ========================================================
           DIALOG: ADD / EDIT DRAFT NOTE (نافذة إضافة مسودة سهلة وسريعة)

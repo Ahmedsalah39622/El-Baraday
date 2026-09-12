@@ -213,7 +213,7 @@ export default function OrderDetailsPanel({
     setIsSubmittingOrder(true);
     try {
 
-    const currentOrderNum = nextOrderNumber ? nextOrderNumber.toString() : '35';
+    const currentOrderNum = nextOrderNumber ? nextOrderNumber.toString() : '1';
 
     const userHomeBranch = (user && user.branch_id) ? user.branch_id : 'b1';
     const isSenderAdmin = user?.role === 'admin';
@@ -413,7 +413,7 @@ export default function OrderDetailsPanel({
       {/* Title & Branch Indicator */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
         <Typography variant="h5" sx={{ fontWeight: 800, color: '#1A1A2E' }}>
-          تفاصيل الطلب #{nextOrderNumber || '35'}
+          تفاصيل الطلب #{nextOrderNumber || '1'}
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Chip

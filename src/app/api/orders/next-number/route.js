@@ -7,7 +7,7 @@ export async function GET(request) {
     const branchId = searchParams.get('branch_id') || 'b1';
 
     // 1. Find active shift for branch
-    let shiftSql = "SELECT start_time FROM shifts WHERE status = 'active'";
+    let shiftSql = "SELECT id, start_time FROM shifts WHERE status = 'active'";
     const shiftParams = [];
     if (branchId && branchId !== 'all') {
       shiftSql += " AND (branch_id = $1 OR branch_id IS NULL OR branch_id = '' OR branch_id = 'all')";
@@ -18,25 +18,20 @@ export async function GET(request) {
     const shiftRes = await query(shiftSql, shiftParams);
     const activeShift = shiftRes.rows && shiftRes.rows[0];
 
+    // If no shift is active, the next shift will start at order #1!
+    if (!activeShift) {
+      return NextResponse.json({ next: 1 });
+    }
+
     let sql = "";
     let params = [];
 
-    if (activeShift && activeShift.start_time) {
-      if (branchId && branchId !== 'all') {
-        sql = "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND (created_at >= $2 OR DATE(created_at) = CURRENT_DATE())";
-        params = [branchId, activeShift.start_time];
-      } else {
-        sql = "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE (created_at >= $1 OR DATE(created_at) = CURRENT_DATE())";
-        params = [activeShift.start_time];
-      }
+    if (branchId && branchId !== 'all') {
+      sql = "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND (shift_id = $2 OR (shift_id IS NULL AND created_at >= $3))";
+      params = [branchId, activeShift.id, activeShift.start_time];
     } else {
-      if (branchId && branchId !== 'all') {
-        sql = "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND DATE(created_at) = CURRENT_DATE()";
-        params = [branchId];
-      } else {
-        sql = "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE DATE(created_at) = CURRENT_DATE()";
-        params = [];
-      }
+      sql = "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE (shift_id = $1 OR (shift_id IS NULL AND created_at >= $2))";
+      params = [activeShift.id, activeShift.start_time];
     }
 
     try {
@@ -46,14 +41,6 @@ export async function GET(request) {
         : 1;
       return NextResponse.json({ next: nextVal });
     } catch (e) {
-      const fbSql = (branchId && branchId !== 'all')
-        ? "SELECT order_number FROM orders WHERE branch_id = $1 ORDER BY created_at DESC LIMIT 1"
-        : "SELECT order_number FROM orders ORDER BY created_at DESC LIMIT 1";
-      const fbParams = (branchId && branchId !== 'all') ? [branchId] : [];
-      const fbRes = await query(fbSql, fbParams);
-      if (fbRes && fbRes.rows && fbRes.rows.length > 0) {
-        return NextResponse.json({ next: (parseInt(fbRes.rows[0].order_number) || 0) + 1 });
-      }
       return NextResponse.json({ next: 1 });
     }
   } catch (error) {

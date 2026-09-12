@@ -147,9 +147,10 @@ export async function GET(req) {
       shiftsWhere = `WHERE branch_id = $1`;
     }
 
-    // Active shift start_time check for order_number resetting
+    // Active shift check for order_number resetting
     let activeShiftStartTime = null;
-    let shiftCheckSql = "SELECT start_time FROM shifts WHERE status = 'active'";
+    let activeShiftId = null;
+    let shiftCheckSql = "SELECT id, start_time FROM shifts WHERE status = 'active'";
     const shiftCheckParams = [];
     if (branchId && branchId !== 'all') {
       shiftCheckSql += " AND (branch_id = $1 OR branch_id IS NULL OR branch_id = '' OR branch_id = 'all')";
@@ -158,27 +159,25 @@ export async function GET(req) {
     shiftCheckSql += " ORDER BY start_time DESC LIMIT 1";
 
     const sRes = await safeQuery(shiftCheckSql, shiftCheckParams);
-    if (sRes.rows && sRes.rows[0]) activeShiftStartTime = sRes.rows[0].start_time;
+    if (sRes.rows && sRes.rows[0]) {
+      activeShiftId = sRes.rows[0].id;
+      activeShiftStartTime = sRes.rows[0].start_time;
+    }
 
     let nextOrderSql = "";
     let nextOrderParams = [];
 
-    if (activeShiftStartTime) {
+    if (activeShiftId) {
       if (branchId && branchId !== 'all') {
-        nextOrderSql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND (created_at >= $2 OR DATE(created_at) = CURRENT_DATE())";
-        nextOrderParams = [branchId, activeShiftStartTime];
+        nextOrderSql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND (shift_id = $2 OR (shift_id IS NULL AND created_at >= $3))";
+        nextOrderParams = [branchId, activeShiftId, activeShiftStartTime];
       } else {
-        nextOrderSql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE (created_at >= $1 OR DATE(created_at) = CURRENT_DATE())";
-        nextOrderParams = [activeShiftStartTime];
+        nextOrderSql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE (shift_id = $1 OR (shift_id IS NULL AND created_at >= $2))";
+        nextOrderParams = [activeShiftId, activeShiftStartTime];
       }
     } else {
-      if (branchId && branchId !== 'all') {
-        nextOrderSql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND DATE(created_at) = CURRENT_DATE()";
-        nextOrderParams = [branchId];
-      } else {
-        nextOrderSql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE DATE(created_at) = CURRENT_DATE()";
-        nextOrderParams = [];
-      }
+      nextOrderSql = "SELECT 1 as next";
+      nextOrderParams = [];
     }
 
     const [

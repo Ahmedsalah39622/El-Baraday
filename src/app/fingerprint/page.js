@@ -638,7 +638,7 @@ export default function FingerprintKioskPage() {
                         >
                           {staff.name}
                         </Typography>
-                        <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mt: 0.5 }}>
+                        <Stack direction="row" spacing={0.8} sx={{ alignItems: 'center', mt: 0.5 }}>
                           <Chip
                             size="small"
                             label={staff.role || 'موظف'}
@@ -846,7 +846,7 @@ export default function FingerprintKioskPage() {
               mb: 2
             }}>
               {resultModal.lateMinutes > 0 ? (
-                <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
+                <Stack direction="row" spacing={1} sx={{ justifyContent: 'center', alignItems: 'center' }}>
                   <WarningAmber sx={{ color: '#d97706', fontSize: 22 }} />
                   <Typography variant="body2" sx={{ fontWeight: 800, color: '#b45309' }}>
                     تأخير {resultModal.lateMinutes} دقيقة عن موعد الشيفت المقبول

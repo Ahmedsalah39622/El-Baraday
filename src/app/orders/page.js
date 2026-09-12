@@ -43,6 +43,7 @@ import {
   CheckCircle,
   EditOutlined,
 } from '@mui/icons-material';
+import History from '@mui/icons-material/History';
 import SearchBar from '@/components/pos/SearchBar';
 import { useInvoiceStore } from '@/store/useInvoiceStore';
 import { useBranchStore } from '@/store/useBranchStore';
@@ -316,6 +317,7 @@ export default function OrdersPage() {
           {/* Toggle Previous Shifts Button */}
           <Button
             variant={showPreviousShifts ? 'contained' : 'outlined'}
+            startIcon={<History sx={{ fontSize: '18px !important' }} />}
             onClick={() => setShowPreviousShifts(!showPreviousShifts)}
             size="small"
             sx={{

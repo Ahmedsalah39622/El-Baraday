@@ -28,6 +28,7 @@ export default function ReportsPage() {
   const [dateFrom, setDateFrom] = useState(todayStr);
   const [dateTo, setDateTo] = useState(todayStr);
   const [activeTab, setActiveTab] = useState('overview');
+  const [viewScope, setViewScope] = useState('shift'); // 'shift' (الوردية الحالية والخزنة) | 'day' (كامل اليوم)
   const [loading, setLoading] = useState(false);
 
   // Dynamic Datasets fetched from API endpoints
@@ -37,6 +38,7 @@ export default function ReportsPage() {
   const [shiftsData, setShiftsData] = useState([]);
   const [customersData, setCustomersData] = useState([]);
   const [dailyReportSummary, setDailyReportSummary] = useState(null);
+  const [dailySummariesList, setDailySummariesList] = useState([]);
 
   const targetBranch = selectedBranchId && selectedBranchId !== 'all' ? selectedBranchId : (user?.branch_id || 'all');
 
@@ -98,6 +100,10 @@ export default function ReportsPage() {
       const custRes = await fetch('/api/customers');
       if (custRes.ok) setCustomersData(await custRes.json());
 
+      // 8. Fetch Saved Daily Summaries API
+      const dsRes = await fetch(`/api/orders/daily-summaries?branch_id=${targetBranch || 'all'}&limit=10`);
+      if (dsRes.ok) setDailySummariesList(await dsRes.json());
+
     } catch (e) {
       console.error('Failed fetching report datasets:', e);
     } finally {
@@ -105,19 +111,57 @@ export default function ReportsPage() {
     }
   };
 
+  const [isClosingDay, setIsClosingDay] = useState(false);
+  const handleManualDailyClose = async () => {
+    if (!window.confirm('هل تريد ترحيل وحفظ ملخص الطلبات السابقة وتصفير السجل للبدء من الصفر اليوم؟\\n(ملاحظة: الملخصات تحفظ لمدة 5 أيام تلقائياً)')) return;
+    setIsClosingDay(true);
+    try {
+      const res = await fetch('/api/orders/daily-close', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branch_id: targetBranch })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || '✅ تم ترحيل الملخص وتصفير الطلبات القديمة بنجاح!');
+        await loadAllReportData();
+      } else {
+        alert(`❌ خطأ: ${data.error || 'فشلت العملية'}`);
+      }
+    } catch (e) {
+      alert('❌ حدث خطأ أثناء التصفير');
+    } finally {
+      setIsClosingDay(false);
+    }
+  };
+
   useEffect(() => {
     loadAllReportData();
   }, [selectedBranchId, dateFrom, dateTo]);
 
-  // Date & Branch Filtering for Invoices
+  // Date, Branch & Shift Filtering for Invoices
+  const activeShiftRecord = (shiftsData || []).find(s => s.status === 'active' && (targetBranch === 'all' || s.branch_id === targetBranch || (!s.branch_id && targetBranch === 'b1')));
+
   const filteredInvoices = (invoices || []).filter((inv) => {
     const matchBranch = !selectedBranchId || selectedBranchId === 'all' || inv.branchId === selectedBranchId || inv.branch_id === selectedBranchId;
     if (!matchBranch) return false;
 
-    if (inv.createdAt) {
-      const invDate = inv.createdAt.split('T')[0];
-      if (dateFrom && invDate < dateFrom) return false;
-      if (dateTo && invDate > dateTo) return false;
+    if (viewScope === 'shift' && activeShiftRecord) {
+      const rawStart = activeShiftRecord.start_time || activeShiftRecord.created_at;
+      if (rawStart && (inv.createdAt || inv.created_at)) {
+        const invTime = new Date(inv.createdAt || inv.created_at).getTime();
+        const shiftStart = new Date(rawStart).getTime();
+        if (!isNaN(invTime) && !isNaN(shiftStart) && invTime < (shiftStart - 60000)) {
+          return false;
+        }
+      }
+    } else {
+      const invDateStr = inv.createdAt || inv.created_at;
+      if (invDateStr) {
+        const invDate = String(invDateStr).split('T')[0];
+        if (dateFrom && invDate < dateFrom) return false;
+        if (dateTo && invDate > dateTo) return false;
+      }
     }
     return true;
   });
@@ -129,6 +173,16 @@ export default function ReportsPage() {
   const deliveryOrders = filteredInvoices.filter((i) => i.orderType === 'delivery');
   const deliveryCount = deliveryOrders.length;
   const deliveryFeesTotal = filteredInvoices.reduce((sum, inv) => sum + (parseFloat(inv.deliveryFee) || 0), 0);
+
+  // تفصيل الكاش والفيزا — لإظهار الفعلي في الخزنة
+  const cashTotal = filteredInvoices
+    .filter(inv => (inv.paymentMethod || inv.payment_method || 'cash') === 'cash')
+    .reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0);
+  const visaTotal = filteredInvoices
+    .filter(inv => (inv.paymentMethod || inv.payment_method || 'cash') === 'visa')
+    .reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0);
+  // صافي الكاش في الخزنة = كاش محصل - رسوم دليفري (اللي مع الطيارين)
+  const netCashInSafe = Math.max(0, cashTotal - deliveryFeesTotal);
 
   // Driver Performance & Commissions Aggregation
   const driverPerformanceMap = {};
@@ -143,7 +197,7 @@ export default function ReportsPage() {
   });
   const driverPerformanceList = Object.values(driverPerformanceMap);
 
-  // Top Products Sold (Prioritize stored persistent daily top products from DB)
+  // Top Products Sold (Dynamic based on filteredInvoices or full day summary)
   const productSalesMap = {};
   filteredInvoices.forEach((inv) => {
     (inv.items || []).forEach((item) => {
@@ -157,7 +211,7 @@ export default function ReportsPage() {
   });
   const calculatedTopProducts = Object.values(productSalesMap).sort((a, b) => b.totalQty - a.totalQty);
 
-  const topProducts = (dailyReportSummary?.topProducts && dailyReportSummary.topProducts.length > 0)
+  const topProducts = (viewScope === 'day' && (!dateFrom || dateFrom === todayStr) && dailyReportSummary?.topProducts && dailyReportSummary.topProducts.length > 0)
     ? dailyReportSummary.topProducts.map(tp => ({
         name: tp.product_name || tp.name,
         totalQty: parseFloat(tp.total_qty || tp.totalQty || 0),
@@ -468,6 +522,40 @@ export default function ReportsPage() {
             <Button size="small" onClick={() => setPresetDateRange('all')} sx={{ bgcolor: '#F3F4F6', color: '#374151', borderRadius: '8px', fontWeight: 700 }}>الكل</Button>
           </Box>
 
+          {/* Scope Selector: Shift vs Full Day */}
+          <Box sx={{ display: 'flex', bgcolor: '#F1F5F9', p: 0.4, borderRadius: '10px', border: '1px solid #E2E8F0', gap: 0.5 }}>
+            <Button
+              size="small"
+              onClick={() => setViewScope('shift')}
+              sx={{
+                borderRadius: '8px',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                px: 1.5,
+                bgcolor: viewScope === 'shift' ? '#4285F4' : 'transparent',
+                color: viewScope === 'shift' ? '#FFF' : '#64748B',
+                '&:hover': { bgcolor: viewScope === 'shift' ? '#3367D6' : '#E2E8F0' }
+              }}
+            >
+              💼 الوردية الحالية (الخزنة)
+            </Button>
+            <Button
+              size="small"
+              onClick={() => setViewScope('day')}
+              sx={{
+                borderRadius: '8px',
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                px: 1.5,
+                bgcolor: viewScope === 'day' ? '#4285F4' : 'transparent',
+                color: viewScope === 'day' ? '#FFF' : '#64748B',
+                '&:hover': { bgcolor: viewScope === 'day' ? '#3367D6' : '#E2E8F0' }
+              }}
+            >
+              📅 كامل اليوم
+            </Button>
+          </Box>
+
           {/* Date Pickers */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: '#F8FAFC', p: 0.5, px: 1, borderRadius: '10px', border: '1px solid #E2E8F0' }}>
             <Typography variant="caption" sx={{ fontWeight: 800, color: '#475569' }}>من:</Typography>
@@ -491,6 +579,18 @@ export default function ReportsPage() {
           <Button variant="outlined" startIcon={<Refresh />} onClick={loadAllReportData} sx={{ borderRadius: '10px', fontWeight: 800 }}>
             تحديث البيانات
           </Button>
+
+          {isAdmin && (
+            <Button
+              variant="contained"
+              color="warning"
+              disabled={isClosingDay}
+              onClick={handleManualDailyClose}
+              sx={{ borderRadius: '10px', fontWeight: 800, bgcolor: '#D97706', '&:hover': { bgcolor: '#B45309' }, color: '#FFF' }}
+            >
+              {isClosingDay ? 'جاري التصفير...' : '🔄 تصفير وترحيل الطلبات'}
+            </Button>
+          )}
         </Box>
       </Paper>
 
@@ -584,52 +684,169 @@ export default function ReportsPage() {
             <>
               {/* TAB 1: OVERVIEW */}
               {activeTab === 'overview' && (
-                <Grid container spacing={3}>
-                  <Grid xs={12} md={7}>
-                    <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.5, color: '#1A1A2E' }}>
-                      🔥 مبيعات الأصناف ({topProducts.length} صنف)
-                    </Typography>
-                    <TableContainer component={Paper} sx={{ borderRadius: '12px', border: '1px solid #E2E8F0', maxHeight: 550, overflowY: 'auto' }}>
-                      <Table size="small" stickyHeader>
-                        <TableHead sx={{ bgcolor: '#F1F5F9' }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <Grid container spacing={3}>
+                    <Grid item xs={12} md={7}>
+                      <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.5, color: '#1A1A2E' }}>
+                        🔥 مبيعات الأصناف ({topProducts.length} صنف)
+                      </Typography>
+                      <TableContainer component={Paper} sx={{ borderRadius: '12px', border: '1px solid #E2E8F0', maxHeight: 500, overflowY: 'auto' }}>
+                        <Table size="small" stickyHeader>
+                          <TableHead sx={{ bgcolor: '#F1F5F9' }}>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 800 }}>اسم الصنف</TableCell>
+                              <TableCell align="center" sx={{ fontWeight: 800 }}>الكمية المباعة</TableCell>
+                              <TableCell align="left" sx={{ fontWeight: 800 }}>إجمالي الإيراد</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {topProducts.map((prod, idx) => (
+                              <TableRow key={idx} hover>
+                                <TableCell sx={{ fontWeight: 700 }}>{prod.name}</TableCell>
+                                <TableCell align="center" sx={{ fontWeight: 800, color: '#3B82F6' }}>{prod.totalQty} قطعة</TableCell>
+                                <TableCell align="left" sx={{ fontWeight: 900, color: '#10B981' }}>{prod.totalRevenue.toLocaleString()} ج.م</TableCell>
+                              </TableRow>
+                            ))}
+                            {topProducts.length === 0 && (
+                              <TableRow>
+                                <TableCell colSpan={3} align="center" sx={{ py: 3, color: '#9CA3AF' }}>
+                                  لا توجد مبيعات أصناف مسجلة لهذا التاريخ
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                          {topProducts.length > 0 && (
+                            <TableRow sx={{ bgcolor: '#F8FAFC', borderTop: '2px solid #CBD5E1' }}>
+                              <TableCell sx={{ fontWeight: 900 }}>الإجمالي الكلي للأصناف</TableCell>
+                              <TableCell align="center" sx={{ fontWeight: 900, color: '#2563EB' }}>
+                                {topProducts.reduce((s, p) => s + p.totalQty, 0)} قطعة
+                              </TableCell>
+                              <TableCell align="left" sx={{ fontWeight: 900, color: '#059669' }}>
+                                {topProducts.reduce((s, p) => s + p.totalRevenue, 0).toLocaleString()} ج.م
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </Table>
+                      </TableContainer>
+                    </Grid>
+                    
+                    <Grid item xs={12} md={5}>
+                      <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.5, color: '#1A1A2E' }}>
+                        📊 ملخص الخزنة والتحصيل الفعلي
+                      </Typography>
+                      <Paper sx={{ p: 2.5, borderRadius: '14px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1.2, bgcolor: '#F1F5F9', borderRadius: '10px' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>إجمالي مبيعات الأصناف:</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 900, color: '#0F172A' }}>
+                            {canSeeSafe ? `${totalSales.toLocaleString()} ج.م` : '🔒 مخفي'}
+                          </Typography>
+                        </Box>
+
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1.2, bgcolor: '#ECFDF5', borderRadius: '10px' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>تحصيل الكاش (نقدي):</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 900, color: '#047857' }}>
+                            {canSeeSafe ? `${cashTotal.toLocaleString()} ج.م` : '🔒 مخفي'}
+                          </Typography>
+                        </Box>
+
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1.2, bgcolor: '#EFF6FF', borderRadius: '10px' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>تحصيل الفيزا / الشبكة:</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 900, color: '#1D4ED8' }}>
+                            {canSeeSafe ? `${visaTotal.toLocaleString()} ج.م` : '🔒 مخفي'}
+                          </Typography>
+                        </Box>
+
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1.2, bgcolor: '#FFF7ED', borderRadius: '10px' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>رسوم خدمة الدليفري (مع الطيارين):</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 900, color: '#C25108' }}>
+                            {canSeeSafe ? `${deliveryFeesTotal.toLocaleString()} ج.م` : '🔒 مخفي'}
+                          </Typography>
+                        </Box>
+
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1.5, bgcolor: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: '10px' }}>
+                          <Box>
+                            <Typography variant="body2" sx={{ fontWeight: 900, color: '#92400E' }}>💰 الفعلي بالخزنة (نقدية الدرج):</Typography>
+                            <Typography variant="caption" sx={{ color: '#B45309', fontWeight: 600 }}>الكاش المحصل بدون الفيزا أو عهدة التوصيل</Typography>
+                          </Box>
+                          <Typography variant="h6" sx={{ fontWeight: 900, color: '#B45309' }}>
+                            {canSeeSafe ? `${netCashInSafe.toLocaleString()} ج.م` : '🔒 مخفي'}
+                          </Typography>
+                        </Box>
+
+                        <Box sx={{ p: 1.5, bgcolor: '#F8FAFC', borderRadius: '8px', border: '1px dashed #CBD5E1' }}>
+                          <Typography variant="caption" sx={{ color: '#64748B', display: 'block', lineHeight: 1.6, fontWeight: 600 }}>
+                            💡 <strong>توضيح مهم:</strong> إجمالي الإيراد يمثل القيمة الكلية للأصناف المباعة، بينما رصيد الخزنة الفعلي يمثل المبالغ الكاش المستلمة باليد فقط.
+                          </Typography>
+                        </Box>
+                      </Paper>
+                    </Grid>
+                  </Grid>
+
+                  {/* SAVED DAILY SUMMARIES TABLE (5 DAYS RETENTION) */}
+                  <Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 800, color: '#1A1A2E' }}>
+                        📋 سجل الملخصات اليومية (المحفوظة لآخر 5 أيام)
+                      </Typography>
+                      <Chip label="حفظ تلقائي لآخر 5 أيام" size="small" color="primary" sx={{ fontWeight: 700 }} />
+                    </Box>
+
+                    <TableContainer component={Paper} sx={{ borderRadius: '14px', border: '1px solid #E2E8F0' }}>
+                      <Table size="small">
+                        <TableHead sx={{ bgcolor: '#F8FAFC' }}>
                           <TableRow>
-                            <TableCell sx={{ fontWeight: 800 }}>اسم الصنف</TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 800 }}>الكمية المباعة</TableCell>
-                            <TableCell align="left" sx={{ fontWeight: 800 }}>إجمالي الإيراد</TableCell>
+                            <TableCell sx={{ fontWeight: 800 }}>التاريخ</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 800 }}>الفرع</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 800 }}>عدد الطلبات</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 800 }}>إجمالي المبيعات</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 800 }}>كاش الخزنة</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 800 }}>فيزا / شبكة</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 800 }}>دليفري</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {topProducts.map((prod, idx) => (
+                          {dailySummariesList.map((sumRow, idx) => (
                             <TableRow key={idx} hover>
-                              <TableCell sx={{ fontWeight: 700 }}>{prod.name}</TableCell>
-                              <TableCell align="center" sx={{ fontWeight: 800, color: '#3B82F6' }}>{prod.totalQty} قطعة</TableCell>
-                              <TableCell align="left" sx={{ fontWeight: 900, color: '#10B981' }}>{prod.totalRevenue.toLocaleString()} ج.م</TableCell>
+                              <TableCell sx={{ fontWeight: 800 }}>
+                                {sumRow.summary_date ? String(sumRow.summary_date).split('T')[0] : '-'}
+                              </TableCell>
+                              <TableCell align="center">
+                                <Chip
+                                  label={sumRow.branch_id === 'b2' ? 'فرع المسلة' : 'فرع عزت'}
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{ fontWeight: 700 }}
+                                />
+                              </TableCell>
+                              <TableCell align="center" sx={{ fontWeight: 700 }}>
+                                {sumRow.total_orders} طلب
+                              </TableCell>
+                              <TableCell align="center" sx={{ fontWeight: 900, color: '#10B981' }}>
+                                {canSeeSafe ? `${(parseFloat(sumRow.total_sales) || 0).toLocaleString()} ج.م` : '🔒'}
+                              </TableCell>
+                              <TableCell align="center" sx={{ fontWeight: 800, color: '#047857' }}>
+                                {canSeeSafe ? `${(parseFloat(sumRow.cash_total) || 0).toLocaleString()} ج.م` : '🔒'}
+                              </TableCell>
+                              <TableCell align="center" sx={{ fontWeight: 800, color: '#1D4ED8' }}>
+                                {canSeeSafe ? `${(parseFloat(sumRow.visa_total) || 0).toLocaleString()} ج.م` : '🔒'}
+                              </TableCell>
+                              <TableCell align="center" sx={{ fontWeight: 700, color: '#C25108' }}>
+                                {sumRow.delivery_count || 0} طلب
+                              </TableCell>
                             </TableRow>
                           ))}
+                          {dailySummariesList.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={7} align="center" sx={{ py: 3, color: '#9CA3AF', fontWeight: 600 }}>
+                                لا توجد ملخصات يومية مرحلة حتى الآن. يتم حفظ الملخص تلقائياً عند تصفير اليوم أو فتح وردية جديدة.
+                              </TableCell>
+                            </TableRow>
+                          )}
                         </TableBody>
                       </Table>
                     </TableContainer>
-                  </Grid>
-                  <Grid xs={12} md={5}>
-                    <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.5, color: '#1A1A2E' }}>📊 ملخص الخزنة اليومي</Typography>
-                    {dailyReportSummary && (
-                      <Paper sx={{ p: 2, borderRadius: '12px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: 1.2 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1, bgcolor: '#ECFDF5', borderRadius: '8px' }}>
-                          <Typography variant="body2" sx={{ fontWeight: 700 }}>إجمالي مبيعات اليوم:</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 900, color: '#047857' }}>{canSeeSafe ? `${(parseFloat(dailyReportSummary.total_sales) || 0).toLocaleString()} ج.م` : '🔒 مخفي'}</Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1, bgcolor: '#EFF6FF', borderRadius: '8px' }}>
-                          <Typography variant="body2" sx={{ fontWeight: 700 }}>تحصيل الكاش:</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 900, color: '#1D4ED8' }}>{canSeeSafe ? `${(parseFloat(dailyReportSummary.cash_total) || 0).toLocaleString()} ج.م` : '🔒 مخفي'}</Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1, bgcolor: '#F3E8FF', borderRadius: '8px' }}>
-                          <Typography variant="body2" sx={{ fontWeight: 700 }}>تحصيل الفيزا / الشبكة:</Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 900, color: '#7E22CE' }}>{canSeeSafe ? `${(parseFloat(dailyReportSummary.visa_total) || 0).toLocaleString()} ج.م` : '🔒 مخفي'}</Typography>
-                        </Box>
-                      </Paper>
-                    )}
-                  </Grid>
-                </Grid>
+                  </Box>
+                </Box>
               )}
 
               {/* TAB 2: DAILY ATTENDANCE */}
