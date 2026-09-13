@@ -36,7 +36,12 @@ function TabPanel(props) {
 
 export default function DeliveryPage() {
   const [tabValue, setTabValue] = useState(0);
-  const { customers, fetchCustomers, saveOrUpdateCustomer, updateCustomerAddresses, deleteCustomer, areas, fetchAreas, addArea, deleteArea, drivers, fetchDrivers, activeQueue, fetchAttendanceQueue } = useCustomerStore();
+  const {
+    customers, fetchCustomers, saveOrUpdateCustomer, updateCustomerAddresses, deleteCustomer,
+    areas, fetchAreas, addArea, deleteArea,
+    drivers, fetchDrivers, activeQueue, fetchAttendanceQueue,
+    driverPayouts, driverSummaries, fetchDriverPayouts, recordDriverPayout, deleteDriverPayout
+  } = useCustomerStore();
   const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
   const { user } = useAuthStore();
   const { activeShift, fetchShifts, shifts: allShiftsList } = useShiftStore();
@@ -56,6 +61,19 @@ export default function DeliveryPage() {
   const [selectedDriverForSettlement, setSelectedDriverForSettlement] = useState('all');
   const [settlementCashFilter, setSettlementCashFilter] = useState('pending'); // 'pending' hides collected orders automatically
   const [collectedOrdersDialogOpen, setCollectedOrdersDialogOpen] = useState(false);
+
+  // Driver Fee Payout Dialog State
+  const [payoutDialogOpen, setPayoutDialogOpen] = useState(false);
+  const [selectedDriverForPayout, setSelectedDriverForPayout] = useState(null);
+  const [payoutAmount, setPayoutAmount] = useState('');
+  const [payoutNotes, setPayoutNotes] = useState('');
+  const [payoutMethod, setPayoutMethod] = useState('cash');
+  const [recordExpense, setRecordExpense] = useState(true);
+  const [submittingPayout, setSubmittingPayout] = useState(false);
+
+  // Driver Payout History Modal State
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [selectedDriverForHistory, setSelectedDriverForHistory] = useState('all');
 
   // Dispatch Dialog State
   const [dispatchDialog, setDispatchDialog] = useState(false);
@@ -147,11 +165,13 @@ export default function DeliveryPage() {
     fetchDrivers();
     fetchShifts(effectiveBranch);
     fetchAttendanceQueue(effectiveBranch);
+    fetchDriverPayouts(effectiveBranch);
 
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         fetchDeliveryData(true);
         fetchAttendanceQueue(effectiveBranch);
+        fetchDriverPayouts(effectiveBranch);
       }
     }, 3000);
     return () => clearInterval(interval);
@@ -391,6 +411,79 @@ export default function DeliveryPage() {
     }
   };
 
+  // Action 5: Open Driver Payout Modal (دفع وصرف خدمات التوصيل للطيار)
+  const handleOpenPayoutDialog = (driverProfile) => {
+    setSelectedDriverForPayout(driverProfile);
+    const rem = driverProfile.remainingDeliveryFeesOwed;
+    setPayoutAmount(rem > 0 ? String(rem) : '');
+    setPayoutNotes('');
+    setPayoutMethod('cash');
+    setRecordExpense(true);
+    setPayoutDialogOpen(true);
+  };
+
+  // Confirm Payout Submission
+  const handleConfirmPayout = async () => {
+    if (!selectedDriverForPayout) return;
+    const amountVal = parseFloat(payoutAmount);
+    if (!amountVal || amountVal <= 0) {
+      alert('يرجى كتابة مبلغ صحيح أكبر من 0!');
+      return;
+    }
+
+    setSubmittingPayout(true);
+    try {
+      const res = await recordDriverPayout({
+        driver_id: selectedDriverForPayout.id,
+        driver_name: selectedDriverForPayout.name,
+        amount: amountVal,
+        branch_id: effectiveBranch && effectiveBranch !== 'all' ? effectiveBranch : 'b1',
+        shift_id: activeShift?.id || null,
+        paid_by: user?.name || user?.username || 'كاشير',
+        payment_method: payoutMethod,
+        notes: payoutNotes || `صرف خدمات توصيل للطيار ${selectedDriverForPayout.name}`,
+        record_as_expense: recordExpense
+      });
+
+      if (res && res.success) {
+        const remainingAfter = Math.max(0, (selectedDriverForPayout.remainingDeliveryFeesOwed || 0) - amountVal);
+        alert(`✅ تم صرف مبلغ (${amountVal.toLocaleString()} ج.م) للطيار (${selectedDriverForPayout.name}) بنجاح!\n\n• المتبقي له طرف المحل: ${remainingAfter.toLocaleString()} ج.م\n• وسيتم تحديث رصيده تلقائياً وإضافة أي خدمات أوردرات جديدة يسلمها.`);
+        setPayoutDialogOpen(false);
+        fetchDriverPayouts(effectiveBranch);
+      } else {
+        alert(res?.error || 'حدث خطأ أثناء حفظ عملية الصرف');
+      }
+    } catch (err) {
+      console.error('Error confirming payout:', err);
+      alert('حدث خطأ في الاتصال بالسيرفر');
+    } finally {
+      setSubmittingPayout(false);
+    }
+  };
+
+  // Open Driver Payout History Modal
+  const handleOpenPayoutHistory = (driverName = 'all') => {
+    setSelectedDriverForHistory(driverName);
+    setHistoryDialogOpen(true);
+    fetchDriverPayouts(effectiveBranch);
+  };
+
+  // Delete Driver Payout Record
+  const handleDeletePayout = async (payoutId) => {
+    if (!confirm('هل أنت متأكد من حذف عملية الصرف هذه؟ سيتم استرجاع المبلغ إلى رصيد خدمات الطيار.')) return;
+    try {
+      const res = await deleteDriverPayout(payoutId, effectiveBranch);
+      if (res && res.success) {
+        alert('✅ تم حذف عملية الصرف واسترجاع الرصيد بنجاح.');
+        fetchDriverPayouts(effectiveBranch);
+      } else {
+        alert('فشل حذف عملية الصرف');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   // Action: Print Delivery Receipt
   const handlePrintDelivery = (order) => {
     printThermalReceipt({
@@ -505,6 +598,16 @@ export default function DeliveryPage() {
       return sum + (parseFloat(o.subtotal || 0) || Math.max(0, tot - fee));
     }, 0);
 
+    // Running delivery fee calculations from server summaries or orders + payouts
+    const summary = (driverSummaries && driverSummaries[d.name]) || {};
+    const totalDeliveryFeesAllTime = summary.total_earned !== undefined ? summary.total_earned : totalDeliveryFees;
+    const totalDeliveryFeesPaid = summary.total_paid !== undefined 
+      ? summary.total_paid 
+      : (driverPayouts || []).filter(p => p.driver_name === d.name).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    const remainingDeliveryFeesOwed = summary.remaining_balance !== undefined
+      ? summary.remaining_balance
+      : (totalDeliveryFeesAllTime - totalDeliveryFeesPaid);
+
     return {
       id: d.id,
       name: d.name,
@@ -520,11 +623,17 @@ export default function DeliveryPage() {
       collectedOrdersSubtotal,
       totalDeliveryFees,
       totalOrdersSubtotal,
+      totalDeliveryFeesAllTime,
+      totalDeliveryFeesPaid,
+      remainingDeliveryFeesOwed,
     };
   });
 
   const totalPendingAllDriversCash = driverProfiles.reduce((sum, p) => sum + p.pendingCashTotal, 0);
   const totalCollectedAllDriversCash = driverProfiles.reduce((sum, p) => sum + p.collectedCashTotal, 0);
+  const totalAllDriversEarnedFees = driverProfiles.reduce((sum, p) => sum + (p.totalDeliveryFeesAllTime || 0), 0);
+  const totalAllDriversPaidFees = driverProfiles.reduce((sum, p) => sum + (p.totalDeliveryFeesPaid || 0), 0);
+  const totalAllDriversRemainingFees = driverProfiles.reduce((sum, p) => sum + (p.remainingDeliveryFeesOwed || 0), 0);
 
   // Settlement Orders Filtered for Selected Driver View
   const settlementFilteredOrders = (visibleDeliveryOrders || []).filter(o => {
@@ -1356,39 +1465,67 @@ export default function DeliveryPage() {
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {/* Header Summary Banner */}
           <Grid container spacing={2}>
-            <Grid xs={12} sm={4}>
-              <Paper sx={{ p: 2.5, borderRadius: '16px', bgcolor: '#FFFBEB', border: '2px solid #F59E0B' }}>
-                <Typography variant="caption" fontWeight={800} color="#D97706">إجمالي العُهَد المعلّقة مع الطيارين (لم تُسلّم)</Typography>
-                <Typography variant="h4" fontWeight={900} color="#B45309" sx={{ mt: 0.5 }}>
+            {/* 1. Pending Cash Total */}
+            <Grid xs={12} sm={6} md={3}>
+              <Paper sx={{ p: 2, borderRadius: '16px', bgcolor: '#FFFBEB', border: '2px solid #F59E0B' }}>
+                <Typography variant="caption" fontWeight={800} color="#D97706">إجمالي العُهَد المعلّقة (نقدية الطلبات)</Typography>
+                <Typography variant="h5" fontWeight={900} color="#B45309" sx={{ mt: 0.5 }}>
                   {totalPendingAllDriversCash.toLocaleString()} ج.م
                 </Typography>
                 <Typography variant="caption" color="#92400E" sx={{ mt: 0.5, display: 'block' }}>
-                  مبالغ الدليفري المطلوب توريدها للخزينة
+                  مبالغ مطلوبة للتوريد بالخزينة
                 </Typography>
               </Paper>
             </Grid>
 
-            <Grid xs={12} sm={4}>
-              <Paper sx={{ p: 2.5, borderRadius: '16px', bgcolor: '#ECFDF5', border: '2px solid #10B981' }}>
-                <Typography variant="caption" fontWeight={800} color="#047857">إجمالي النقدية المورّدة والمستلمة بالخزينة</Typography>
-                <Typography variant="h4" fontWeight={900} color="#065F46" sx={{ mt: 0.5 }}>
+            {/* 2. Collected Cash Total */}
+            <Grid xs={12} sm={6} md={3}>
+              <Paper sx={{ p: 2, borderRadius: '16px', bgcolor: '#ECFDF5', border: '2px solid #10B981' }}>
+                <Typography variant="caption" fontWeight={800} color="#047857">إجمالي النقدية المورّدة بالخزينة</Typography>
+                <Typography variant="h5" fontWeight={900} color="#065F46" sx={{ mt: 0.5 }}>
                   {totalCollectedAllDriversCash.toLocaleString()} ج.م
                 </Typography>
                 <Typography variant="caption" color="#047857" sx={{ mt: 0.5, display: 'block' }}>
-                  مبالغ تم استلامها وإدراجها بفرع الشيفت
+                  مبالغ تم تسليمها وإدراجها بالدرج
                 </Typography>
               </Paper>
             </Grid>
 
-            <Grid xs={12} sm={4}>
-              <Paper sx={{ p: 2.5, borderRadius: '16px', bgcolor: '#EFF6FF', border: '2px solid #3B82F6' }}>
-                <Typography variant="caption" fontWeight={800} color="#1E40AF">إجمالي طاقم التوصيل المسجل</Typography>
-                <Typography variant="h4" fontWeight={900} color="#1D4ED8" sx={{ mt: 0.5 }}>
-                  {driverProfiles.length} طيارين
+            {/* 3. Total Driver Delivery Fees Earned */}
+            <Grid xs={12} sm={6} md={3}>
+              <Paper sx={{ p: 2, borderRadius: '16px', bgcolor: '#EFF6FF', border: '2px solid #3B82F6' }}>
+                <Typography variant="caption" fontWeight={800} color="#1E40AF">إجمالي خدمات الدليفري المكتسبة</Typography>
+                <Typography variant="h5" fontWeight={900} color="#1D4ED8" sx={{ mt: 0.5 }}>
+                  {totalAllDriversEarnedFees.toLocaleString()} ج.م
                 </Typography>
                 <Typography variant="caption" color="#1E40AF" sx={{ mt: 0.5, display: 'block' }}>
-                  متابعة العُهَد لكل طيار بشكل منفصل
+                  المصروف منها: {totalAllDriversPaidFees.toLocaleString()} ج.م
                 </Typography>
+              </Paper>
+            </Grid>
+
+            {/* 4. Total Remaining Fees Owed to Drivers */}
+            <Grid xs={12} sm={6} md={3}>
+              <Paper sx={{ p: 2, borderRadius: '16px', bgcolor: '#FAF5FF', border: '2px solid #8B5CF6' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <Box>
+                    <Typography variant="caption" fontWeight={800} color="#6D28D9">المتبقي للطيارين طرف المحل</Typography>
+                    <Typography variant="h5" fontWeight={900} color="#5B21B6" sx={{ mt: 0.5 }}>
+                      {totalAllDriversRemainingFees.toLocaleString()} ج.م
+                    </Typography>
+                    <Typography variant="caption" color="#6D28D9" sx={{ mt: 0.5, display: 'block' }}>
+                      مستحقات خدمات جاري صرفها
+                    </Typography>
+                  </Box>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => handleOpenPayoutHistory('all')}
+                    sx={{ borderRadius: '8px', fontSize: '0.68rem', fontWeight: 800, borderColor: '#C4B5FD', color: '#6D28D9', bgcolor: '#FFF' }}
+                  >
+                    سجل الصرف
+                  </Button>
+                </Box>
               </Paper>
             </Grid>
           </Grid>
@@ -1425,7 +1562,7 @@ export default function DeliveryPage() {
                     🏢 كافة الطيارين
                   </Typography>
                   <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                    عرض مجمّع لكل عُهد الطلبات
+                    عرض مجمّع لكل عُهد وحسابات الطلبات
                   </Typography>
                 </Card>
               </Grid>
@@ -1433,86 +1570,178 @@ export default function DeliveryPage() {
               {driverProfiles.map((p) => {
                 const isSelected = selectedDriverForSettlement === p.name;
                 return (
-                  <Grid xs={12} sm={6} md={3} key={p.id || p.name}>
+                  <Grid xs={12} sm={6} md={4} lg={3} key={p.id || p.name}>
                     <Card
                       onClick={() => setSelectedDriverForSettlement(p.name)}
                       sx={{
                         p: 2,
-                        borderRadius: '14px',
+                        borderRadius: '16px',
                         cursor: 'pointer',
                         border: '2px solid',
                         borderColor: isSelected ? '#F59E0B' : '#E5E7EB',
                         bgcolor: isSelected ? '#FFFDF5' : '#FFF',
                         transition: 'all 0.2s',
-                        '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        height: '100%',
+                        '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 6px 16px rgba(0,0,0,0.08)' }
                       }}
                     >
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="subtitle2" fontWeight={900} color="#1A1A2E">
-                          🚴 {p.name}
-                        </Typography>
-                        <Chip
-                          label={`${p.totalOrdersCount} أوردر`}
-                          size="small"
-                          sx={{ fontWeight: 800, bgcolor: '#F3F4F6', fontSize: '0.68rem' }}
-                        />
-                      </Box>
-
-                      <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.6 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="caption" color="text.secondary" fontWeight={700}>الأوردرات (صافي):</Typography>
-                          <Typography variant="caption" fontWeight={800} color="#1E293B">
-                            {p.pendingOrdersSubtotal.toLocaleString()} ج.م
+                      <Box>
+                        {/* Top: Name and Order Count */}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Typography variant="subtitle2" fontWeight={900} color="#1A1A2E">
+                            🚴 {p.name}
                           </Typography>
+                          <Chip
+                            label={`${p.totalOrdersCount} أوردر`}
+                            size="small"
+                            sx={{ fontWeight: 800, bgcolor: '#F3F4F6', fontSize: '0.68rem' }}
+                          />
                         </Box>
 
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="caption" color="text.secondary" fontWeight={700}>خدمات الدليفري:</Typography>
-                          <Typography variant="caption" fontWeight={800} color="#D97706">
-                            +{p.pendingDeliveryFees.toLocaleString()} ج.م
+                        {/* 1. Cash from Orders Section */}
+                        <Box sx={{ mt: 1.2, p: 1, borderRadius: '10px', bgcolor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+                          <Typography variant="caption" fontWeight={900} color="#475569" sx={{ display: 'block', mb: 0.4 }}>
+                            💵 عُهدة نقدية الطلبات:
                           </Typography>
-                        </Box>
-
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 0.4, borderTop: '1px dashed #E2E8F0' }}>
-                          <Typography variant="caption" color="#92400E" fontWeight={900}>إجمالي العهدة:</Typography>
-                          <Typography variant="caption" fontWeight={900} color={p.pendingCashTotal > 0 ? '#B45309' : '#10B981'} sx={{ fontSize: '0.85rem' }}>
-                            {p.pendingCashTotal.toLocaleString()} ج.م
-                          </Typography>
-                        </Box>
-
-                        {p.collectedCashTotal > 0 && (
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 0.2 }}>
-                            <Typography variant="caption" color="#047857" fontWeight={700}>المسلم للخزينة:</Typography>
-                            <Typography variant="caption" fontWeight={900} color="#059669">
-                              {p.collectedCashTotal.toLocaleString()} ج.م
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography variant="caption" color="text.secondary" fontWeight={700}>العهدة المعلقة:</Typography>
+                            <Typography variant="caption" fontWeight={900} color={p.pendingCashTotal > 0 ? '#B45309' : '#10B981'}>
+                              {p.pendingCashTotal.toLocaleString()} ج.م
                             </Typography>
                           </Box>
-                        )}
-                      </Box>
+                          {p.collectedCashTotal > 0 && (
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 0.2 }}>
+                              <Typography variant="caption" color="#047857" fontWeight={700}>المسلم للخزينة:</Typography>
+                              <Typography variant="caption" fontWeight={900} color="#059669">
+                                {p.collectedCashTotal.toLocaleString()} ج.م
+                              </Typography>
+                            </Box>
+                          )}
+                          {p.pendingCashTotal > 0 && (
+                            <Button
+                              fullWidth
+                              size="small"
+                              variant="contained"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSettleDriverAllCash(p.name);
+                              }}
+                              sx={{
+                                mt: 0.8,
+                                borderRadius: '8px',
+                                fontWeight: 900,
+                                fontSize: '0.68rem',
+                                py: 0.4,
+                                bgcolor: '#D97706',
+                                color: '#FFF',
+                                '&:hover': { bgcolor: '#B45309' }
+                              }}
+                            >
+                              💵 توريد عهدة الطلبات
+                            </Button>
+                          )}
+                        </Box>
 
-                      {p.pendingCashTotal > 0 && (
-                        <Button
-                          fullWidth
-                          size="small"
-                          variant="contained"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSettleDriverAllCash(p.name);
-                          }}
+                        {/* 2. Driver Delivery Fee Account (حساب خدمات التوصيل للطيار) */}
+                        <Box
                           sx={{
-                            mt: 1.5,
-                            borderRadius: '8px',
-                            fontWeight: 900,
-                            fontSize: '0.72rem',
-                            py: 0.6,
-                            bgcolor: '#D97706',
-                            color: '#FFF',
-                            '&:hover': { bgcolor: '#B45309' }
+                            mt: 1.2,
+                            p: 1.2,
+                            borderRadius: '10px',
+                            bgcolor: p.remainingDeliveryFeesOwed > 0 ? '#FFFBEB' : '#F0FDF4',
+                            border: '1.5px solid',
+                            borderColor: p.remainingDeliveryFeesOwed > 0 ? '#FDE68A' : '#BBF7D0'
                           }}
                         >
-                          💵 تسليم عهدة {p.name}
-                        </Button>
-                      )}
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                            <Typography variant="caption" fontWeight={900} color={p.remainingDeliveryFeesOwed > 0 ? '#92400E' : '#166534'}>
+                              🛵 خدمات التوصيل:
+                            </Typography>
+                            <Chip
+                              label={p.remainingDeliveryFeesOwed > 0 ? `له: ${p.remainingDeliveryFeesOwed.toLocaleString()} ج.م` : 'خالص بالكامل'}
+                              size="small"
+                              sx={{
+                                fontWeight: 900,
+                                fontSize: '0.68rem',
+                                height: 20,
+                                bgcolor: p.remainingDeliveryFeesOwed > 0 ? '#F59E0B' : '#10B981',
+                                color: '#FFF'
+                              }}
+                            />
+                          </Box>
+
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography variant="caption" color="text.secondary" fontWeight={700}>الخدمات المكتسبة:</Typography>
+                            <Typography variant="caption" fontWeight={800} color="#1E293B">
+                              {p.totalDeliveryFeesAllTime.toLocaleString()} ج.م
+                            </Typography>
+                          </Box>
+
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography variant="caption" color="text.secondary" fontWeight={700}>تم صرفه له:</Typography>
+                            <Typography variant="caption" fontWeight={800} color="#059669">
+                              {p.totalDeliveryFeesPaid.toLocaleString()} ج.م
+                            </Typography>
+                          </Box>
+
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 0.4, borderTop: '1px dashed #CBD5E1', mt: 0.4 }}>
+                            <Typography variant="caption" color="#B45309" fontWeight={900}>المتبقي له طرفنا:</Typography>
+                            <Typography variant="caption" fontWeight={900} color="#B45309" sx={{ fontSize: '0.85rem' }}>
+                              {p.remainingDeliveryFeesOwed.toLocaleString()} ج.م
+                            </Typography>
+                          </Box>
+
+                          {/* Payout & History Action Buttons */}
+                          <Box sx={{ display: 'flex', gap: 0.8, mt: 1 }}>
+                            <Button
+                              fullWidth
+                              size="small"
+                              variant="contained"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenPayoutDialog(p);
+                              }}
+                              sx={{
+                                borderRadius: '8px',
+                                fontWeight: 900,
+                                fontSize: '0.7rem',
+                                py: 0.5,
+                                bgcolor: '#2563EB',
+                                color: '#FFF',
+                                '&:hover': { bgcolor: '#1D4ED8' }
+                              }}
+                            >
+                              💸 صرف خدمات
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenPayoutHistory(p.name);
+                              }}
+                              sx={{
+                                borderRadius: '8px',
+                                fontWeight: 800,
+                                fontSize: '0.7rem',
+                                py: 0.5,
+                                px: 1,
+                                borderColor: '#CBD5E1',
+                                color: '#475569',
+                                bgcolor: '#FFF',
+                                minWidth: 'auto',
+                                '&:hover': { bgcolor: '#F8FAFC' }
+                              }}
+                              title="عرض سجل المنصرفات لهذا الطيار"
+                            >
+                              📜 السجل
+                            </Button>
+                          </Box>
+                        </Box>
+                      </Box>
                     </Card>
                   </Grid>
                 );
@@ -1974,6 +2203,245 @@ export default function DeliveryPage() {
         order={orderToEdit}
         onSaveSuccess={() => fetchDeliveryData()}
       />
+
+      {/* DRIVER DELIVERY FEE PAYOUT DIALOG */}
+      <Dialog
+        open={payoutDialogOpen}
+        onClose={() => !submittingPayout && setPayoutDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '16px', p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, fontSize: '1.1rem', color: '#1E293B', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Avatar sx={{ bgcolor: '#EFF6FF', color: '#2563EB', width: 38, height: 38, fontWeight: 900 }}>
+            {selectedDriverForPayout?.name?.charAt(0) || 'ط'}
+          </Avatar>
+          <Box>
+            <Typography variant="subtitle1" fontWeight={900} lineHeight={1.2}>
+              صرف خدمات توصيل (دليفري)
+            </Typography>
+            <Typography variant="caption" color="text.secondary" fontWeight={700}>
+              الطيار: {selectedDriverForPayout?.name}
+            </Typography>
+          </Box>
+        </DialogTitle>
+
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1.5 }}>
+          {/* Financial Snapshot Card */}
+          <Paper sx={{ p: 2, borderRadius: '12px', bgcolor: '#F8FAFC', border: '1.5px solid #E2E8F0' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.8 }}>
+              <Typography variant="body2" color="text.secondary" fontWeight={700}>إجمالي الخدمات المكتسبة:</Typography>
+              <Typography variant="body2" fontWeight={900} color="#1E293B">
+                {(selectedDriverForPayout?.totalDeliveryFeesAllTime || 0).toLocaleString()} ج.م
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.8 }}>
+              <Typography variant="body2" color="text.secondary" fontWeight={700}>تم صرفه له سابقاً:</Typography>
+              <Typography variant="body2" fontWeight={900} color="#059669">
+                {(selectedDriverForPayout?.totalDeliveryFeesPaid || 0).toLocaleString()} ج.م
+              </Typography>
+            </Box>
+            <Divider sx={{ my: 1 }} />
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="subtitle2" fontWeight={900} color="#B45309">المتبقي له حالياً:</Typography>
+              <Typography variant="h6" fontWeight={900} color="#B45309">
+                {(selectedDriverForPayout?.remainingDeliveryFeesOwed || 0).toLocaleString()} ج.م
+              </Typography>
+            </Box>
+          </Paper>
+
+          {/* Amount to Pay Input */}
+          <Box>
+            <Typography variant="caption" fontWeight={800} color="#1E293B" sx={{ mb: 0.6, display: 'block' }}>
+              المبلغ المراد صرفه الآن (ج.م) *
+            </Typography>
+            <TextField
+              fullWidth
+              type="number"
+              placeholder="مثال: 50"
+              value={payoutAmount}
+              onChange={(e) => setPayoutAmount(e.target.value)}
+              autoFocus
+              slotProps={{
+                input: {
+                  endAdornment: <InputAdornment position="end">ج.م</InputAdornment>,
+                  inputProps: { min: 1, step: 'any' }
+                }
+              }}
+            />
+          </Box>
+
+          {/* Quick Amount Selection Chips */}
+          <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
+            {selectedDriverForPayout?.remainingDeliveryFeesOwed > 0 && (
+              <Chip
+                label={`صرف المتبقي كاملاً (${selectedDriverForPayout.remainingDeliveryFeesOwed} ج.م)`}
+                onClick={() => setPayoutAmount(String(selectedDriverForPayout.remainingDeliveryFeesOwed))}
+                color="primary"
+                variant="filled"
+                sx={{ fontWeight: 800, fontSize: '0.75rem' }}
+              />
+            )}
+            {[50, 100, 150, 200].map(val => (
+              <Chip
+                key={val}
+                label={`${val} ج.م`}
+                onClick={() => setPayoutAmount(String(val))}
+                variant="outlined"
+                sx={{ fontWeight: 800, fontSize: '0.75rem' }}
+              />
+            ))}
+          </Box>
+
+          {/* Live Remaining Preview Alert */}
+          {payoutAmount && parseFloat(payoutAmount) > 0 && (
+            <Alert
+              severity={parseFloat(payoutAmount) <= (selectedDriverForPayout?.remainingDeliveryFeesOwed || 0) ? 'info' : 'warning'}
+              sx={{ py: 0.5, '& .MuiAlert-message': { fontSize: '0.8rem', fontWeight: 700 } }}
+            >
+              {parseFloat(payoutAmount) <= (selectedDriverForPayout?.remainingDeliveryFeesOwed || 0) ? (
+                <>
+                  سيتبقى للطيار بعد هذا الصرف: <strong>{((selectedDriverForPayout?.remainingDeliveryFeesOwed || 0) - parseFloat(payoutAmount)).toLocaleString()} ج.م</strong>
+                </>
+              ) : (
+                <>
+                  المبلغ يتجاوز الرصيد الحالي بمقدار: <strong>{(parseFloat(payoutAmount) - (selectedDriverForPayout?.remainingDeliveryFeesOwed || 0)).toLocaleString()} ج.م</strong>
+                </>
+              )}
+            </Alert>
+          )}
+
+          {/* Payment Method */}
+          <FormControl fullWidth size="small">
+            <InputLabel>طريقة الصرف</InputLabel>
+            <Select
+              value={payoutMethod}
+              label="طريقة الصرف"
+              onChange={(e) => setPayoutMethod(e.target.value)}
+            >
+              <MenuItem value="cash">كاش الخزنة (نقداً)</MenuItem>
+              <MenuItem value="instapay">إنستاباي / تحويل بنكي</MenuItem>
+              <MenuItem value="wallet">محفظة إلكترونية (فودافون كاش)</MenuItem>
+            </Select>
+          </FormControl>
+
+          {/* Notes */}
+          <TextField
+            fullWidth
+            size="small"
+            label="ملاحظات الصرف (اختياري)"
+            placeholder="مثال: دفعة خدمات، سداد..."
+            value={payoutNotes}
+            onChange={(e) => setPayoutNotes(e.target.value)}
+          />
+        </DialogContent>
+
+        <DialogActions sx={{ p: 2, pt: 1 }}>
+          <Button onClick={() => setPayoutDialogOpen(false)} disabled={submittingPayout} sx={{ fontWeight: 800 }}>
+            إلغاء
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleConfirmPayout}
+            disabled={submittingPayout || !payoutAmount || parseFloat(payoutAmount) <= 0}
+            sx={{ bgcolor: '#2563EB', fontWeight: 900, px: 3, '&:hover': { bgcolor: '#1D4ED8' } }}
+          >
+            {submittingPayout ? 'جاري الصرف...' : 'تأكيد الصرف الآن 💸'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* DRIVER PAYOUT HISTORY DIALOG */}
+      <Dialog
+        open={historyDialogOpen}
+        onClose={() => setHistoryDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '16px', p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, fontSize: '1.1rem', pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <History sx={{ color: '#2563EB' }} />
+            <Typography variant="h6" fontWeight={900}>
+              سجل منصرفات خدمات الدليفري {selectedDriverForHistory !== 'all' ? `للتيار: ${selectedDriverForHistory}` : 'لكافة الطيارين'}
+            </Typography>
+          </Box>
+          <IconButton onClick={() => setHistoryDialogOpen(false)} size="small">
+            ✕
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent sx={{ p: 1 }}>
+          {(() => {
+            const filteredPayouts = (driverPayouts || []).filter(p => selectedDriverForHistory === 'all' || p.driver_name === selectedDriverForHistory);
+            if (filteredPayouts.length === 0) {
+              return (
+                <Box sx={{ p: 4, textAlign: 'center' }}>
+                  <Typography variant="body2" color="text.secondary" fontWeight={700}>
+                    لا توجد عمليات صرف مسجلة لهذا الطيار حتى الآن.
+                  </Typography>
+                </Box>
+              );
+            }
+
+            const totalDisbursed = filteredPayouts.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+
+            return (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                <TableContainer component={Paper} sx={{ borderRadius: '12px', border: '1px solid #E2E8F0', maxHeight: 380 }}>
+                  <Table size="small" stickyHeader>
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: '#F8FAFC' }}>
+                        <TableCell sx={{ fontWeight: 900 }}>الطيار</TableCell>
+                        <TableCell sx={{ fontWeight: 900 }}>المبلغ</TableCell>
+                        <TableCell sx={{ fontWeight: 900 }}>التاريخ والوقت</TableCell>
+                        <TableCell sx={{ fontWeight: 900 }}>المسؤول / ملاحظات</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 900 }}>حذف</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {filteredPayouts.map(p => (
+                        <TableRow key={p.id} hover>
+                          <TableCell sx={{ fontWeight: 800 }}>{p.driver_name}</TableCell>
+                          <TableCell sx={{ fontWeight: 900, color: '#059669' }}>
+                            {parseFloat(p.amount).toLocaleString()} ج.م
+                          </TableCell>
+                          <TableCell sx={{ fontSize: '0.75rem', color: '#64748B' }}>
+                            {new Date(p.created_at).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}
+                          </TableCell>
+                          <TableCell sx={{ fontSize: '0.75rem' }}>
+                            <Typography variant="caption" fontWeight={800} display="block">{p.paid_by || 'كاشير'}</Typography>
+                            {p.notes && <Typography variant="caption" color="text.secondary">{p.notes}</Typography>}
+                          </TableCell>
+                          <TableCell align="center">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleDeletePayout(p.id)}
+                              title="حذف عملية الصرف واسترجاع المبلغ"
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1.5, bgcolor: '#EFF6FF', borderRadius: '10px' }}>
+                  <Typography variant="subtitle2" fontWeight={900} color="#1E40AF">
+                    إجمالي المنصرف:
+                  </Typography>
+                  <Typography variant="h6" fontWeight={900} color="#1D4ED8">
+                    {totalDisbursed.toLocaleString()} ج.م
+                  </Typography>
+                </Box>
+              </Box>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Incoming Order Realtime Notification Toast */}
       {incomingOrderNotification && (

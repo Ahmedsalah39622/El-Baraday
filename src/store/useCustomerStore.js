@@ -10,6 +10,8 @@ export const useCustomerStore = create(
       areas: [],
       drivers: [],
       activeQueue: [],
+      driverPayouts: [],
+      driverSummaries: {},
       loading: false,
 
       // Fetch customers from DB
@@ -105,6 +107,65 @@ export const useCustomerStore = create(
             });
           }
         } catch (err) {}
+      },
+
+      // Fetch driver fee payouts and balances
+      fetchDriverPayouts: async (branchId, driverName) => {
+        try {
+          const params = new URLSearchParams();
+          if (branchId && branchId !== 'all') params.append('branch_id', branchId);
+          if (driverName && driverName !== 'all') params.append('driver_name', driverName);
+          const queryString = params.toString() ? `?${params.toString()}` : '';
+          const res = await fetch(`/api/drivers/payouts${queryString}`);
+          if (res.ok) {
+            const data = await res.json();
+            set({
+              driverPayouts: data.payouts || [],
+              driverSummaries: data.summaries || {}
+            });
+            return data;
+          }
+        } catch (err) {
+          console.warn('⚠️ Error fetching driver payouts:', err.message);
+        }
+        return { payouts: [], summaries: {} };
+      },
+
+      // Record a payout for a driver's delivery fees
+      recordDriverPayout: async (payoutData) => {
+        try {
+          const res = await fetch('/api/drivers/payouts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payoutData)
+          });
+          if (res.ok) {
+            const created = await res.json();
+            await get().fetchDriverPayouts(payoutData.branch_id);
+            return { success: true, payout: created };
+          } else {
+            const errData = await res.json();
+            return { success: false, error: errData.error || 'فشل تسجيل عملية الصرف' };
+          }
+        } catch (err) {
+          return { success: false, error: err.message };
+        }
+      },
+
+      // Cancel / delete a driver payout
+      deleteDriverPayout: async (id, branchId) => {
+        try {
+          const res = await fetch(`/api/drivers/payouts?id=${id}`, {
+            method: 'DELETE'
+          });
+          if (res.ok) {
+            await get().fetchDriverPayouts(branchId);
+            return { success: true };
+          }
+        } catch (err) {
+          return { success: false, error: err.message };
+        }
+        return { success: false };
       },
 
       // Search customer by phone substring
