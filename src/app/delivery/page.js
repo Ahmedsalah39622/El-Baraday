@@ -231,16 +231,6 @@ export default function DeliveryPage() {
     }
   });
 
-  (drivers || []).filter(d => !selectedBranchId || selectedBranchId === 'all' || !d.branch_id || d.branch_id === 'all' || d.branch_id === selectedBranchId).forEach(d => {
-    if (d.name && !dispatchDriverOptions.some(opt => opt.name === d.name)) {
-      dispatchDriverOptions.push({
-        id: d.id || d.name,
-        name: d.name,
-        label: `${d.name} (غير حاضر بالتمام)`
-      });
-    }
-  });
-
   // Action: Open Dispatch Dialog
   const handleOpenDispatch = (order) => {
     setSelectedOrderForDispatch(order);
@@ -1795,11 +1785,17 @@ export default function DeliveryPage() {
               onChange={(e) => setSelectedDriverForOrder(e.target.value)}
               label="طيار التوصيل"
             >
-              {dispatchDriverOptions.map(opt => (
-                <MenuItem key={opt.id} value={opt.name}>
-                  {opt.label}
+              {dispatchDriverOptions.length === 0 ? (
+                <MenuItem value="" disabled sx={{ fontSize: '0.8rem', color: '#94A3B8' }}>
+                  ⚠️ لا يوجد طيارين حاضرين حالياً
                 </MenuItem>
-              ))}
+              ) : (
+                dispatchDriverOptions.map(opt => (
+                  <MenuItem key={opt.id} value={opt.name}>
+                    {opt.label}
+                  </MenuItem>
+                ))
+              )}
             </Select>
           </FormControl>
         </DialogContent>

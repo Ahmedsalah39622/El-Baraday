@@ -90,13 +90,6 @@ export default function OrderDetailsPanel({
     });
   });
 
-  // 3. Registered drivers of THIS BRANCH ONLY who have not checked-in
-  branchRegisteredDrivers.forEach(d => {
-    if (!availableDriverOptions.some(opt => opt.name === d.name)) {
-      availableDriverOptions.push({ id: d.id, name: d.name, label: `${d.name} (لم يتمم الحضور)`, isCheckedIn: false, isReady: false });
-    }
-  });
-
   const [driverName, setDriverName] = useState(availableDriverOptions[0]?.name || '');
   const [driverId, setDriverId] = useState(availableDriverOptions[0]?.id || '');
 
@@ -110,6 +103,9 @@ export default function OrderDetailsPanel({
         setDriverName(availableDriverOptions[0].name);
         setDriverId(availableDriverOptions[0].id);
       }
+    } else {
+      setDriverName('');
+      setDriverId('');
     }
   }, [activeQueue, drivers, orderBranchId]);
   const [customerName, setCustomerName] = useState('');
@@ -623,11 +619,17 @@ export default function OrderDetailsPanel({
                     }}
                     sx={{ borderRadius: '8px', bgcolor: '#FFF', fontSize: '0.813rem' }}
                   >
-                    {availableDriverOptions.map((d) => (
-                      <MenuItem key={d.id || d.name} value={d.name}>
-                        {d.label || d.name}
+                    {availableDriverOptions.length === 0 ? (
+                      <MenuItem value="" disabled sx={{ fontSize: '0.8rem', color: '#94A3B8' }}>
+                        ⚠️ لا يوجد طيارين مسجلين حضور حالياً
                       </MenuItem>
-                    ))}
+                    ) : (
+                      availableDriverOptions.map((d) => (
+                        <MenuItem key={d.id || d.name} value={d.name}>
+                          {d.label || d.name}
+                        </MenuItem>
+                      ))
+                    )}
                   </Select>
                 </FormControl>
 
