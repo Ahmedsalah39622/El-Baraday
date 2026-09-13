@@ -104,19 +104,20 @@ export default function AppShell({ children }) {
     <Box sx={{
       display: 'flex',
       flexDirection: 'row',
-      height: '100vh',
+      height: { xs: '100dvh', md: '100vh' },
       width: '100vw',
       overflow: 'hidden',
       bgcolor: '#F8FAFC',
     }}>
       <Box sx={{
         flex: 1,
-        height: '100vh',
+        height: { xs: '100dvh', md: '100vh' },
         overflowY: 'auto',
         overflowX: 'hidden',
         display: 'flex',
         flexDirection: 'column',
         bgcolor: '#F8FAFC',
+        pb: { xs: 'calc(75px + env(safe-area-inset-bottom, 0px))', md: 0 },
         '&::-webkit-scrollbar': { width: 8 },
         '&::-webkit-scrollbar-thumb': { bgcolor: '#CBD5E1', borderRadius: 4 },
         '&::-webkit-scrollbar-track': { bgcolor: '#F1F5F9' },

@@ -140,7 +140,7 @@ export async function deleteOrdersForDate(targetDate, branchId = 'all') {
   try {
     const dateStr = targetDate || new Date().toISOString().split('T')[0];
     
-    let whereClause = "WHERE DATE_FORMAT(created_at, '%Y-%m-%d') = $1";
+    let whereClause = "WHERE DATE_FORMAT(created_at, '%Y-%m-%d') = $1 AND (shift_id IS NULL OR shift_id NOT IN (SELECT id FROM shifts WHERE status = 'active')) AND created_at < COALESCE((SELECT MIN(start_time) FROM shifts WHERE status = 'active'), NOW())";
     const params = [dateStr];
 
     if (branchId && branchId !== 'all') {
@@ -232,6 +232,8 @@ export async function getOldOrderDates() {
       `SELECT DISTINCT DATE_FORMAT(created_at, '%Y-%m-%d') as order_date, COUNT(*) as order_count
        FROM orders
        WHERE DATE(created_at) < CURDATE()
+         AND (shift_id IS NULL OR shift_id NOT IN (SELECT id FROM shifts WHERE status = 'active'))
+         AND created_at < COALESCE((SELECT MIN(start_time) FROM shifts WHERE status = 'active'), NOW())
        GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d')
        ORDER BY order_date DESC`
     );

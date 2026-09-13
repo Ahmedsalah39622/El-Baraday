@@ -340,13 +340,15 @@ export default function Sidebar() {
           bottom: 0,
           left: 0,
           right: 0,
-          height: 60,
+          height: 'calc(62px + env(safe-area-inset-bottom, 0px))',
+          pb: 'env(safe-area-inset-bottom, 0px)',
           bgcolor: '#FFFFFF',
           display: { xs: 'flex', md: 'none' },
           alignItems: 'center',
           justifyContent: 'space-around',
-          zIndex: 100,
+          zIndex: 1200,
           borderTop: '1px solid #E5E7EB',
+          boxShadow: '0 -4px 16px rgba(0, 0, 0, 0.08)',
           px: 1,
         }}
       >

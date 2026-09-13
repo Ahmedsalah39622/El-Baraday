@@ -207,6 +207,12 @@ export default function ShiftSummaryPage() {
     const invActiveShift = relevantActiveShifts.find(s => s.branch_id === invBranch || (!s.branch_id && invBranch === 'b1'));
     if (!invActiveShift) return false;
 
+    if (inv.shiftId || inv.shift_id) {
+      if (String(inv.shiftId || inv.shift_id) === String(invActiveShift.id)) {
+        return true;
+      }
+    }
+
     const rawShiftStart = invActiveShift.start_time || invActiveShift.rawStartTime || invActiveShift.created_at;
     if (!rawShiftStart || !(inv.createdAt || inv.created_at)) return false;
 

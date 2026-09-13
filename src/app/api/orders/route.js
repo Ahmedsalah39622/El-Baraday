@@ -43,13 +43,16 @@ export async function GET(request) {
       params.push(status);
       conditions.push(`o.status = $${params.length}`);
     }
-    // فلتر التاريخ — بشكل افتراضي يرجع طلبات اليوم فقط
+    // فلتر التاريخ — لو مفيش تاريخ محدد، يرجع طلبات اليوم أو أي طلبات تتبع وردية نشطة حالياً (حتى لو بدأت أمس وعبرت منتصف الليل)
     if (date) {
       params.push(date);
       conditions.push(`DATE(o.created_at) = $${params.length}`);
     } else if (!showAll) {
-      // لو مفيش تاريخ محدد ومفيش all=1، رجع طلبات اليوم بس
-      conditions.push(`DATE(o.created_at) = CURDATE()`);
+      conditions.push(`(
+        DATE(o.created_at) = CURDATE()
+        OR o.shift_id IN (SELECT id FROM shifts WHERE status = 'active')
+        OR o.created_at >= (SELECT COALESCE(MIN(start_time), CURDATE()) FROM shifts WHERE status = 'active')
+      )`);
     }
 
     if (conditions.length > 0) sql += ' WHERE ' + conditions.join(' AND ');

@@ -254,6 +254,8 @@ export default function POSPage() {
               discount: parseFloat(o.discount || 0),
               status: o.status,
               createdAt: o.created_at ? (new Date(o.created_at).toISOString ? new Date(o.created_at).toISOString() : String(o.created_at)) : new Date().toISOString(),
+              shiftId: o.shift_id || null,
+              shift_id: o.shift_id || null,
               branchId: o.branch_id,
               branch_id: o.branch_id,
             }));
@@ -346,6 +348,8 @@ export default function POSPage() {
               discount: parseFloat(o.discount || 0),
               status: o.status,
               createdAt: o.created_at ? (new Date(o.created_at).toISOString ? new Date(o.created_at).toISOString() : String(o.created_at)) : new Date().toISOString(),
+              shiftId: o.shift_id || null,
+              shift_id: o.shift_id || null,
               branchId: o.branch_id,
               branch_id: o.branch_id,
               items: Array.isArray(o.items) ? o.items : [],
@@ -497,7 +501,11 @@ export default function POSPage() {
     if (invBranch !== 'b1') return sum;
     if (inv.status === 'cancelled') return sum;
 
-    if (b1ActiveShift.rawStartTime && inv.createdAt) {
+    if (inv.shiftId || inv.shift_id) {
+      if (String(inv.shiftId || inv.shift_id) !== String(b1ActiveShift.id)) {
+        return sum;
+      }
+    } else if (b1ActiveShift.rawStartTime && inv.createdAt) {
       const invTime = new Date(inv.createdAt).getTime();
       const shiftStartTime = new Date(b1ActiveShift.rawStartTime).getTime();
       if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 60000)) {
@@ -523,7 +531,11 @@ export default function POSPage() {
     if (invBranch !== 'b2') return sum;
     if (inv.status === 'cancelled') return sum;
 
-    if (b2ActiveShift.rawStartTime && inv.createdAt) {
+    if (inv.shiftId || inv.shift_id) {
+      if (String(inv.shiftId || inv.shift_id) !== String(b2ActiveShift.id)) {
+        return sum;
+      }
+    } else if (b2ActiveShift.rawStartTime && inv.createdAt) {
       const invTime = new Date(inv.createdAt).getTime();
       const shiftStartTime = new Date(b2ActiveShift.rawStartTime).getTime();
       if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 60000)) {

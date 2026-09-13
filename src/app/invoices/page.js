@@ -791,99 +791,99 @@ export default function InvoicesPage() {
       {mainTab === 0 && (
         <Box>
           {/* KPI Cards for Drafts */}
-          <Grid container spacing={2} sx={{ mb: 3 }} className="no-print">
-        <Grid xs={12} sm={6} md={3}>
-          <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #d97706', bgcolor: '#fffdf8' }}>
-            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary" fontWeight="700">
-                    إجمالي المسودات المسجلة
-                  </Typography>
-                  <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5, color: '#92400e' }}>
-                    {totalDraftsCount} مسودة
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    محفوظة بالداتابيز للرجوع إليها
-                  </Typography>
-                </Box>
-                <Box sx={{ width: 46, height: 46, borderRadius: '12px', bgcolor: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <StickyNote2 sx={{ color: '#d97706', fontSize: 26 }} />
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+          <Grid container spacing={{ xs: 1.5, md: 2 }} sx={{ mb: 3 }} className="no-print">
+            <Grid xs={6} sm={6} md={3}>
+              <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #d97706', bgcolor: '#fffdf8' }}>
+                <CardContent sx={{ p: { xs: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1.5, md: 2 } } }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }} noWrap display="block">
+                        إجمالي المسودات
+                      </Typography>
+                      <Typography variant="h6" fontWeight="900" sx={{ mt: 0.5, color: '#92400e', fontSize: { xs: '1rem', md: '1.25rem' } }} noWrap>
+                        {totalDraftsCount} مسودة
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                        محفوظة بالداتابيز
+                      </Typography>
+                    </Box>
+                    <Box sx={{ width: { xs: 36, md: 46 }, height: { xs: 36, md: 46 }, borderRadius: '12px', bgcolor: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <StickyNote2 sx={{ color: '#d97706', fontSize: { xs: 20, md: 26 } }} />
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
 
-        <Grid xs={12} sm={6} md={3}>
-          <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #16a34a', bgcolor: '#f8fdf9' }}>
-            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary" fontWeight="700">
-                    إجمالي المبالغ التقديرية
-                  </Typography>
-                  <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5, color: '#15803d' }}>
-                    {totalDraftsAmount.toLocaleString()} ج.م
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    قيمة كافة الطلبات بالمسودات
-                  </Typography>
-                </Box>
-                <Box sx={{ width: 46, height: 46, borderRadius: '12px', bgcolor: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <MoneyIcon sx={{ color: '#16a34a', fontSize: 26 }} />
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+            <Grid xs={6} sm={6} md={3}>
+              <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #16a34a', bgcolor: '#f8fdf9' }}>
+                <CardContent sx={{ p: { xs: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1.5, md: 2 } } }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }} noWrap display="block">
+                        المبالغ التقديرية
+                      </Typography>
+                      <Typography variant="h6" fontWeight="900" sx={{ mt: 0.5, color: '#15803d', fontSize: { xs: '1rem', md: '1.25rem' } }} noWrap>
+                        {totalDraftsAmount.toLocaleString()} ج.م
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                        قيمة المسودات
+                      </Typography>
+                    </Box>
+                    <Box sx={{ width: { xs: 36, md: 46 }, height: { xs: 36, md: 46 }, borderRadius: '12px', bgcolor: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <MoneyIcon sx={{ color: '#16a34a', fontSize: { xs: 20, md: 26 } }} />
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
 
-        <Grid xs={12} sm={6} md={3}>
-          <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #2563eb', bgcolor: '#f8faff' }}>
-            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary" fontWeight="700">
-                    أصناف النوتات المطلوبة
-                  </Typography>
-                  <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5, color: '#1d4ed8' }}>
-                    {aggregatedItemsData.length} صنف مختلف
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    إجمالي كميات: {aggGrandTotalQty} كجم/قطعة
-                  </Typography>
-                </Box>
-                <Box sx={{ width: 46, height: 46, borderRadius: '12px', bgcolor: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <BagIcon sx={{ color: '#2563eb', fontSize: 26 }} />
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+            <Grid xs={6} sm={6} md={3}>
+              <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #2563eb', bgcolor: '#f8faff' }}>
+                <CardContent sx={{ p: { xs: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1.5, md: 2 } } }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }} noWrap display="block">
+                        أصناف النوتات
+                      </Typography>
+                      <Typography variant="h6" fontWeight="900" sx={{ mt: 0.5, color: '#1d4ed8', fontSize: { xs: '1rem', md: '1.25rem' } }} noWrap>
+                        {aggregatedItemsData.length} صنف
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                        كميات: {aggGrandTotalQty}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ width: { xs: 36, md: 46 }, height: { xs: 36, md: 46 }, borderRadius: '12px', bgcolor: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <BagIcon sx={{ color: '#2563eb', fontSize: { xs: 20, md: 26 } }} />
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
 
-        <Grid xs={12} sm={6} md={3}>
-          <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #7c3aed', bgcolor: '#faf5ff' }}>
-            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary" fontWeight="700">
-                    مسودات اليوم ({todayStr})
-                  </Typography>
-                  <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5, color: '#6d28d9' }}>
-                    {todayDraftsCount} مسودة
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    بقيمة: {todayDraftsAmount.toLocaleString()} ج.م
-                  </Typography>
-                </Box>
-                <Box sx={{ width: 46, height: 46, borderRadius: '12px', bgcolor: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <CalendarIcon sx={{ color: '#7c3aed', fontSize: 26 }} />
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+            <Grid xs={6} sm={6} md={3}>
+              <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #7c3aed', bgcolor: '#faf5ff' }}>
+                <CardContent sx={{ p: { xs: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1.5, md: 2 } } }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }} noWrap display="block">
+                        مسودات اليوم
+                      </Typography>
+                      <Typography variant="h6" fontWeight="900" sx={{ mt: 0.5, color: '#6d28d9', fontSize: { xs: '1rem', md: '1.25rem' } }} noWrap>
+                        {todayDraftsCount} مسودة
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                        بتاريخ {todayStr}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ width: { xs: 36, md: 46 }, height: { xs: 36, md: 46 }, borderRadius: '12px', bgcolor: '#f3e8ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <CalendarIcon sx={{ color: '#7c3aed', fontSize: { xs: 20, md: 26 } }} />
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
 
       {/* Quick Summary Banner linking to collected notes and items */}
       <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 1.5, p: 1.8, mb: 3, bgcolor: '#FFFBEB', borderRadius: '14px', border: '1.5px solid #FDE68A' }} className="no-print">
@@ -1202,93 +1202,93 @@ export default function InvoicesPage() {
       {mainTab === 1 && (
         <Box>
           {/* KPI Cards for Collected Invoices */}
-          <Grid container spacing={2} sx={{ mb: 3 }} className="no-print">
-            <Grid xs={12} sm={6} md={3}>
+          <Grid container spacing={{ xs: 1.5, md: 2 }} sx={{ mb: 3 }} className="no-print">
+            <Grid xs={6} sm={6} md={3}>
               <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #16a34a', bgcolor: '#f8fdf9' }}>
-                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                <CardContent sx={{ p: { xs: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1.5, md: 2 } } }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary" fontWeight="700">
-                        إجمالي المبالغ المحصلة
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }} noWrap display="block">
+                        إجمالي المحصل
                       </Typography>
-                      <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5, color: '#15803d' }}>
+                      <Typography variant="h6" fontWeight="900" sx={{ mt: 0.5, color: '#15803d', fontSize: { xs: '1rem', md: '1.25rem' } }} noWrap>
                         {totalCollectedAmount.toLocaleString()} ج.م
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        نقدية مستلمة ومنتهية
+                      <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                        نقدية مستلمة
                       </Typography>
                     </Box>
-                    <Box sx={{ width: 46, height: 46, borderRadius: '12px', bgcolor: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <MoneyIcon sx={{ color: '#16a34a', fontSize: 26 }} />
+                    <Box sx={{ width: { xs: 36, md: 46 }, height: { xs: 36, md: 46 }, borderRadius: '12px', bgcolor: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <MoneyIcon sx={{ color: '#16a34a', fontSize: { xs: 20, md: 26 } }} />
                     </Box>
                   </Box>
                 </CardContent>
               </Card>
             </Grid>
 
-            <Grid xs={12} sm={6} md={3}>
+            <Grid xs={6} sm={6} md={3}>
               <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #059669', bgcolor: '#f0fdf4' }}>
-                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                <CardContent sx={{ p: { xs: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1.5, md: 2 } } }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary" fontWeight="700">
-                        عدد النوتات المنتهية
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }} noWrap display="block">
+                        النوتات المنتهية
                       </Typography>
-                      <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5, color: '#047857' }}>
+                      <Typography variant="h6" fontWeight="900" sx={{ mt: 0.5, color: '#047857', fontSize: { xs: '1rem', md: '1.25rem' } }} noWrap>
                         {totalCollectedCount} نوتة
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        تم تحصيلها وإغلاقها
+                      <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                        تم تحصيلها
                       </Typography>
                     </Box>
-                    <Box sx={{ width: 46, height: 46, borderRadius: '12px', bgcolor: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <CheckIcon sx={{ color: '#059669', fontSize: 26 }} />
+                    <Box sx={{ width: { xs: 36, md: 46 }, height: { xs: 36, md: 46 }, borderRadius: '12px', bgcolor: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <CheckIcon sx={{ color: '#059669', fontSize: { xs: 20, md: 26 } }} />
                     </Box>
                   </Box>
                 </CardContent>
               </Card>
             </Grid>
 
-            <Grid xs={12} sm={6} md={3}>
+            <Grid xs={6} sm={6} md={3}>
               <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #2563eb', bgcolor: '#f8faff' }}>
-                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                <CardContent sx={{ p: { xs: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1.5, md: 2 } } }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary" fontWeight="700">
-                        تحصيلات اليوم ({todayStr})
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }} noWrap display="block">
+                        تحصيلات اليوم
                       </Typography>
-                      <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5, color: '#1d4ed8' }}>
+                      <Typography variant="h6" fontWeight="900" sx={{ mt: 0.5, color: '#1d4ed8', fontSize: { xs: '1rem', md: '1.25rem' } }} noWrap>
                         {todayCollectedAmount.toLocaleString()} ج.م
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        عدد {todayCollectedCount} نوتة اليوم
+                      <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                        عدد {todayCollectedCount} نوتة
                       </Typography>
                     </Box>
-                    <Box sx={{ width: 46, height: 46, borderRadius: '12px', bgcolor: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <CalendarIcon sx={{ color: '#2563eb', fontSize: 26 }} />
+                    <Box sx={{ width: { xs: 36, md: 46 }, height: { xs: 36, md: 46 }, borderRadius: '12px', bgcolor: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <CalendarIcon sx={{ color: '#2563eb', fontSize: { xs: 20, md: 26 } }} />
                     </Box>
                   </Box>
                 </CardContent>
               </Card>
             </Grid>
 
-            <Grid xs={12} sm={6} md={3}>
+            <Grid xs={6} sm={6} md={3}>
               <Card sx={{ borderRadius: '16px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRight: '4px solid #d97706', bgcolor: '#fffdf8' }}>
-                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                <CardContent sx={{ p: { xs: 1.5, md: 2 }, '&:last-child': { pb: { xs: 1.5, md: 2 } } }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box>
-                      <Typography variant="caption" color="text.secondary" fontWeight="700">
-                        المسودات المعلقة المتبقية
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }} noWrap display="block">
+                        المسودات المتبقية
                       </Typography>
-                      <Typography variant="h5" fontWeight="900" sx={{ mt: 0.5, color: '#92400e' }}>
+                      <Typography variant="h6" fontWeight="900" sx={{ mt: 0.5, color: '#92400e', fontSize: { xs: '1rem', md: '1.25rem' } }} noWrap>
                         {totalDraftsCount} مسودة
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
                         بقيمة {totalDraftsAmount.toLocaleString()} ج.م
                       </Typography>
                     </Box>
-                    <Box sx={{ width: 46, height: 46, borderRadius: '12px', bgcolor: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <StickyNote2 sx={{ color: '#d97706', fontSize: 26 }} />
+                    <Box sx={{ width: { xs: 36, md: 46 }, height: { xs: 36, md: 46 }, borderRadius: '12px', bgcolor: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <StickyNote2 sx={{ color: '#d97706', fontSize: { xs: 20, md: 26 } }} />
                     </Box>
                   </Box>
                 </CardContent>
@@ -1396,152 +1396,301 @@ export default function InvoicesPage() {
               </Button>
             </Paper>
           ) : (
-            <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #E2E8F0', borderRadius: '16px', overflow: 'hidden' }}>
-              <Table size="small">
-                <TableHead sx={{ bgcolor: '#F1F5F9' }}>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 800, width: 50 }}>#</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>رقم الفاتورة</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>تاريخ التحصيل</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>العميل والهاتف</TableCell>
-                    <TableCell sx={{ fontWeight: 800, minWidth: 220 }}>الأصناف والكميات</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 800 }}>المبلغ الإجمالي</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 800 }}>المحصل فعلياً</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 800 }}>طريقة الدفع</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 800 }}>الحالة</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 800, width: 140 }}>إجراءات</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredCollectedInvoices.map((inv, idx) => {
-                    const itemsSummary = Array.isArray(inv.items) && inv.items.length > 0
-                      ? inv.items.map(it => `${it.product_name || it.description} (${it.kilos || it.quantity || it.qty} ${it.kilos ? 'كجم' : ''})`).join(' ، ')
-                      : 'طلب عام';
+            <>
+              {/* Desktop Table */}
+              <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #E2E8F0', borderRadius: '16px', overflowX: 'auto', display: { xs: 'none', md: 'block' } }}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: '#F1F5F9' }}>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 800, width: 50 }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>رقم الفاتورة</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>تاريخ التحصيل</TableCell>
+                      <TableCell sx={{ fontWeight: 800 }}>العميل والهاتف</TableCell>
+                      <TableCell sx={{ fontWeight: 800, minWidth: 220 }}>الأصناف والكميات</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 800 }}>المبلغ الإجمالي</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 800 }}>المحصل فعلياً</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 800 }}>طريقة الدفع</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 800 }}>الحالة</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 800, width: 140 }}>إجراءات</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredCollectedInvoices.map((inv, idx) => {
+                      const itemsSummary = Array.isArray(inv.items) && inv.items.length > 0
+                        ? inv.items.map(it => `${it.product_name || it.description} (${it.kilos || it.quantity || it.qty} ${it.kilos ? 'كجم' : ''})`).join(' ، ')
+                        : 'طلب عام';
 
-                    return (
-                      <TableRow key={inv.id} hover sx={{ '&:nth-of-type(even)': { bgcolor: '#F8FAFC' } }}>
-                        <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{idx + 1}</TableCell>
-                        <TableCell sx={{ fontWeight: 800, color: '#0F172A' }}>
-                          {inv.invoice_number || `#${inv.id?.slice(0, 6)}`}
-                        </TableCell>
-                        <TableCell sx={{ fontWeight: 700, color: '#475569' }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <CalendarIcon sx={{ fontSize: 14, color: 'action.active' }} />
-                            {inv.invoice_date ? inv.invoice_date.split('T')[0] : '-'}
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" fontWeight="800" color="#0F172A">
-                            {inv.customer_name}
+                      return (
+                        <TableRow key={inv.id} hover sx={{ '&:nth-of-type(even)': { bgcolor: '#F8FAFC' } }}>
+                          <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{idx + 1}</TableCell>
+                          <TableCell sx={{ fontWeight: 800, color: '#0F172A' }}>
+                            {inv.invoice_number || `#${inv.id?.slice(0, 6)}`}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 700, color: '#475569' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <CalendarIcon sx={{ fontSize: 14, color: 'action.active' }} />
+                              {inv.invoice_date ? inv.invoice_date.split('T')[0] : '-'}
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight="800" color="#0F172A">
+                              {inv.customer_name}
+                            </Typography>
+                            {inv.customer_phone && (
+                              <Typography variant="caption" color="text.secondary">
+                                📞 {inv.customer_phone}
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ fontSize: '0.85rem', color: '#334155' }}>
+                            {itemsSummary}
+                            {parseFloat(inv.extra_expenses || 0) > 0 && (
+                              <Typography variant="caption" color="#B45309" sx={{ display: 'block', mt: 0.3, fontWeight: 700 }}>
+                                ➕ مصاريف إضافية: {parseFloat(inv.extra_expenses)} ج.م
+                              </Typography>
+                            )}
+                            {inv.notes && (
+                              <Typography variant="caption" color="#64748B" sx={{ display: 'block', mt: 0.3 }}>
+                                💬 {inv.notes}
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 700, color: '#475569' }}>
+                            {parseFloat(inv.amount || 0).toLocaleString()} ج.م
+                          </TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 900, color: '#15803D', fontSize: '0.95rem' }}>
+                            {parseFloat(inv.paid_amount || inv.amount || 0).toLocaleString()} ج.م
+                          </TableCell>
+                          <TableCell align="center">
+                            <Chip
+                              label={
+                                inv.payment_method === 'cash' ? '💵 كاش الخزنة' :
+                                inv.payment_method === 'vodafone_cash' ? '📱 فودافون كاش' :
+                                inv.payment_method === 'visa' ? '💳 فيزا' :
+                                inv.payment_method === 'bank_transfer' ? '🏦 تحويل بنكي' :
+                                (inv.payment_method || 'نقدي')
+                              }
+                              size="small"
+                              sx={{ fontWeight: 800, bgcolor: '#DCFCE7', color: '#166534' }}
+                            />
+                          </TableCell>
+                          <TableCell align="center">
+                            <Chip
+                              icon={<CheckIcon sx={{ fontSize: '14px !important' }} />}
+                              label="تم التحصيل ✅"
+                              size="small"
+                              sx={{ fontWeight: 900, bgcolor: '#BBF7D0', color: '#14532D' }}
+                            />
+                          </TableCell>
+                          <TableCell align="center">
+                            <Stack direction="row" spacing={0.5} justifyContent="center">
+                              <Tooltip title="مشاركة وصل التحصيل عبر واتساب">
+                                <IconButton
+                                  size="small"
+                                  component="a"
+                                  href={getWhatsAppCollectedUrl(inv)}
+                                  target="_blank"
+                                  sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', color: '#16A34A' }}
+                                >
+                                  <WhatsAppIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="طباعة وصل التحصيل">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handlePrint(inv)}
+                                  sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', color: '#475569' }}
+                                >
+                                  <PrintIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="إلغاء التحصيل وإعادتها كمسودة جارية">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleReopenAsDraft(inv)}
+                                  sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', color: '#D97706' }}
+                                >
+                                  <UndoIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="حذف السجل">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleDeleteDraft(inv.id)}
+                                  sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', color: '#DC2626' }}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Stack>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+
+                    {/* Grand Totals Row */}
+                    <TableRow sx={{ bgcolor: '#DCFCE7' }}>
+                      <TableCell colSpan={5} sx={{ fontWeight: 900, color: '#14532D', fontSize: '1rem' }}>
+                        إجمالي المبالغ المحصلة والمنتهية ({filteredCollectedInvoices.length} فاتورة):
+                      </TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 800, color: '#14532D', fontSize: '0.95rem' }}>
+                        {filteredCollectedInvoices.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0).toLocaleString()} ج.م
+                      </TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 900, color: '#15803D', fontSize: '1.05rem' }}>
+                        {filteredCollectedInvoices.reduce((s, r) => s + (parseFloat(r.paid_amount || r.amount) || 0), 0).toLocaleString()} ج.م
+                      </TableCell>
+                      <TableCell colSpan={3} />
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              {/* Mobile Collected Cards (Modern Touch Cards for Phones) */}
+              <Box sx={{ display: { xs: 'flex', md: 'none' }, flexDirection: 'column', gap: 1.5 }}>
+                {filteredCollectedInvoices.map((inv) => {
+                  const paidVal = parseFloat(inv.paid_amount || inv.amount || 0);
+                  const totalVal = parseFloat(inv.amount || 0);
+                  const hasItems = Array.isArray(inv.items) && inv.items.length > 0;
+
+                  return (
+                    <Paper
+                      key={inv.id}
+                      elevation={0}
+                      sx={{
+                        p: 2,
+                        borderRadius: '16px',
+                        border: '1px solid #BBF7D0',
+                        bgcolor: '#FFFFFF',
+                        boxShadow: '0 2px 8px rgba(22, 163, 74, 0.06)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 1.2
+                      }}
+                    >
+                      {/* Header: Invoice #, Date & Status */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 900, color: '#14532D' }}>
+                            {inv.invoice_number || `#${inv.id?.slice(0, 6)}`}
                           </Typography>
-                          {inv.customer_phone && (
-                            <Typography variant="caption" color="text.secondary">
-                              📞 {inv.customer_phone}
-                            </Typography>
-                          )}
-                        </TableCell>
-                        <TableCell sx={{ fontSize: '0.85rem', color: '#334155' }}>
-                          {itemsSummary}
-                          {parseFloat(inv.extra_expenses || 0) > 0 && (
-                            <Typography variant="caption" color="#B45309" sx={{ display: 'block', mt: 0.3, fontWeight: 700 }}>
-                              ➕ مصاريف إضافية: {parseFloat(inv.extra_expenses)} ج.م
-                            </Typography>
-                          )}
-                          {inv.notes && (
-                            <Typography variant="caption" color="#64748B" sx={{ display: 'block', mt: 0.3 }}>
-                              💬 {inv.notes}
-                            </Typography>
-                          )}
-                        </TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 700, color: '#475569' }}>
-                          {parseFloat(inv.amount || 0).toLocaleString()} ج.م
-                        </TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 900, color: '#15803D', fontSize: '0.95rem' }}>
-                          {parseFloat(inv.paid_amount || inv.amount || 0).toLocaleString()} ج.م
-                        </TableCell>
-                        <TableCell align="center">
-                          <Chip
-                            label={
-                              inv.payment_method === 'cash' ? '💵 كاش الخزنة' :
-                              inv.payment_method === 'vodafone_cash' ? '📱 فودافون كاش' :
-                              inv.payment_method === 'visa' ? '💳 فيزا' :
-                              inv.payment_method === 'bank_transfer' ? '🏦 تحويل بنكي' :
-                              (inv.payment_method || 'نقدي')
-                            }
-                            size="small"
-                            sx={{ fontWeight: 800, bgcolor: '#DCFCE7', color: '#166534' }}
-                          />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Chip
-                            icon={<CheckIcon sx={{ fontSize: '14px !important' }} />}
-                            label="تم التحصيل ✅"
-                            size="small"
-                            sx={{ fontWeight: 900, bgcolor: '#BBF7D0', color: '#14532D' }}
-                          />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Stack direction="row" spacing={0.5} justifyContent="center">
-                            <Tooltip title="مشاركة وصل التحصيل عبر واتساب">
-                              <IconButton
-                                size="small"
-                                component="a"
-                                href={getWhatsAppCollectedUrl(inv)}
-                                target="_blank"
-                                sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', color: '#16A34A' }}
-                              >
-                                <WhatsAppIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="طباعة وصل التحصيل">
-                              <IconButton
-                                size="small"
-                                onClick={() => handlePrint(inv)}
-                                sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', color: '#475569' }}
-                              >
-                                <PrintIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="إلغاء التحصيل وإعادتها كمسودة جارية">
-                              <IconButton
-                                size="small"
-                                onClick={() => handleReopenAsDraft(inv)}
-                                sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', color: '#D97706' }}
-                              >
-                                <UndoIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="حذف السجل">
-                              <IconButton
-                                size="small"
-                                onClick={() => handleDeleteDraft(inv.id)}
-                                sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', color: '#DC2626' }}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </Stack>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                          <Typography variant="caption" sx={{ color: '#64748B', display: 'flex', alignItems: 'center', gap: 0.3, fontWeight: 700 }}>
+                            <CalendarIcon sx={{ fontSize: 13 }} />
+                            {inv.invoice_date ? inv.invoice_date.split('T')[0] : todayStr}
+                          </Typography>
+                        </Box>
+                        <Chip
+                          icon={<CheckIcon sx={{ fontSize: '13px !important' }} />}
+                          label="تم التحصيل ✅"
+                          size="small"
+                          sx={{ bgcolor: '#DCFCE7', color: '#15803D', fontWeight: 900, height: 24, fontSize: '0.72rem' }}
+                        />
+                      </Box>
 
-                  {/* Grand Totals Row */}
-                  <TableRow sx={{ bgcolor: '#DCFCE7' }}>
-                    <TableCell colSpan={5} sx={{ fontWeight: 900, color: '#14532D', fontSize: '1rem' }}>
-                      إجمالي المبالغ المحصلة والمنتهية ({filteredCollectedInvoices.length} فاتورة):
-                    </TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 800, color: '#14532D', fontSize: '0.95rem' }}>
-                      {filteredCollectedInvoices.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0).toLocaleString()} ج.م
-                    </TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 900, color: '#15803D', fontSize: '1.05rem' }}>
-                      {filteredCollectedInvoices.reduce((s, r) => s + (parseFloat(r.paid_amount || r.amount) || 0), 0).toLocaleString()} ج.م
-                    </TableCell>
-                    <TableCell colSpan={3} />
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </TableContainer>
+                      {/* Customer Name & Phone */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 800, color: '#1F2937' }}>
+                          👤 {inv.customer_name}
+                        </Typography>
+                        {inv.customer_phone && (
+                          <Typography
+                            component="a"
+                            href={`tel:${inv.customer_phone}`}
+                            sx={{ color: '#2563EB', textDecoration: 'none', fontWeight: 700, fontSize: '0.8rem' }}
+                          >
+                            📞 {inv.customer_phone}
+                          </Typography>
+                        )}
+                      </Box>
+
+                      {/* Payment Method Badge */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                        <Chip
+                          label={
+                            inv.payment_method === 'cash' ? '💵 كاش الخزنة' :
+                            inv.payment_method === 'vodafone_cash' ? '📱 فودافون كاش' :
+                            inv.payment_method === 'visa' ? '💳 فيزا' :
+                            (inv.payment_method || 'نقدي')
+                          }
+                          size="small"
+                          sx={{ fontWeight: 800, bgcolor: '#F1F5F9', color: '#334155', height: 22, fontSize: '0.72rem' }}
+                        />
+                        {inv.notes && (
+                          <Typography variant="caption" sx={{ color: '#64748B', fontStyle: 'italic' }}>
+                            💬 {inv.notes}
+                          </Typography>
+                        )}
+                      </Box>
+
+                      {/* Items Preview */}
+                      {hasItems && (
+                        <Box sx={{ p: 1, bgcolor: '#F8FAFC', borderRadius: '10px', display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {inv.items.map((it, i) => (
+                            <Chip
+                              key={i}
+                              label={`${it.product_name || it.description} (${it.kilos || it.quantity || it.qty} ${it.kilos ? 'كجم' : ''})`}
+                              size="small"
+                              sx={{ bgcolor: '#FFFFFF', border: '1px solid #E2E8F0', fontWeight: 700, fontSize: '0.7rem', height: 22 }}
+                            />
+                          ))}
+                        </Box>
+                      )}
+
+                      {/* Amount & Actions */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 1, borderTop: '1px solid #F1F5F9' }}>
+                        <Box>
+                          <Typography variant="caption" sx={{ color: '#64748B', display: 'block', fontWeight: 700, fontSize: '0.7rem' }}>
+                            المبلغ المحصل:
+                          </Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 900, color: '#15803D', fontSize: '1.1rem' }}>
+                            {paidVal.toLocaleString()} ج.م
+                          </Typography>
+                        </Box>
+
+                        <Stack direction="row" spacing={0.8} alignItems="center">
+                          <IconButton
+                            size="small"
+                            component="a"
+                            href={getWhatsAppCollectedUrl(inv)}
+                            target="_blank"
+                            sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', color: '#16A34A', bgcolor: '#F0FDF4' }}
+                          >
+                            <WhatsAppIcon fontSize="small" />
+                          </IconButton>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<PrintIcon sx={{ fontSize: '16px !important' }} />}
+                            onClick={() => handlePrint(inv)}
+                            sx={{ borderRadius: '8px', fontWeight: 800, fontSize: '0.75rem', px: 1 }}
+                          >
+                            طباعة
+                          </Button>
+                          <Tooltip title="إعادة كمسودة">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleReopenAsDraft(inv)}
+                              sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', color: '#D97706', bgcolor: '#FFFBEB' }}
+                            >
+                              <UndoIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Stack>
+                      </Box>
+                    </Paper>
+                  );
+                })}
+
+                {/* Mobile Grand Total Summary Banner */}
+                <Paper elevation={0} sx={{ p: 2, borderRadius: '14px', bgcolor: '#DCFCE7', border: '1.5px solid #86EFAC', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 900, color: '#14532D' }}>
+                    إجمالي محصل ({filteredCollectedInvoices.length} نوتة):
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 900, color: '#15803D' }}>
+                    {filteredCollectedInvoices.reduce((s, r) => s + (parseFloat(r.paid_amount || r.amount) || 0), 0).toLocaleString()} ج.م
+                  </Typography>
+                </Paper>
+              </Box>
+            </>
           )}
         </Box>
       )}
@@ -1663,7 +1812,7 @@ export default function InvoicesPage() {
               </Typography>
             </Box>
           ) : (
-            <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #E2E8F0', borderRadius: '12px' }}>
+            <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #E2E8F0', borderRadius: '12px', overflowX: 'auto' }}>
               <Table size="small">
                 <TableHead sx={{ bgcolor: '#F1F5F9' }}>
                   <TableRow>

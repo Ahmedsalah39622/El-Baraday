@@ -103,6 +103,13 @@ export default function OrdersPage() {
       ? allShiftsList.find(s => s.status === 'active' && (s.branch_id === invBranch || (!s.branch_id && invBranch === 'b1')))
       : (activeShift && (activeShift.branch_id === invBranch || (!activeShift.branch_id && invBranch === 'b1')) ? activeShift : null);
 
+    // Direct shift_id match
+    if (branchActiveShift && (inv.shiftId || inv.shift_id)) {
+      if (String(inv.shiftId || inv.shift_id) === String(branchActiveShift.id)) {
+        return true;
+      }
+    }
+
     const invDateStr = inv.createdAt || inv.created_at;
     if (!invDateStr) return true;
     const invDate = new Date(invDateStr);
@@ -345,65 +352,65 @@ export default function OrdersPage() {
       </Box>
 
       {/* KPI Dynamic Summary Cards based on Selected Branch */}
-      <Grid container spacing={2}>
-        <Grid xs={12} sm={6} md={3}>
-          <Paper sx={{ p: 2, borderRadius: '16px', border: '1px solid #ECFDF5', bgcolor: '#ECFDF5', display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ p: 1.5, borderRadius: '12px', bgcolor: '#10B981', color: '#FFF' }}>
-              <AccountBalanceWallet sx={{ fontSize: 26 }} />
+      <Grid container spacing={{ xs: 1.5, md: 2 }}>
+        <Grid xs={6} sm={6} md={3}>
+          <Paper sx={{ p: { xs: 1.5, md: 2 }, borderRadius: '16px', border: '1px solid #ECFDF5', bgcolor: '#ECFDF5', display: 'flex', alignItems: 'center', gap: { xs: 1, md: 2 } }}>
+            <Box sx={{ p: { xs: 1, md: 1.5 }, borderRadius: '12px', bgcolor: '#10B981', color: '#FFF', display: 'flex' }}>
+              <AccountBalanceWallet sx={{ fontSize: { xs: 20, md: 26 } }} />
             </Box>
-            <Box>
-              <Typography variant="caption" sx={{ color: '#047857', fontWeight: 800 }}>
+            <Box sx={{ minWidth: 0, overflow: 'hidden' }}>
+              <Typography variant="caption" sx={{ color: '#047857', fontWeight: 800, fontSize: { xs: '0.7rem', md: '0.75rem' }, display: 'block' }} noWrap>
                 إجمالي الخزنة (النقدية)
               </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 900, color: '#065F46' }}>
+              <Typography variant="h6" sx={{ fontWeight: 900, color: '#065F46', fontSize: { xs: '0.95rem', md: '1.25rem' } }} noWrap>
                 {canSeeSafe ? `${totalCashInDrawer.toLocaleString()} ج.م` : '🔒 مخفي'}
               </Typography>
             </Box>
           </Paper>
         </Grid>
 
-        <Grid xs={12} sm={6} md={3}>
-          <Paper sx={{ p: 2, borderRadius: '16px', border: '1px solid #FFF3EB', bgcolor: '#FFF3EB', display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ p: 1.5, borderRadius: '12px', bgcolor: '#E06B1F', color: '#FFF' }}>
-              <DeliveryDining sx={{ fontSize: 26 }} />
+        <Grid xs={6} sm={6} md={3}>
+          <Paper sx={{ p: { xs: 1.5, md: 2 }, borderRadius: '16px', border: '1px solid #FFF3EB', bgcolor: '#FFF3EB', display: 'flex', alignItems: 'center', gap: { xs: 1, md: 2 } }}>
+            <Box sx={{ p: { xs: 1, md: 1.5 }, borderRadius: '12px', bgcolor: '#E06B1F', color: '#FFF', display: 'flex' }}>
+              <DeliveryDining sx={{ fontSize: { xs: 20, md: 26 } }} />
             </Box>
-            <Box>
-              <Typography variant="caption" sx={{ color: '#C2410C', fontWeight: 800 }}>
+            <Box sx={{ minWidth: 0, overflow: 'hidden' }}>
+              <Typography variant="caption" sx={{ color: '#C2410C', fontWeight: 800, fontSize: { xs: '0.7rem', md: '0.75rem' }, display: 'block' }} noWrap>
                 إجمالي مبيعات الدليفري
               </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 900, color: '#9A3412' }}>
+              <Typography variant="h6" sx={{ fontWeight: 900, color: '#9A3412', fontSize: { xs: '0.95rem', md: '1.25rem' } }} noWrap>
                 {canSeeSafe ? `${totalDeliverySales.toLocaleString()} ج.م` : '🔒 مخفي'}
               </Typography>
             </Box>
           </Paper>
         </Grid>
 
-        <Grid xs={12} sm={6} md={3}>
-          <Paper sx={{ p: 2, borderRadius: '16px', border: '1px solid #FEF3C7', bgcolor: '#FEF3C7', display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ p: 1.5, borderRadius: '12px', bgcolor: '#F59E0B', color: '#FFF' }}>
-              <LocalShipping sx={{ fontSize: 26 }} />
+        <Grid xs={6} sm={6} md={3}>
+          <Paper sx={{ p: { xs: 1.5, md: 2 }, borderRadius: '16px', border: '1px solid #FEF3C7', bgcolor: '#FEF3C7', display: 'flex', alignItems: 'center', gap: { xs: 1, md: 2 } }}>
+            <Box sx={{ p: { xs: 1, md: 1.5 }, borderRadius: '12px', bgcolor: '#F59E0B', color: '#FFF', display: 'flex' }}>
+              <LocalShipping sx={{ fontSize: { xs: 20, md: 26 } }} />
             </Box>
-            <Box>
-              <Typography variant="caption" sx={{ color: '#B45309', fontWeight: 800 }}>
+            <Box sx={{ minWidth: 0, overflow: 'hidden' }}>
+              <Typography variant="caption" sx={{ color: '#B45309', fontWeight: 800, fontSize: { xs: '0.7rem', md: '0.75rem' }, display: 'block' }} noWrap>
                 إجمالي خدمة الدليفري
               </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 900, color: '#78350F' }}>
+              <Typography variant="h6" sx={{ fontWeight: 900, color: '#78350F', fontSize: { xs: '0.95rem', md: '1.25rem' } }} noWrap>
                 {canSeeSafe ? `${totalDeliveryFee.toLocaleString()} ج.م` : '🔒 مخفي'}
               </Typography>
             </Box>
           </Paper>
         </Grid>
 
-        <Grid xs={12} sm={6} md={3}>
-          <Paper sx={{ p: 2, borderRadius: '16px', border: '1px solid #EFF6FF', bgcolor: '#EFF6FF', display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ p: 1.5, borderRadius: '12px', bgcolor: '#4285F4', color: '#FFF' }}>
-              <ReceiptLong sx={{ fontSize: 26 }} />
+        <Grid xs={6} sm={6} md={3}>
+          <Paper sx={{ p: { xs: 1.5, md: 2 }, borderRadius: '16px', border: '1px solid #EFF6FF', bgcolor: '#EFF6FF', display: 'flex', alignItems: 'center', gap: { xs: 1, md: 2 } }}>
+            <Box sx={{ p: { xs: 1, md: 1.5 }, borderRadius: '12px', bgcolor: '#4285F4', color: '#FFF', display: 'flex' }}>
+              <ReceiptLong sx={{ fontSize: { xs: 20, md: 26 } }} />
             </Box>
-            <Box>
-              <Typography variant="caption" sx={{ color: '#1E40AF', fontWeight: 800 }}>
+            <Box sx={{ minWidth: 0, overflow: 'hidden' }}>
+              <Typography variant="caption" sx={{ color: '#1E40AF', fontWeight: 800, fontSize: { xs: '0.7rem', md: '0.75rem' }, display: 'block' }} noWrap>
                 إجمالي مبيعات الفرع الكلية
               </Typography>
-              <Typography variant="h5" sx={{ fontWeight: 900, color: '#1E3A8A' }}>
+              <Typography variant="h6" sx={{ fontWeight: 900, color: '#1E3A8A', fontSize: { xs: '0.95rem', md: '1.25rem' } }} noWrap>
                 {canSeeSafe ? `${totalBranchSales.toLocaleString()} ج.م` : '🔒 مخفي'}
               </Typography>
             </Box>
@@ -411,8 +418,8 @@ export default function OrdersPage() {
         </Grid>
       </Grid>
 
-      {/* Orders Table */}
-      <TableContainer component={Paper} sx={{ borderRadius: '16px', border: '1px solid #E5E7EB', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', overflowX: 'auto' }}>
+      {/* Orders Table (Desktop & Tablet) */}
+      <TableContainer component={Paper} sx={{ borderRadius: '16px', border: '1px solid #E5E7EB', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', overflowX: 'auto', display: { xs: 'none', md: 'block' } }}>
         <Table>
           <TableHead sx={{ bgcolor: '#F8FAFC' }}>
             <TableRow>
@@ -642,6 +649,213 @@ export default function OrdersPage() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* Mobile Orders View (Modern Touch Cards for Phones) */}
+      <Box sx={{ display: { xs: 'flex', md: 'none' }, flexDirection: 'column', gap: 1.5 }}>
+        {filteredOrders.length === 0 ? (
+          <Paper elevation={0} sx={{ p: 4, textAlign: 'center', borderRadius: '16px', border: '2px dashed #CBD5E1', bgcolor: '#F8FAFC' }}>
+            <ReceiptLong sx={{ fontSize: 44, color: '#94A3B8', mb: 1 }} />
+            <Typography variant="body1" sx={{ color: '#475569', fontWeight: 800 }}>
+              {!isShiftActive && !showPreviousShifts
+                ? 'الشيفت مقفول — مفيش طلبات'
+                : isShiftActive && !showPreviousShifts
+                ? 'لا توجد طلبات في الشيفت الحالي بعد'
+                : 'لا توجد نتائج مطابقة'}
+            </Typography>
+            {!showPreviousShifts && (
+              <Typography variant="caption" sx={{ color: '#94A3B8', mt: 0.5, display: 'block' }}>
+                اضغط على "طلبات الشيفتات السابقة" بالأعلى لعرض الطلبات القديمة
+              </Typography>
+            )}
+          </Paper>
+        ) : (
+          filteredOrders.map((row) => {
+            const hasItems = Array.isArray(row.items) && row.items.length > 0;
+            const isDelivery = row.orderType === 'delivery';
+            const pm = row.paymentMethod || row.payment_method || 'cash';
+            const branchObj = branches.find((b) => b.id === (row.branchId || row.branch_id));
+            const displayBranchName = row.branchName || (branchObj ? branchObj.name : ((row.branchId || row.branch_id) === 'b2' ? 'فرع المسلة' : 'فرع عزت'));
+
+            return (
+              <Paper
+                key={row.id}
+                elevation={0}
+                sx={{
+                  p: 2,
+                  borderRadius: '16px',
+                  border: '1px solid #E2E8F0',
+                  bgcolor: '#FFFFFF',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 1.2
+                }}
+              >
+                {/* Header: Order #, Branch & Status */}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 900, color: '#1E40AF' }}>
+                      #{row.orderNumber || row.id?.slice(0, 8)}
+                    </Typography>
+                    <Chip
+                      icon={<Store sx={{ fontSize: '12px !important', color: '#1E40AF' }} />}
+                      label={displayBranchName}
+                      size="small"
+                      sx={{ bgcolor: '#EFF6FF', color: '#1E40AF', fontWeight: 800, fontSize: '0.7rem', height: 22 }}
+                    />
+                  </Box>
+                  <Chip
+                    label={row.status === 'cancelled' ? '🔴 ملغي' : (row.status || 'completed')}
+                    size="small"
+                    sx={{
+                      bgcolor: row.status === 'cancelled' ? '#FEF2F2' : '#D1FAE5',
+                      color: row.status === 'cancelled' ? '#DC2626' : '#065F46',
+                      fontWeight: 800,
+                      height: 24,
+                    }}
+                  />
+                </Box>
+
+                {/* Customer & Time */}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                  <Box sx={{ minWidth: 0, overflow: 'hidden' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 800, color: '#1F2937' }} noWrap>
+                      👤 {row.customerName || 'عميل كاشير'}
+                    </Typography>
+                    {row.customerPhone && (
+                      <Typography
+                        component="a"
+                        href={`tel:${row.customerPhone}`}
+                        sx={{ color: '#2563EB', textDecoration: 'none', fontWeight: 700, fontSize: '0.8rem', display: 'inline-block' }}
+                      >
+                        📞 {row.customerPhone}
+                      </Typography>
+                    )}
+                  </Box>
+                  <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600, flexShrink: 0 }}>
+                    🕒 {row.createdAt ? new Date(row.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : 'اليوم'}
+                  </Typography>
+                </Box>
+
+                {/* Badges: Type & Payment */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexWrap: 'wrap' }}>
+                  <Chip
+                    label={isDelivery ? '🛵 دليفري' : row.orderType === 'takeaway' ? '🥡 تيك أوي' : '🍽️ صالة'}
+                    size="small"
+                    sx={{ bgcolor: isDelivery ? '#FFF3EB' : '#EFF6FF', color: isDelivery ? '#E06B1F' : '#1D4ED8', fontWeight: 800, height: 22, fontSize: '0.72rem' }}
+                  />
+                  <Chip
+                    label={pm === 'instapay' ? '⚡ إنستا باي' : pm === 'vodafone_cash' ? '📱 فودافون كاش' : pm === 'card' ? '💳 فيزا' : '💵 كاش'}
+                    size="small"
+                    sx={{ bgcolor: '#F1F5F9', color: '#334155', fontWeight: 800, height: 22, fontSize: '0.72rem' }}
+                  />
+                  {row.driverName && (
+                    <Chip
+                      label={`🚴 ${row.driverName}`}
+                      size="small"
+                      sx={{ bgcolor: '#FEF3C7', color: '#92400E', fontWeight: 800, height: 22, fontSize: '0.72rem' }}
+                    />
+                  )}
+                  {isDelivery && row.status !== 'cancelled' && (row.dispatched_at || row.createdAt) && (
+                    <DeliveryTimerBadge dispatchedAt={row.dispatched_at || row.createdAt} status={row.status} />
+                  )}
+                </Box>
+
+                {/* Items preview */}
+                {hasItems && (
+                  <Box sx={{ p: 1, bgcolor: '#F8FAFC', borderRadius: '10px', display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {row.items.slice(0, 4).map((it, idx) => (
+                      <Chip
+                        key={idx}
+                        label={`${it.quantity || 1}× ${it.name || it.product_name || 'صنف'}`}
+                        size="small"
+                        sx={{ bgcolor: '#FFFFFF', border: '1px solid #E2E8F0', fontWeight: 700, fontSize: '0.7rem', height: 22 }}
+                      />
+                    ))}
+                    {row.items.length > 4 && (
+                      <Chip
+                        label={`+${row.items.length - 4} أخرى`}
+                        size="small"
+                        sx={{ bgcolor: '#FEF3C7', color: '#B45309', fontWeight: 800, fontSize: '0.7rem', height: 22 }}
+                      />
+                    )}
+                  </Box>
+                )}
+
+                {/* Footer: Price & Actions */}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 1, borderTop: '1px solid #F1F5F9' }}>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: '#64748B', display: 'block', fontWeight: 700, fontSize: '0.7rem' }}>
+                      الإجمالي:
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 900, color: row.status === 'cancelled' ? '#94A3B8' : '#1D4ED8', fontSize: '1.05rem', textDecoration: row.status === 'cancelled' ? 'line-through' : 'none' }}>
+                      {(parseFloat(row.total) || 0).toFixed(2)} ج.م
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {/* Reprint */}
+                    {row.status !== 'cancelled' && (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<Print sx={{ fontSize: '16px !important' }} />}
+                        onClick={() => printThermalReceipt({
+                          orderNumber: row.orderNumber || row.order_number || '1',
+                          dateStr: new Date(row.createdAt || row.created_at || Date.now()).toLocaleString('ar-EG'),
+                          cashierName: row.cashierName || row.cashier_name || 'الكاشير',
+                          driverName: row.driverName || row.driver_name || '',
+                          customerName: row.customerName || row.customer_name || '',
+                          customerPhone: row.customerPhone || row.customer_phone || '',
+                          customerAddress: row.customerAddress || row.customer_address || row.address || row.customerArea || row.customer_area || '',
+                          customerFloor: row.customerFloor || row.customer_floor || row.floor || '',
+                          customerApartment: row.customerApartment || row.customer_apartment || row.apartment || '',
+                          items: row.items || [],
+                          subtotal: row.subtotal || row.total,
+                          deliveryFee: row.deliveryFee || row.delivery_fee || 0,
+                          discount: row.discount || 0,
+                          total: row.total,
+                          paidAmount: row.paidAmount || row.paid_amount || row.total,
+                          remainingAmount: row.remainingAmount || row.remaining_amount || 0,
+                          paymentMethod: row.paymentMethod || row.payment_method || 'cash',
+                          orderType: row.orderType || row.order_type || 'takeaway',
+                          isCashCollected: row.is_cash_collected || row.isCashCollected || false,
+                          notes: row.notes || row.orderNotes || '',
+                        })}
+                        sx={{ borderRadius: '8px', fontWeight: 800, fontSize: '0.75rem', px: 1.2, minWidth: 0 }}
+                      >
+                        طباعة
+                      </Button>
+                    )}
+
+                    {/* Details */}
+                    <Button
+                      variant="contained"
+                      size="small"
+                      startIcon={<VisibilityOutlined sx={{ fontSize: '16px !important' }} />}
+                      onClick={() => handleOpenDetails(row)}
+                      sx={{ borderRadius: '8px', fontWeight: 800, fontSize: '0.75rem', px: 1.5, bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' } }}
+                    >
+                      التفاصيل
+                    </Button>
+
+                    {/* Cancel for Admin */}
+                    {isAdmin && row.status !== 'cancelled' && (
+                      <IconButton
+                        size="small"
+                        onClick={() => handleCancelOrder(row)}
+                        sx={{ color: '#EF4444', bgcolor: '#FEF2F2', '&:hover': { bgcolor: '#FEE2E2' } }}
+                      >
+                        <CancelOutlined fontSize="small" />
+                      </IconButton>
+                    )}
+                  </Box>
+                </Box>
+              </Paper>
+            );
+          })
+        )}
+      </Box>
 
       {/* Full Order Details Modal */}
       <Dialog
