@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { Box, Typography, Button, Drawer, Badge, Dialog, DialogTitle, DialogContent, DialogActions, Chip, Paper, IconButton, FormControl, Select, MenuItem, CircularProgress, Tabs, Tab, Snackbar, Alert } from '@mui/material';
 import { ShoppingBagOutlined, AccountBalanceWallet, Store } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
@@ -555,6 +555,93 @@ export default function POSPage() {
     return sum + (parseFloat(inv.paidAmount || inv.total || 0));
   }, 0);
 
+  // Helper to check if an invoice belongs to a branch active shift
+  const isInvInShift = (inv, targetBranchId, activeShiftObj) => {
+    if (!activeShiftObj) return false;
+    const invBranch = inv.branchId || inv.branch_id || 'b1';
+    if (invBranch !== targetBranchId) return false;
+    if (inv.status === 'cancelled') return false;
+
+    if (inv.shiftId || inv.shift_id) {
+      return String(inv.shiftId || inv.shift_id) === String(activeShiftObj.id);
+    }
+    if (activeShiftObj.rawStartTime && inv.createdAt) {
+      const invTime = new Date(inv.createdAt).getTime();
+      const shiftStartTime = new Date(activeShiftObj.rawStartTime).getTime();
+      if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 60000)) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // Branch 1 Delivery Sales
+  const b1DeliverySales = useMemo(() => {
+    if (!b1ActiveShift) return 0;
+    return (invoices || []).reduce((sum, inv) => {
+      if (!isInvInShift(inv, 'b1', b1ActiveShift)) return sum;
+      const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
+      if (!isDelivery) return sum;
+      return sum + (parseFloat(inv.total) || 0);
+    }, 0);
+  }, [invoices, b1ActiveShift]);
+
+  // Branch 1 Delivery Fees
+  const b1DeliveryFees = useMemo(() => {
+    if (!b1ActiveShift) return 0;
+    return (invoices || []).reduce((sum, inv) => {
+      if (!isInvInShift(inv, 'b1', b1ActiveShift)) return sum;
+      const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
+      if (!isDelivery) return sum;
+      return sum + (parseFloat(inv.deliveryFee || inv.delivery_fee) || 0);
+    }, 0);
+  }, [invoices, b1ActiveShift]);
+
+  // Branch 1 Total Sales
+  const b1TotalSales = useMemo(() => {
+    if (!b1ActiveShift) return 0;
+    return (invoices || []).reduce((sum, inv) => {
+      if (!isInvInShift(inv, 'b1', b1ActiveShift)) return sum;
+      return sum + (parseFloat(inv.total) || 0);
+    }, 0);
+  }, [invoices, b1ActiveShift]);
+
+  // Branch 2 Delivery Sales
+  const b2DeliverySales = useMemo(() => {
+    if (!b2ActiveShift) return 0;
+    return (invoices || []).reduce((sum, inv) => {
+      if (!isInvInShift(inv, 'b2', b2ActiveShift)) return sum;
+      const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
+      if (!isDelivery) return sum;
+      return sum + (parseFloat(inv.total) || 0);
+    }, 0);
+  }, [invoices, b2ActiveShift]);
+
+  // Branch 2 Delivery Fees
+  const b2DeliveryFees = useMemo(() => {
+    if (!b2ActiveShift) return 0;
+    return (invoices || []).reduce((sum, inv) => {
+      if (!isInvInShift(inv, 'b2', b2ActiveShift)) return sum;
+      const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
+      if (!isDelivery) return sum;
+      return sum + (parseFloat(inv.deliveryFee || inv.delivery_fee) || 0);
+    }, 0);
+  }, [invoices, b2ActiveShift]);
+
+  // Branch 2 Total Sales
+  const b2TotalSales = useMemo(() => {
+    if (!b2ActiveShift) return 0;
+    return (invoices || []).reduce((sum, inv) => {
+      if (!isInvInShift(inv, 'b2', b2ActiveShift)) return sum;
+      return sum + (parseFloat(inv.total) || 0);
+    }, 0);
+  }, [invoices, b2ActiveShift]);
+
+  // Current branch metrics for single-branch cashier
+  const currentDeliverySales = effectiveBranchId === 'b2' ? b2DeliverySales : b1DeliverySales;
+  const currentDeliveryFees = effectiveBranchId === 'b2' ? b2DeliveryFees : b1DeliveryFees;
+  const currentTotalSales = effectiveBranchId === 'b2' ? b2TotalSales : b1TotalSales;
+
   const isShiftActive = activeShift && activeShift.status === 'active';
   const currentTillCash = isAdmin
     ? (selectedBranchId === 'all'
@@ -730,72 +817,104 @@ export default function POSPage() {
                 gap: 1,
               }}
             >
-              {/* Branch 1 Mobile Cash Pill */}
+              {/* Branch 1 Mobile Card */}
               <Box
                 sx={{
                   flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  bgcolor: isSystemLoading ? '#F8FAFC' : (b1ActiveShift ? '#ECFDF5' : '#F9FAFB'),
+                  bgcolor: isSystemLoading ? '#F8FAFC' : (b1ActiveShift ? '#F0FDF4' : '#F9FAFB'),
                   border: '1.5px solid',
                   borderColor: isSystemLoading ? '#E2E8F0' : (b1ActiveShift ? '#10B981' : '#CBD5E1'),
-                  px: 1.2,
-                  py: 0.6,
+                  p: 1,
                   borderRadius: '12px',
-                  boxShadow: isSystemLoading ? 'none' : (b1ActiveShift ? '0 2px 4px rgba(16, 185, 129, 0.1)' : 'none'),
+                  boxShadow: isSystemLoading ? 'none' : (b1ActiveShift ? '0 2px 5px rgba(16, 185, 129, 0.1)' : 'none'),
                 }}
               >
-                <Box sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <Typography variant="caption" sx={{ color: isSystemLoading ? '#64748B' : (b1ActiveShift ? '#047857' : '#64748B'), fontWeight: 800, fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.6, borderBottom: '1px solid', borderColor: b1ActiveShift ? '#DCFCE7' : '#E2E8F0', pb: 0.3 }}>
+                  <Typography variant="caption" sx={{ color: isSystemLoading ? '#64748B' : (b1ActiveShift ? '#047857' : '#64748B'), fontWeight: 800, fontSize: '0.72rem' }}>
                     فرع عزت
                   </Typography>
-                  {isSystemLoading ? (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.3 }}>
-                      <CircularProgress size={11} sx={{ color: '#64748B' }} />
-                      <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 800, fontSize: '0.7rem' }}>جاري التحقق...</Typography>
-                    </Box>
-                  ) : (
-                    <Typography variant="caption" sx={{ color: b1ActiveShift ? '#065F46' : '#64748B', fontWeight: 900, fontSize: '0.82rem', lineHeight: 1.1 }}>
-                      {b1ActiveShift ? `${b1CashSales.toFixed(0)} ج.م` : '🔒 مغلق'}
-                    </Typography>
-                  )}
+                  <Store sx={{ fontSize: 16, color: isSystemLoading ? '#94A3B8' : (b1ActiveShift ? '#10B981' : '#94A3B8') }} />
                 </Box>
-                <Store sx={{ fontSize: 18, color: isSystemLoading ? '#94A3B8' : (b1ActiveShift ? '#10B981' : '#94A3B8') }} />
+
+                {isSystemLoading ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, py: 0.5 }}>
+                    <CircularProgress size={11} sx={{ color: '#64748B' }} />
+                    <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 800, fontSize: '0.68rem' }}>جاري التحقق...</Typography>
+                  </Box>
+                ) : b1ActiveShift ? (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5 }}>
+                    <Box sx={{ bgcolor: '#FFF', px: 0.6, py: 0.3, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#047857', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>💵 خزنة</Typography>
+                      <Typography variant="caption" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.72rem', lineHeight: 1.1 }}>{canSeeSafe ? `${b1CashSales.toFixed(0)}` : '🔒'}</Typography>
+                    </Box>
+                    <Box sx={{ bgcolor: '#FFF', px: 0.6, py: 0.3, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#C2410C', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>🛵 دليفري</Typography>
+                      <Typography variant="caption" sx={{ color: '#9A3412', fontWeight: 900, fontSize: '0.72rem', lineHeight: 1.1 }}>{canSeeSafe ? `${b1DeliverySales.toFixed(0)}` : '🔒'}</Typography>
+                    </Box>
+                    <Box sx={{ bgcolor: '#FFF', px: 0.6, py: 0.3, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#B45309', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>📦 خدمة</Typography>
+                      <Typography variant="caption" sx={{ color: '#78350F', fontWeight: 900, fontSize: '0.72rem', lineHeight: 1.1 }}>{canSeeSafe ? `${b1DeliveryFees.toFixed(0)}` : '🔒'}</Typography>
+                    </Box>
+                    <Box sx={{ bgcolor: '#FFF', px: 0.6, py: 0.3, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#1D4ED8', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>⭐ إجمالي</Typography>
+                      <Typography variant="caption" sx={{ color: '#1E40AF', fontWeight: 900, fontSize: '0.72rem', lineHeight: 1.1 }}>{canSeeSafe ? `${b1TotalSales.toFixed(0)}` : '🔒'}</Typography>
+                    </Box>
+                  </Box>
+                ) : (
+                  <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 800, fontSize: '0.75rem', display: 'block', textAlign: 'center', py: 0.5 }}>
+                    🔒 الشيفت مغلق
+                  </Typography>
+                )}
               </Box>
 
-              {/* Branch 2 Mobile Cash Pill */}
+              {/* Branch 2 Mobile Card */}
               <Box
                 sx={{
                   flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
                   bgcolor: isSystemLoading ? '#F8FAFC' : (b2ActiveShift ? '#EFF6FF' : '#F9FAFB'),
                   border: '1.5px solid',
                   borderColor: isSystemLoading ? '#E2E8F0' : (b2ActiveShift ? '#3B82F6' : '#CBD5E1'),
-                  px: 1.2,
-                  py: 0.6,
+                  p: 1,
                   borderRadius: '12px',
-                  boxShadow: isSystemLoading ? 'none' : (b2ActiveShift ? '0 2px 4px rgba(59, 130, 246, 0.1)' : 'none'),
+                  boxShadow: isSystemLoading ? 'none' : (b2ActiveShift ? '0 2px 5px rgba(59, 130, 246, 0.1)' : 'none'),
                 }}
               >
-                <Box sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <Typography variant="caption" sx={{ color: isSystemLoading ? '#64748B' : (b2ActiveShift ? '#1E40AF' : '#64748B'), fontWeight: 800, fontSize: '0.65rem', display: 'block', lineHeight: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.6, borderBottom: '1px solid', borderColor: b2ActiveShift ? '#DBEAFE' : '#E2E8F0', pb: 0.3 }}>
+                  <Typography variant="caption" sx={{ color: isSystemLoading ? '#64748B' : (b2ActiveShift ? '#1E40AF' : '#64748B'), fontWeight: 800, fontSize: '0.72rem' }}>
                     فرع المسلة
                   </Typography>
-                  {isSystemLoading ? (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.3 }}>
-                      <CircularProgress size={11} sx={{ color: '#64748B' }} />
-                      <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 800, fontSize: '0.7rem' }}>جاري التحقق...</Typography>
-                    </Box>
-                  ) : (
-                    <Typography variant="caption" sx={{ color: b2ActiveShift ? '#1D4ED8' : '#64748B', fontWeight: 900, fontSize: '0.82rem', lineHeight: 1.1 }}>
-                      {b2ActiveShift ? `${b2CashSales.toFixed(0)} ج.م` : '🔒 مغلق'}
-                    </Typography>
-                  )}
+                  <Store sx={{ fontSize: 16, color: isSystemLoading ? '#94A3B8' : (b2ActiveShift ? '#3B82F6' : '#94A3B8') }} />
                 </Box>
-                <Store sx={{ fontSize: 18, color: isSystemLoading ? '#94A3B8' : (b2ActiveShift ? '#3B82F6' : '#94A3B8') }} />
+
+                {isSystemLoading ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, py: 0.5 }}>
+                    <CircularProgress size={11} sx={{ color: '#64748B' }} />
+                    <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 800, fontSize: '0.68rem' }}>جاري التحقق...</Typography>
+                  </Box>
+                ) : b2ActiveShift ? (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5 }}>
+                    <Box sx={{ bgcolor: '#FFF', px: 0.6, py: 0.3, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#047857', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>💵 خزنة</Typography>
+                      <Typography variant="caption" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.72rem', lineHeight: 1.1 }}>{canSeeSafe ? `${b2CashSales.toFixed(0)}` : '🔒'}</Typography>
+                    </Box>
+                    <Box sx={{ bgcolor: '#FFF', px: 0.6, py: 0.3, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#C2410C', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>🛵 دليفري</Typography>
+                      <Typography variant="caption" sx={{ color: '#9A3412', fontWeight: 900, fontSize: '0.72rem', lineHeight: 1.1 }}>{canSeeSafe ? `${b2DeliverySales.toFixed(0)}` : '🔒'}</Typography>
+                    </Box>
+                    <Box sx={{ bgcolor: '#FFF', px: 0.6, py: 0.3, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#B45309', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>📦 خدمة</Typography>
+                      <Typography variant="caption" sx={{ color: '#78350F', fontWeight: 900, fontSize: '0.72rem', lineHeight: 1.1 }}>{canSeeSafe ? `${b2DeliveryFees.toFixed(0)}` : '🔒'}</Typography>
+                    </Box>
+                    <Box sx={{ bgcolor: '#FFF', px: 0.6, py: 0.3, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#1D4ED8', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>⭐ إجمالي</Typography>
+                      <Typography variant="caption" sx={{ color: '#1E40AF', fontWeight: 900, fontSize: '0.72rem', lineHeight: 1.1 }}>{canSeeSafe ? `${b2TotalSales.toFixed(0)}` : '🔒'}</Typography>
+                    </Box>
+                  </Box>
+                ) : (
+                  <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 800, fontSize: '0.75rem', display: 'block', textAlign: 'center', py: 0.5 }}>
+                    🔒 الشيفت مغلق
+                  </Typography>
+                )}
               </Box>
             </Box>
           )}
@@ -824,83 +943,209 @@ export default function POSPage() {
           categoryTitle={selectedCategory === 'all' ? 'الأكثر مبيعاً' : 'المنتجات'}
         />
 
-        {/* Desktop Bottom Footer Bar: Current Till Cash Drawer Badge */}
+        {/* Desktop Bottom Footer Bar: Branch Financial Stats Boxes */}
         <Box
           sx={{
             display: { xs: 'none', md: 'flex' },
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            pt: 1.2,
+            alignItems: 'stretch',
+            justifyContent: 'flex-start',
+            pt: 1.5,
             borderTop: '1px solid #E5E7EB',
             width: '100%',
           }}
         >
           {isAdmin ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-              {/* Branch 1 Till Cash */}
+            <Box sx={{ display: 'flex', alignItems: 'stretch', gap: 2, flexWrap: 'wrap', width: '100%' }}>
+              {/* Branch 1 Box */}
               <Box
                 sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  bgcolor: isSystemLoading ? '#F8FAFC' : (b1ActiveShift ? '#ECFDF5' : '#F9FAFB'),
+                  flex: '1 1 360px',
+                  bgcolor: isSystemLoading ? '#F8FAFC' : (b1ActiveShift ? '#F0FDF4' : '#F9FAFB'),
                   border: '1.5px solid',
                   borderColor: isSystemLoading ? '#E2E8F0' : (b1ActiveShift ? '#10B981' : '#CBD5E1'),
-                  px: 1.8,
-                  py: 0.6,
-                  borderRadius: '12px',
-                  boxShadow: isSystemLoading ? 'none' : (b1ActiveShift ? '0 2px 6px rgba(16, 185, 129, 0.12)' : 'none'),
+                  borderRadius: '14px',
+                  p: 1.5,
+                  boxShadow: isSystemLoading ? 'none' : (b1ActiveShift ? '0 2px 8px rgba(16, 185, 129, 0.12)' : 'none'),
                 }}
               >
-                <Store sx={{ color: isSystemLoading ? '#94A3B8' : (b1ActiveShift ? '#10B981' : '#64748B'), fontSize: 20 }} />
-                <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="caption" sx={{ color: isSystemLoading ? '#64748B' : (b1ActiveShift ? '#047857' : '#64748B'), fontWeight: 800, display: 'block', lineHeight: 1.1, fontSize: '0.72rem' }}>
-                    خزنة فرع عزت
-                  </Typography>
-                  {isSystemLoading ? (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.2 }}>
-                      <CircularProgress size={12} sx={{ color: '#64748B' }} />
-                      <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 800, fontSize: '0.78rem' }}>جاري التحقق...</Typography>
-                    </Box>
-                  ) : (
-                    <Typography variant="subtitle2" sx={{ color: b1ActiveShift ? '#065F46' : '#64748B', fontWeight: 900, fontSize: '0.95rem', lineHeight: 1.2 }}>
-                      {b1ActiveShift ? `${b1CashSales.toFixed(2)} ج.م` : '🔒 الشيفت مغلق'}
+                {/* Branch Header */}
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, pb: 0.8, borderBottom: '1px solid', borderColor: b1ActiveShift ? '#DCFCE7' : '#E2E8F0' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Store sx={{ color: isSystemLoading ? '#94A3B8' : (b1ActiveShift ? '#10B981' : '#64748B'), fontSize: 22 }} />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: b1ActiveShift ? '#065F46' : '#64748B', fontSize: '0.92rem' }}>
+                      فرع عزت
                     </Typography>
-                  )}
+                  </Box>
+                  <Chip
+                    label={isSystemLoading ? 'جاري التحقق...' : (b1ActiveShift ? '🟢 شيفت مفتوح' : '🔒 الشيفت مغلق')}
+                    size="small"
+                    sx={{
+                      fontWeight: 800,
+                      fontSize: '0.72rem',
+                      height: 22,
+                      bgcolor: b1ActiveShift ? '#DCFCE7' : '#F1F5F9',
+                      color: b1ActiveShift ? '#15803D' : '#64748B',
+                      border: '1px solid',
+                      borderColor: b1ActiveShift ? '#86EFAC' : '#CBD5E1',
+                    }}
+                  />
                 </Box>
+
+                {/* Branch Metrics */}
+                {isSystemLoading ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 1, gap: 1 }}>
+                    <CircularProgress size={16} sx={{ color: '#64748B' }} />
+                    <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700 }}>جاري تحميل البيانات...</Typography>
+                  </Box>
+                ) : b1ActiveShift ? (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
+                    {/* Cash Drawer */}
+                    <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#047857', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>
+                        💵 الخزنة
+                      </Typography>
+                      <Typography variant="subtitle2" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.88rem' }}>
+                        {canSeeSafe ? `${b1CashSales.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '🔒'}
+                        <Typography component="span" sx={{ fontSize: '0.65rem', fontWeight: 700, mr: 0.3 }}>ج.م</Typography>
+                      </Typography>
+                    </Box>
+
+                    {/* Delivery Sales */}
+                    <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#C2410C', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>
+                        🛵 دليفري
+                      </Typography>
+                      <Typography variant="subtitle2" sx={{ color: '#9A3412', fontWeight: 900, fontSize: '0.88rem' }}>
+                        {canSeeSafe ? `${b1DeliverySales.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '🔒'}
+                        <Typography component="span" sx={{ fontSize: '0.65rem', fontWeight: 700, mr: 0.3 }}>ج.م</Typography>
+                      </Typography>
+                    </Box>
+
+                    {/* Delivery Fee */}
+                    <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#B45309', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>
+                        📦 الخدمة
+                      </Typography>
+                      <Typography variant="subtitle2" sx={{ color: '#78350F', fontWeight: 900, fontSize: '0.88rem' }}>
+                        {canSeeSafe ? `${b1DeliveryFees.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '🔒'}
+                        <Typography component="span" sx={{ fontSize: '0.65rem', fontWeight: 700, mr: 0.3 }}>ج.م</Typography>
+                      </Typography>
+                    </Box>
+
+                    {/* Total Sales */}
+                    <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#1D4ED8', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>
+                        ⭐ الإجمالي
+                      </Typography>
+                      <Typography variant="subtitle2" sx={{ color: '#1E40AF', fontWeight: 900, fontSize: '0.88rem' }}>
+                        {canSeeSafe ? `${b1TotalSales.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '🔒'}
+                        <Typography component="span" sx={{ fontSize: '0.65rem', fontWeight: 700, mr: 0.3 }}>ج.م</Typography>
+                      </Typography>
+                    </Box>
+                  </Box>
+                ) : (
+                  <Box sx={{ textAlign: 'center', py: 0.8 }}>
+                    <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700 }}>
+                      لا توجد وردية مفتوحة حالياً في هذا الفرع
+                    </Typography>
+                  </Box>
+                )}
               </Box>
 
-              {/* Branch 2 Till Cash */}
+              {/* Branch 2 Box */}
               <Box
                 sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
+                  flex: '1 1 360px',
                   bgcolor: isSystemLoading ? '#F8FAFC' : (b2ActiveShift ? '#EFF6FF' : '#F9FAFB'),
                   border: '1.5px solid',
                   borderColor: isSystemLoading ? '#E2E8F0' : (b2ActiveShift ? '#3B82F6' : '#CBD5E1'),
-                  px: 1.8,
-                  py: 0.6,
-                  borderRadius: '12px',
-                  boxShadow: isSystemLoading ? 'none' : (b2ActiveShift ? '0 2px 6px rgba(59, 130, 246, 0.12)' : 'none'),
+                  borderRadius: '14px',
+                  p: 1.5,
+                  boxShadow: isSystemLoading ? 'none' : (b2ActiveShift ? '0 2px 8px rgba(59, 130, 246, 0.12)' : 'none'),
                 }}
               >
-                <Store sx={{ color: isSystemLoading ? '#94A3B8' : (b2ActiveShift ? '#3B82F6' : '#64748B'), fontSize: 20 }} />
-                <Box sx={{ textAlign: 'right' }}>
-                  <Typography variant="caption" sx={{ color: isSystemLoading ? '#64748B' : (b2ActiveShift ? '#1E40AF' : '#64748B'), fontWeight: 800, display: 'block', lineHeight: 1.1, fontSize: '0.72rem' }}>
-                    خزنة فرع المسلة
-                  </Typography>
-                  {isSystemLoading ? (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, mt: 0.2 }}>
-                      <CircularProgress size={12} sx={{ color: '#64748B' }} />
-                      <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 800, fontSize: '0.78rem' }}>جاري التحقق...</Typography>
-                    </Box>
-                  ) : (
-                    <Typography variant="subtitle2" sx={{ color: b2ActiveShift ? '#1D4ED8' : '#64748B', fontWeight: 900, fontSize: '0.95rem', lineHeight: 1.2 }}>
-                      {b2ActiveShift ? `${b2CashSales.toFixed(2)} ج.م` : '🔒 الشيفت مغلق'}
+                {/* Branch Header */}
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, pb: 0.8, borderBottom: '1px solid', borderColor: b2ActiveShift ? '#DBEAFE' : '#E2E8F0' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Store sx={{ color: isSystemLoading ? '#94A3B8' : (b2ActiveShift ? '#3B82F6' : '#64748B'), fontSize: 22 }} />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: b2ActiveShift ? '#1E40AF' : '#64748B', fontSize: '0.92rem' }}>
+                      فرع المسلة
                     </Typography>
-                  )}
+                  </Box>
+                  <Chip
+                    label={isSystemLoading ? 'جاري التحقق...' : (b2ActiveShift ? '🟢 شيفت مفتوح' : '🔒 الشيفت مغلق')}
+                    size="small"
+                    sx={{
+                      fontWeight: 800,
+                      fontSize: '0.72rem',
+                      height: 22,
+                      bgcolor: b2ActiveShift ? '#DBEAFE' : '#F1F5F9',
+                      color: b2ActiveShift ? '#1D4ED8' : '#64748B',
+                      border: '1px solid',
+                      borderColor: b2ActiveShift ? '#93C5FD' : '#CBD5E1',
+                    }}
+                  />
                 </Box>
+
+                {/* Branch Metrics */}
+                {isSystemLoading ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 1, gap: 1 }}>
+                    <CircularProgress size={16} sx={{ color: '#64748B' }} />
+                    <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700 }}>جاري تحميل البيانات...</Typography>
+                  </Box>
+                ) : b2ActiveShift ? (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
+                    {/* Cash Drawer */}
+                    <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#047857', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>
+                        💵 الخزنة
+                      </Typography>
+                      <Typography variant="subtitle2" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.88rem' }}>
+                        {canSeeSafe ? `${b2CashSales.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '🔒'}
+                        <Typography component="span" sx={{ fontSize: '0.65rem', fontWeight: 700, mr: 0.3 }}>ج.م</Typography>
+                      </Typography>
+                    </Box>
+
+                    {/* Delivery Sales */}
+                    <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#C2410C', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>
+                        🛵 دليفري
+                      </Typography>
+                      <Typography variant="subtitle2" sx={{ color: '#9A3412', fontWeight: 900, fontSize: '0.88rem' }}>
+                        {canSeeSafe ? `${b2DeliverySales.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '🔒'}
+                        <Typography component="span" sx={{ fontSize: '0.65rem', fontWeight: 700, mr: 0.3 }}>ج.م</Typography>
+                      </Typography>
+                    </Box>
+
+                    {/* Delivery Fee */}
+                    <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#B45309', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>
+                        📦 الخدمة
+                      </Typography>
+                      <Typography variant="subtitle2" sx={{ color: '#78350F', fontWeight: 900, fontSize: '0.88rem' }}>
+                        {canSeeSafe ? `${b2DeliveryFees.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '🔒'}
+                        <Typography component="span" sx={{ fontSize: '0.65rem', fontWeight: 700, mr: 0.3 }}>ج.م</Typography>
+                      </Typography>
+                    </Box>
+
+                    {/* Total Sales */}
+                    <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#1D4ED8', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>
+                        ⭐ الإجمالي
+                      </Typography>
+                      <Typography variant="subtitle2" sx={{ color: '#1E40AF', fontWeight: 900, fontSize: '0.88rem' }}>
+                        {canSeeSafe ? `${b2TotalSales.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '🔒'}
+                        <Typography component="span" sx={{ fontSize: '0.65rem', fontWeight: 700, mr: 0.3 }}>ج.م</Typography>
+                      </Typography>
+                    </Box>
+                  </Box>
+                ) : (
+                  <Box sx={{ textAlign: 'center', py: 0.8 }}>
+                    <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700 }}>
+                      لا توجد وردية مفتوحة حالياً في هذا الفرع
+                    </Typography>
+                  </Box>
+                )}
               </Box>
             </Box>
           ) : (
@@ -908,38 +1153,62 @@ export default function POSPage() {
               sx={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 1.5,
+                justifyContent: 'space-between',
+                width: '100%',
                 bgcolor: isSystemLoading ? '#F8FAFC' : (isShiftActive ? '#ECFDF5' : '#FEF2F2'),
                 border: '1.5px solid',
                 borderColor: isSystemLoading ? '#E2E8F0' : (isShiftActive ? '#10B981' : '#EF4444'),
-                px: 2.5,
-                py: 0.8,
-                borderRadius: '12px',
+                px: 2,
+                py: 1,
+                borderRadius: '14px',
                 boxShadow: isSystemLoading ? 'none' : (isShiftActive ? '0 2px 8px rgba(16, 185, 129, 0.15)' : 'none'),
               }}
             >
-              <Box
-                sx={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: '8px',
-                  bgcolor: isSystemLoading ? '#94A3B8' : (isShiftActive ? '#10B981' : '#EF4444'),
-                  color: '#FFF',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {isSystemLoading ? <CircularProgress size={16} sx={{ color: '#FFF' }} /> : <AccountBalanceWallet sx={{ fontSize: 20 }} />}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Box
+                  sx={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: '10px',
+                    bgcolor: isSystemLoading ? '#94A3B8' : (isShiftActive ? '#10B981' : '#EF4444'),
+                    color: '#FFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {isSystemLoading ? <CircularProgress size={16} sx={{ color: '#FFF' }} /> : <AccountBalanceWallet sx={{ fontSize: 22 }} />}
+                </Box>
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography variant="caption" sx={{ color: isSystemLoading ? '#64748B' : (isShiftActive ? '#047857' : '#991B1B'), fontWeight: 800, display: 'block', lineHeight: 1.1 }}>
+                    {isSystemLoading ? 'جاري التحقق من حالة الوردية' : (isShiftActive ? `وردية الفرع (${effectiveBranchId === 'b2' ? 'المسلة' : 'عزت'})` : 'حالة الوردية')}
+                  </Typography>
+                  <Typography variant="subtitle2" sx={{ color: isSystemLoading ? '#64748B' : (isShiftActive ? '#065F46' : '#991B1B'), fontWeight: 900, fontSize: '0.95rem', lineHeight: 1.2 }}>
+                    {isSystemLoading ? 'جاري التحميل...' : (isShiftActive ? '🟢 الوردية مفتوحة' : '🔒 شيفت مغلق')}
+                  </Typography>
+                </Box>
               </Box>
-              <Box sx={{ textAlign: 'right' }}>
-                <Typography variant="caption" sx={{ color: isSystemLoading ? '#64748B' : (isShiftActive ? '#047857' : '#991B1B'), fontWeight: 800, display: 'block', lineHeight: 1.1 }}>
-                  {isSystemLoading ? 'جاري التحقق من حالة الوردية' : (isShiftActive ? (canSeeSafe ? 'المبلغ في الخزنة حالياً' : 'حالة الوردية') : 'حالة الوردية')}
-                </Typography>
-                <Typography variant="subtitle1" sx={{ color: isSystemLoading ? '#64748B' : (isShiftActive ? '#065F46' : '#991B1B'), fontWeight: 900, fontSize: '1.15rem', lineHeight: 1.2 }}>
-                  {isSystemLoading ? 'جاري التحميل...' : (isShiftActive ? (canSeeSafe ? `${currentTillCash.toFixed(2)} ج.م` : '🔒 الوردية مفتوحة') : 'شيفت مغلق')}
-                </Typography>
-              </Box>
+
+              {isShiftActive && canSeeSafe && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ bgcolor: '#FFF', px: 1, py: 0.5, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                    <Typography variant="caption" sx={{ color: '#047857', fontWeight: 800, fontSize: '0.65rem', display: 'block' }}>💵 الخزنة</Typography>
+                    <Typography variant="caption" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.8rem' }}>{currentTillCash.toFixed(0)} ج.م</Typography>
+                  </Box>
+                  <Box sx={{ bgcolor: '#FFF', px: 1, py: 0.5, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                    <Typography variant="caption" sx={{ color: '#C2410C', fontWeight: 800, fontSize: '0.65rem', display: 'block' }}>🛵 دليفري</Typography>
+                    <Typography variant="caption" sx={{ color: '#9A3412', fontWeight: 900, fontSize: '0.8rem' }}>{currentDeliverySales.toFixed(0)} ج.م</Typography>
+                  </Box>
+                  <Box sx={{ bgcolor: '#FFF', px: 1, py: 0.5, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                    <Typography variant="caption" sx={{ color: '#B45309', fontWeight: 800, fontSize: '0.65rem', display: 'block' }}>📦 الخدمة</Typography>
+                    <Typography variant="caption" sx={{ color: '#78350F', fontWeight: 900, fontSize: '0.8rem' }}>{currentDeliveryFees.toFixed(0)} ج.م</Typography>
+                  </Box>
+                  <Box sx={{ bgcolor: '#FFF', px: 1, py: 0.5, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                    <Typography variant="caption" sx={{ color: '#1D4ED8', fontWeight: 800, fontSize: '0.65rem', display: 'block' }}>⭐ الإجمالي</Typography>
+                    <Typography variant="caption" sx={{ color: '#1E40AF', fontWeight: 900, fontSize: '0.8rem' }}>{currentTotalSales.toFixed(0)} ج.م</Typography>
+                  </Box>
+                </Box>
+              )}
             </Box>
           )}
         </Box>
