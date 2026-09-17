@@ -546,6 +546,91 @@ export async function POST(req) {
     }
 
     // ==========================================
+    // ACTION: TRANSFER (نقل الموظف بين الفروع أثناء الشيفت)
+    // ==========================================
+    if (action === 'transfer' || action === 'move') {
+      const transferDateObj = check_in_time || check_out_time ? new Date(check_in_time || check_out_time) : now;
+      const targetBranch = branch_id || (empRecord?.branch_id === 'b1' ? 'b2' : 'b1');
+
+      // 1. Close active open session in previous branch
+      const openCheck = await query(
+        `SELECT * FROM employee_attendance 
+         WHERE employee_id = $1 AND check_out_time IS NULL
+         ORDER BY check_in_time DESC LIMIT 1`,
+        [targetStaffId]
+      );
+
+      let closedOldSession = null;
+      if (openCheck.rows && openCheck.rows.length > 0) {
+        const oldAtt = openCheck.rows[0];
+        const oldCheckIn = new Date(oldAtt.check_in_time);
+        const workedH = Math.max(0, (transferDateObj.getTime() - oldCheckIn.getTime()) / (1000 * 60 * 60));
+        const updOld = await query(
+          `UPDATE employee_attendance SET 
+            check_out_time = $1,
+            working_hours = $2,
+            status = 'transferred',
+            notes = CONCAT(COALESCE(notes, ''), ' [تم النقل إلى فرع آخر]')
+           WHERE id = $3 RETURNING *`,
+          [transferDateObj, parseFloat(workedH.toFixed(2)), oldAtt.id]
+        );
+        closedOldSession = updOld.rows[0];
+      }
+
+      // 2. Open new session in new branch
+      const attDate = attendance_date || transferDateObj.toISOString().split('T')[0];
+      const scheduledStart = shift_start_time || empRecord?.shift_start_time || '12:00';
+      const scheduledH = parseFloat(scheduled_hours || empRecord?.shift_hours || 8.0);
+
+      const insNew = await query(
+        `INSERT INTO employee_attendance (
+          id, employee_id, employee_name, branch_id, attendance_date,
+          check_in_time, shift_start_time, scheduled_hours,
+          late_minutes, late_hours, working_hours, overtime_hours,
+          day_fraction, status, is_paid, notes
+        ) VALUES (
+          gen_random_uuid()::TEXT, $1, $2, $3, $4,
+          $5, $6, $7,
+          0, 0.00, 0.00, 0.00,
+          1.00, 'present', 0, $8
+        ) RETURNING *`,
+        [
+          targetStaffId, targetName || 'موظف', targetBranch, attDate,
+          transferDateObj, scheduledStart, scheduledH,
+          `نقل من فرع سابق (${notes || ''})`
+        ]
+      );
+
+      // Update employee active branch
+      await query(`UPDATE employees SET branch_id = $1, status = 'active' WHERE id = $2`, [targetBranch, targetStaffId]);
+
+      // If driver, update driver_attendance
+      const isDeliveryRole = Boolean(
+        empRecord?.role?.includes('طيار') || 
+        empRecord?.role?.includes('دليفري') || 
+        empRecord?.role?.toLowerCase()?.includes('driver')
+      );
+      if (isDeliveryRole) {
+        await query(
+          `UPDATE driver_attendance SET check_out_time = $1 WHERE (driver_id = $2 OR driver_name = $3) AND check_out_time IS NULL`,
+          [transferDateObj, targetStaffId, targetName]
+        );
+        await query(
+          `INSERT INTO driver_attendance (id, driver_id, driver_name, branch_id, status, queue_position, check_in_time)
+           VALUES (gen_random_uuid()::TEXT, $1, $2, $3, 'ready', 1, $4)`,
+          [targetStaffId, targetName || 'طيار', targetBranch, transferDateObj]
+        );
+      }
+
+      const branchLabel = targetBranch === 'b2' ? 'فرع المسلة' : 'فرع عزت';
+      return NextResponse.json({
+        message: `تم نقل الموظف بنجاح إلى ${branchLabel} 🔄`,
+        closedSession: closedOldSession,
+        newSession: insNew.rows[0]
+      });
+    }
+
+    // ==========================================
     // ACTION: MANUAL ATTENDANCE (تسجيل / تعديل حضور يدوي لـ HR)
     // ==========================================
     if (action === 'manual_attendance') {

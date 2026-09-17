@@ -252,12 +252,16 @@ export default function POSPage() {
               remainingAmount: parseFloat(o.remaining_amount || 0),
               deliveryFee: parseFloat(o.delivery_fee || 0),
               discount: parseFloat(o.discount || 0),
+              paymentMethod: o.payment_method || o.paymentMethod || 'cash',
+              payment_method: o.payment_method || o.paymentMethod || 'cash',
+              is_cash_collected: Boolean(o.is_cash_collected ?? o.isCashCollected),
+              isCashCollected: Boolean(o.is_cash_collected ?? o.isCashCollected),
               status: o.status,
               createdAt: o.created_at ? (new Date(o.created_at).toISOString ? new Date(o.created_at).toISOString() : String(o.created_at)) : new Date().toISOString(),
-              shiftId: o.shift_id || null,
-              shift_id: o.shift_id || null,
-              branchId: o.branch_id,
-              branch_id: o.branch_id,
+              shiftId: o.shift_id || o.shiftId || null,
+              shift_id: o.shift_id || o.shiftId || null,
+              branchId: o.branch_id || o.branchId || 'b1',
+              branch_id: o.branch_id || o.branchId || 'b1',
             }));
             useInvoiceStore.setState({ invoices: mappedOrders });
           }
@@ -346,12 +350,16 @@ export default function POSPage() {
               remainingAmount: parseFloat(o.remaining_amount || 0),
               deliveryFee: parseFloat(o.delivery_fee || 0),
               discount: parseFloat(o.discount || 0),
+              paymentMethod: o.payment_method || o.paymentMethod || 'cash',
+              payment_method: o.payment_method || o.paymentMethod || 'cash',
+              is_cash_collected: Boolean(o.is_cash_collected ?? o.isCashCollected),
+              isCashCollected: Boolean(o.is_cash_collected ?? o.isCashCollected),
               status: o.status,
               createdAt: o.created_at ? (new Date(o.created_at).toISOString ? new Date(o.created_at).toISOString() : String(o.created_at)) : new Date().toISOString(),
-              shiftId: o.shift_id || null,
-              shift_id: o.shift_id || null,
-              branchId: o.branch_id,
-              branch_id: o.branch_id,
+              shiftId: o.shift_id || o.shiftId || null,
+              shift_id: o.shift_id || o.shiftId || null,
+              branchId: o.branch_id || o.branchId || 'b1',
+              branch_id: o.branch_id || o.branchId || 'b1',
               items: Array.isArray(o.items) ? o.items : [],
             }));
 
@@ -495,65 +503,14 @@ export default function POSPage() {
   const b1ActiveShift = getBranchActiveShift('b1');
   const b2ActiveShift = getBranchActiveShift('b2');
 
-  // Calculate Branch 1 cash drawer amount: Returns 0.00 if Branch 1 shift is CLOSED
-  const b1CashSales = !b1ActiveShift ? 0 : b1ActiveShift.startAmount + (invoices || []).reduce((sum, inv) => {
-    const invBranch = inv.branchId || inv.branch_id || 'b1';
-    if (invBranch !== 'b1') return sum;
-    if (inv.status === 'cancelled') return sum;
-
-    if (inv.shiftId || inv.shift_id) {
-      if (String(inv.shiftId || inv.shift_id) !== String(b1ActiveShift.id)) {
-        return sum;
-      }
-    } else if (b1ActiveShift.rawStartTime && inv.createdAt) {
-      const invTime = new Date(inv.createdAt).getTime();
-      const shiftStartTime = new Date(b1ActiveShift.rawStartTime).getTime();
-      if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 60000)) {
-        return sum;
-      }
-    }
-
-    const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
-    if (isDelivery) {
-      const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
-      if (!isCashCollected) return sum;
-    }
-
-    const pm = inv.paymentMethod || inv.payment_method || 'cash';
-    if (pm !== 'cash') return sum;
-
-    return sum + (parseFloat(inv.paidAmount || inv.total || 0));
-  }, 0);
-
-  // Calculate Branch 2 cash drawer amount: Returns 0.00 if Branch 2 shift is CLOSED
-  const b2CashSales = !b2ActiveShift ? 0 : b2ActiveShift.startAmount + (invoices || []).reduce((sum, inv) => {
-    const invBranch = inv.branchId || inv.branch_id || 'b1';
-    if (invBranch !== 'b2') return sum;
-    if (inv.status === 'cancelled') return sum;
-
-    if (inv.shiftId || inv.shift_id) {
-      if (String(inv.shiftId || inv.shift_id) !== String(b2ActiveShift.id)) {
-        return sum;
-      }
-    } else if (b2ActiveShift.rawStartTime && inv.createdAt) {
-      const invTime = new Date(inv.createdAt).getTime();
-      const shiftStartTime = new Date(b2ActiveShift.rawStartTime).getTime();
-      if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 60000)) {
-        return sum;
-      }
-    }
-
-    const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
-    if (isDelivery) {
-      const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
-      if (!isCashCollected) return sum;
-    }
-
-    const pm = inv.paymentMethod || inv.payment_method || 'cash';
-    if (pm !== 'cash') return sum;
-
-    return sum + (parseFloat(inv.paidAmount || inv.total || 0));
-  }, 0);
+  const parseTimestamp = (val) => {
+    if (!val) return 0;
+    if (typeof val === 'number') return val;
+    const str = String(val).trim();
+    const normalized = str.includes('T') ? str : str.replace(' ', 'T');
+    const d = new Date(normalized);
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+  };
 
   // Helper to check if an invoice belongs to a branch active shift
   const isInvInShift = (inv, targetBranchId, activeShiftObj) => {
@@ -566,14 +523,46 @@ export default function POSPage() {
       return String(inv.shiftId || inv.shift_id) === String(activeShiftObj.id);
     }
     if (activeShiftObj.rawStartTime && inv.createdAt) {
-      const invTime = new Date(inv.createdAt).getTime();
-      const shiftStartTime = new Date(activeShiftObj.rawStartTime).getTime();
-      if (!isNaN(invTime) && !isNaN(shiftStartTime) && invTime < (shiftStartTime - 60000)) {
+      const invTime = parseTimestamp(inv.createdAt);
+      const shiftStartTime = parseTimestamp(activeShiftObj.rawStartTime);
+      if (invTime > 0 && shiftStartTime > 0 && invTime < (shiftStartTime - 60000)) {
         return false;
       }
     }
     return true;
   };
+
+  // Calculate Branch 1 cash drawer amount: Returns 0.00 if Branch 1 shift is CLOSED
+  const b1CashSales = !b1ActiveShift ? 0 : b1ActiveShift.startAmount + (invoices || []).reduce((sum, inv) => {
+    if (!isInvInShift(inv, 'b1', b1ActiveShift)) return sum;
+
+    const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
+    if (isDelivery) {
+      const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
+      if (!isCashCollected) return sum;
+    }
+
+    const pm = inv.paymentMethod || inv.payment_method || 'cash';
+    if (pm !== 'cash') return sum;
+
+    return sum + (parseFloat(inv.paidAmount ?? inv.total ?? 0));
+  }, 0);
+
+  // Calculate Branch 2 cash drawer amount: Returns 0.00 if Branch 2 shift is CLOSED
+  const b2CashSales = !b2ActiveShift ? 0 : b2ActiveShift.startAmount + (invoices || []).reduce((sum, inv) => {
+    if (!isInvInShift(inv, 'b2', b2ActiveShift)) return sum;
+
+    const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
+    if (isDelivery) {
+      const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
+      if (!isCashCollected) return sum;
+    }
+
+    const pm = inv.paymentMethod || inv.payment_method || 'cash';
+    if (pm !== 'cash') return sum;
+
+    return sum + (parseFloat(inv.paidAmount ?? inv.total ?? 0));
+  }, 0);
 
   // Branch 1 Delivery Sales
   const b1DeliverySales = useMemo(() => {

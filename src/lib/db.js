@@ -21,6 +21,8 @@ export function getPool() {
       keepAliveInitialDelay: 10000,
       maxIdle: 10,
       idleTimeout: 60000,
+      timezone: '+03:00',
+      dateStrings: true,
     };
 
     if (process.env.MYSQL_SSL === 'true') {

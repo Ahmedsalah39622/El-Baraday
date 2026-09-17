@@ -1881,7 +1881,7 @@ export default function InvoicesPage() {
         onClose={() => setCollectDialogOpen(false)}
         maxWidth="sm"
         fullWidth
-        PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}
+        slotProps={{ paper: { sx: { borderRadius: '20px', p: 1 } } }}
       >
         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
@@ -2015,7 +2015,7 @@ export default function InvoicesPage() {
         onClose={() => setDialogOpen(false)}
         maxWidth="md"
         fullWidth
-        PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}
+        slotProps={{ paper: { sx: { borderRadius: '20px', p: 1 } } }}
       >
         <DialogTitle sx={{ fontWeight: 900, fontSize: '1.25rem', color: '#92400E', display: 'flex', alignItems: 'center', gap: 1 }}>
           <StickyNote2 sx={{ color: '#D97706' }} />
@@ -2267,7 +2267,7 @@ export default function InvoicesPage() {
         onClose={() => setDeleteTarget(null)}
         maxWidth="xs"
         fullWidth
-        PaperProps={{ sx: { borderRadius: '16px', p: 1 } }}
+        slotProps={{ paper: { sx: { borderRadius: '16px', p: 1 } } }}
       >
         <DialogTitle sx={{ fontWeight: 900, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 1 }}>
           <DeleteIcon color="error" />

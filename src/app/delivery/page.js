@@ -224,10 +224,22 @@ export default function DeliveryPage() {
 
   const handleTabChange = (event, newValue) => setTabValue(newValue);
 
-  // Build clean, deduplicated driver options for dispatch selector
-  const checkedInDrivers = (activeQueue || []).filter(q => !selectedBranchId || selectedBranchId === 'all' || !q.branch_id || q.branch_id === 'all' || q.branch_id === selectedBranchId);
-  const readyDrivers = checkedInDrivers.filter(q => q.status === 'ready');
-  const onDeliveryDrivers = checkedInDrivers.filter(q => q.status === 'on_delivery');
+  // Build dispatch driver options — filter by ORDER's branch (not global UI branch selector)
+  // This ensures a driver checked-in at المسلة shows when dispatching a المسلة order
+  const orderBranchId = selectedOrderForDispatch?.branch_id || selectedOrderForDispatch?.branchId || null;
+  const filterBranchId = orderBranchId || effectiveBranch;
+
+  const allCheckedInDrivers = activeQueue || [];
+  const branchCheckedIn = allCheckedInDrivers.filter(q =>
+    !filterBranchId || filterBranchId === 'all' || !q.branch_id || q.branch_id === 'all' || q.branch_id === filterBranchId
+  );
+  const readyDrivers = branchCheckedIn.filter(q => q.status === 'ready');
+  const onDeliveryDrivers = branchCheckedIn.filter(q => q.status === 'on_delivery');
+
+  // Also include drivers checked-in at any branch (for cross-branch dispatch)
+  const otherCheckedIn = allCheckedInDrivers.filter(q =>
+    filterBranchId && filterBranchId !== 'all' && q.branch_id && q.branch_id !== 'all' && q.branch_id !== filterBranchId
+  );
 
   const dispatchDriverOptions = [];
 
@@ -247,6 +259,29 @@ export default function DeliveryPage() {
         id: q.driver_id || q.id,
         name: q.driver_name,
         label: `🛵 ${q.driver_name} (في مشوار توصيل حالياً)`
+      });
+    }
+  });
+
+  // Cross-branch drivers (checked-in at another branch)
+  otherCheckedIn.forEach((q) => {
+    if (q.driver_name && !dispatchDriverOptions.some(opt => opt.name === q.driver_name)) {
+      const branchLabel = q.branch_id === 'b2' ? 'المسلة' : 'عزت';
+      dispatchDriverOptions.push({
+        id: q.driver_id || q.id,
+        name: q.driver_name,
+        label: `🔀 ${q.driver_name} (حاضر في فرع ${branchLabel})`
+      });
+    }
+  });
+
+  // Fallback: add all registered drivers not already in the list (even if not checked-in today)
+  (drivers || []).forEach((d) => {
+    if (d.name && !dispatchDriverOptions.some(opt => opt.name === d.name)) {
+      dispatchDriverOptions.push({
+        id: d.id,
+        name: d.name,
+        label: `⚪ ${d.name} (غير حاضر)`
       });
     }
   });
@@ -2210,7 +2245,7 @@ export default function DeliveryPage() {
         onClose={() => !submittingPayout && setPayoutDialogOpen(false)}
         maxWidth="xs"
         fullWidth
-        PaperProps={{ sx: { borderRadius: '16px', p: 1 } }}
+        slotProps={{ paper: { sx: { borderRadius: '16px', p: 1 } } }}
       >
         <DialogTitle sx={{ fontWeight: 900, fontSize: '1.1rem', color: '#1E293B', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
           <Avatar sx={{ bgcolor: '#EFF6FF', color: '#2563EB', width: 38, height: 38, fontWeight: 900 }}>
@@ -2357,7 +2392,7 @@ export default function DeliveryPage() {
         onClose={() => setHistoryDialogOpen(false)}
         maxWidth="sm"
         fullWidth
-        PaperProps={{ sx: { borderRadius: '16px', p: 1 } }}
+        slotProps={{ paper: { sx: { borderRadius: '16px', p: 1 } } }}
       >
         <DialogTitle sx={{ fontWeight: 900, fontSize: '1.1rem', pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

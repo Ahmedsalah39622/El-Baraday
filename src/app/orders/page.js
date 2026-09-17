@@ -105,9 +105,7 @@ export default function OrdersPage() {
 
     // Direct shift_id match
     if (branchActiveShift && (inv.shiftId || inv.shift_id)) {
-      if (String(inv.shiftId || inv.shift_id) === String(branchActiveShift.id)) {
-        return true;
-      }
+      return String(inv.shiftId || inv.shift_id) === String(branchActiveShift.id);
     }
 
     const invDateStr = inv.createdAt || inv.created_at;

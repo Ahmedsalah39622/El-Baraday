@@ -204,10 +204,15 @@ export async function GET(req) {
         SELECT o.*, b.name as branch_name
         FROM orders o
         LEFT JOIN branches b ON o.branch_id = b.id
-        ${ordersWhere}
+        WHERE (
+          DATE(o.created_at) = CURDATE()
+          OR o.shift_id IN (SELECT id FROM shifts WHERE status = 'active')
+          OR o.created_at >= (SELECT COALESCE(MIN(start_time), CURDATE()) FROM shifts WHERE status = 'active')
+        )
+        ${branchId && branchId !== 'all' ? `AND o.branch_id = $1` : ''}
         ORDER BY o.created_at DESC
         LIMIT 500
-      `, params),
+      `, (branchId && branchId !== 'all') ? [branchId] : []),
       safeQuery('SELECT * FROM app_settings'),
       safeQuery(`SELECT * FROM shifts ${shiftsWhere} LIMIT 20`, params),
       safeQuery(`
@@ -229,6 +234,11 @@ export async function GET(req) {
       settingsRes.rows.forEach(r => { settingsObj[r.key] = r.value; });
     }
 
+    const mappedOrdersList = (ordersRes.rows || []).map(o => ({
+      ...o,
+      is_cash_collected: Boolean(o.is_cash_collected)
+    }));
+
     return NextResponse.json({
       branches: branchesRes.rows || [],
       products: productsRes.rows || [],
@@ -237,7 +247,7 @@ export async function GET(req) {
       drivers: driversRes.rows || [],
       tables: tablesRes.rows || [],
       nextOrderNumber: (nextOrderRes.rows && nextOrderRes.rows[0] && nextOrderRes.rows[0].next) ? parseInt(nextOrderRes.rows[0].next) : 1,
-      orders: ordersRes.rows || [],
+      orders: mappedOrdersList,
       settings: settingsObj,
       shifts: shiftsRes.rows || [],
       activeAttendanceQueue: attendanceRes.rows || []

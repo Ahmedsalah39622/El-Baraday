@@ -1,1955 +1,1225 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
-  Box, Typography, Paper, Grid, Card, CardContent, Button, Chip,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
-  FormControl, InputLabel, Select, MenuItem, TextField, CircularProgress, Alert,
-  Tabs, Tab, Tooltip, Stack, Divider
+  Box, Typography, Paper, Grid, Button, Chip,
+  TextField, Dialog, DialogTitle, DialogContent, DialogActions,
+  CircularProgress, Alert, Stack, FormControl, Select, MenuItem,
+  IconButton
 } from '@mui/material';
 import {
-  HowToReg, DeliveryDining, AccessTime, CheckCircle, Warning,
-  PersonAdd, Logout, Refresh, SwapVert, BadgeOutlined, Check, Clear,
-  EditCalendar, AccountBalanceWallet, Timer, Schedule, History, PlayArrow,
-  Print, PictureAsPdf
+  AccessTime, Refresh, Add, ArrowBack, Print
 } from '@mui/icons-material';
 import { useBranchStore } from '@/store/useBranchStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useRouter } from 'next/navigation';
-import DeliveryTimerBadge from '@/components/delivery/DeliveryTimerBadge';
 import { printSalaryReceipt } from '@/lib/printReceipt';
 
-export default function AttendancePage() {
+export default function AttendanceAndTamamatPage() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { branches, selectedBranchId, setSelectedBranchId } = useBranchStore();
-  const isAdmin = user?.role === 'admin' || user?.username === 'admin';
+  const { branches, selectedBranchId, setSelectedBranchId, fetchBranches } = useBranchStore();
 
+  const [activeTab, setActiveTab] = useState(0); // 0: الحضور والتمامات, 1: الموظفين, 2: المرتبات
   const [loading, setLoading] = useState(true);
-  const [tabValue, setTabValue] = useState(0);
-  const [activeQueue, setActiveQueue] = useState([]);
-  const [allDrivers, setAllDrivers] = useState([]);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
+
+  // Data State
   const [employees, setEmployees] = useState([]);
   const [todayAttendance, setTodayAttendance] = useState([]);
-  const [unpaidSummary, setUnpaidSummary] = useState([]);
+  const [allBonusDeductions, setAllBonusDeductions] = useState([]);
   const [recentLogs, setRecentLogs] = useState([]);
-  const [deliveryTimerMinutes, setDeliveryTimerMinutes] = useState(30);
-  const [companySettings, setCompanySettings] = useState({});
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'present', 'b1', 'b2', 'absent'
 
-  // Quick Check-in Modal
-  const [checkInOpen, setCheckInOpen] = useState(false);
-  const [selectedStaffId, setSelectedStaffId] = useState('');
-  const [selectedBranchForCheckIn, setSelectedBranchForCheckIn] = useState('b1');
-  const [checkInTimeInput, setCheckInTimeInput] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [staffSearch, setStaffSearch] = useState('');
+  // Live Clock
+  const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Manual / Edit Attendance Modal for HR
-  const [manualModalOpen, setManualModalOpen] = useState(false);
-  const [manualForm, setManualForm] = useState({
-    attendanceId: null,
-    employeeId: '',
-    employeeName: '',
-    date: new Date().toISOString().split('T')[0],
-    checkInTime: '',
-    checkOutTime: '',
-    shiftStartTime: '12:00',
-    scheduledHours: '8',
-    workingHours: '8',
-    lateMinutes: '0',
-    lateHours: '0',
-    notes: 'تسجيل تمام وحضور من الإدارة'
+  // Modal: Check-In / Transfer / Check-Out Movement Modal
+  const [moveModal, setMoveModal] = useState({
+    open: false,
+    mode: 'in', // 'in' | 'transfer' | 'out'
+    employee: null,
+    branch: 'b1',
+    day: 'السبت',
+    time: '',
+    notes: ''
   });
 
-  const fetchAttendance = async (isSilent = false) => {
-    if (!isSilent && activeQueue.length === 0 && employees.length === 0) setLoading(true);
-    try {
-      const res = await fetch(`/api/attendance?branch_id=${selectedBranchId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setActiveQueue(data.activeQueue || []);
-        setAllDrivers(data.allDrivers || []);
-        setTodayAttendance(data.todayAttendance || []);
-        setUnpaidSummary(data.unpaidSummary || []);
-        setRecentLogs(data.recentAttendanceLogs || []);
-      }
+  // Modal: Add Employee Modal
+  const [addEmpOpen, setAddEmpOpen] = useState(false);
+  const [empForm, setEmpForm] = useState({
+    name: '',
+    role: 'دليفري',
+    branch_id: 'b1',
+    phone: '',
+    weekly_hours: '70',
+    weekly_wage: '1050',
+    shift_hours: '8',
+    shift_start_time: '12:00',
+  });
+  const [submittingEmp, setSubmittingEmp] = useState(false);
 
-      const empRes = await fetch(`/api/employees?branch_id=${selectedBranchId}`);
+  // Modal: Deduction / Advance Modal
+  const [dedModal, setDedModal] = useState({
+    open: false,
+    employee: null,
+    reason: 'سلفة',
+    amount: '',
+    notes: '',
+    date: new Date().toISOString().split('T')[0]
+  });
+  const [submittingDed, setSubmittingDed] = useState(false);
+
+  // Notification Toast
+  const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
+
+  // Keep Clock ticking
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Fetch all live data from backend
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      fetchBranches();
+      const [empRes, attRes, dedRes] = await Promise.all([
+        fetch('/api/employees'),
+        fetch('/api/attendance'),
+        fetch('/api/employees/bonus-deductions'),
+      ]);
+
       if (empRes.ok) {
         const empData = await empRes.json();
-        setEmployees(empData || []);
+        setEmployees(Array.isArray(empData) ? empData : []);
       }
-
-      const setRes = await fetch('/api/settings');
-      if (setRes.ok) {
-        const setObj = await setRes.json();
-        if (setObj) {
-          setCompanySettings(setObj);
-          if (setObj.delivery_timer_minutes) {
-            setDeliveryTimerMinutes(parseInt(setObj.delivery_timer_minutes) || 30);
-          }
-        }
+      if (attRes.ok) {
+        const attData = await attRes.json();
+        setTodayAttendance(attData.todayAttendance || []);
+        setRecentLogs(attData.recentAttendanceLogs || []);
+      }
+      if (dedRes.ok) {
+        const dedData = await dedRes.json();
+        setAllBonusDeductions(Array.isArray(dedData) ? dedData : []);
       }
     } catch (err) {
-      console.error('Failed to fetch attendance:', err);
+      console.error('Error loading attendance & payroll data:', err);
     } finally {
-      if (!isSilent) setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAttendance(false);
-    const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') fetchAttendance(true);
-    }, 5000);
+    loadData();
+    const interval = setInterval(() => loadData(true), 10000);
     return () => clearInterval(interval);
-  }, [selectedBranchId]);
+  }, []);
 
-  // Combine Drivers and Employees into unified Staff Options list for Check-In Modal
-  const allStaffOptions = [];
-  employees.forEach(emp => {
-    const isDriver = emp.role === 'طيار' || emp.role === 'driver' || emp.role?.includes('طيار') || emp.role?.includes('دليفري') || emp.role?.toLowerCase()?.includes('driver');
-    const driverObj = isDriver ? allDrivers.find(d => d.name === emp.name) : null;
-    const isClockedIn = emp.isClockedIn || emp.status === 'active' || activeQueue.some(q => q.driver_name === emp.name);
-
-    allStaffOptions.push({
-      id: emp.id,
-      name: emp.name,
-      role: emp.role || 'موظف',
-      isDriver: isDriver,
-      driverId: driverObj ? driverObj.id : emp.id,
-      branchName: emp.branch_name || 'الفرع الرئيسي',
-      isClockedIn,
-      label: `${isDriver ? '🛵' : '👤'} ${emp.name} (${emp.role || 'موظف'} - ${emp.branch_name || 'الرئيسي'}) ${isClockedIn ? '✔️ حاضر بالسيستم' : ''}`
-    });
-  });
-
-  // Also include any standalone drivers not in employees table
-  allDrivers.forEach(d => {
-    if (!allStaffOptions.some(opt => opt.name === d.name)) {
-      const isCheckedIn = activeQueue.some(q => q.driver_id === d.id || q.driver_name === d.name);
-      allStaffOptions.push({
-        id: d.id,
-        name: d.name,
-        role: 'طيار دليفري',
-        isDriver: true,
-        driverId: d.id,
-        branchName: d.branch_name || 'الفرع الرئيسي',
-        isClockedIn: isCheckedIn,
-        label: `🛵 ${d.name} (طيار دليفري - ${d.branch_name || 'الرئيسي'}) ${isCheckedIn ? '✔️ متواجد بالدور' : ''}`
-      });
-    }
-  });
-
-  const handleQuickCheckIn = async (staffId, staffName, isDriver = false) => {
-    try {
-      const targetEmp = employees.find(e => e.id === staffId);
-      const isActuallyDriver = Boolean(
-        isDriver || 
-        targetEmp?.role?.includes('طيار') || 
-        targetEmp?.role?.includes('دليفري') || 
-        targetEmp?.role?.toLowerCase()?.includes('driver')
+  // Compute live active state for each employee
+  const employeeStateMap = useMemo(() => {
+    const map = new Map();
+    (employees || []).forEach(emp => {
+      const openRecord = (todayAttendance || []).find(
+        a => String(a.employee_id) === String(emp.id) && !a.check_out_time
       );
-      const targetBranch = targetEmp?.branchId || targetEmp?.branch_id || (selectedBranchId !== 'all' ? selectedBranchId : 'b1');
 
-      const res = await fetch('/api/attendance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'check_in',
-          staff_id: staffId,
-          employee_id: staffId,
-          driver_name: staffName,
-          employee_name: staffName,
-          is_driver: isActuallyDriver,
-          branch_id: targetBranch
-        })
-      });
-      if (res.ok) {
-        fetchAttendance();
-      }
-    } catch (e) {
-      console.error('Quick checkin error:', e);
-    }
-  };
-
-  const handleModalCheckIn = async () => {
-    if (!selectedStaffId) return;
-    setSubmitting(true);
-    try {
-      const staffObj = allStaffOptions.find(s => s.id === selectedStaffId);
-      const res = await fetch('/api/attendance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'check_in',
-          staff_id: staffObj?.id,
-          employee_id: staffObj?.id,
-          driver_id: staffObj?.driverId || staffObj?.id,
-          driver_name: staffObj?.name,
-          employee_name: staffObj?.name,
-          is_driver: staffObj?.isDriver,
-          branch_id: selectedBranchForCheckIn
-        })
-      });
-      if (res.ok) {
-        setCheckInOpen(false);
-        setSelectedStaffId('');
-        fetchAttendance();
-      }
-    } catch (err) {
-      console.error('Checkin error:', err);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleCheckOut = async (attendanceId, staffId, staffName) => {
-    try {
-      const res = await fetch('/api/attendance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'check_out',
-          attendance_id: attendanceId,
-          staff_id: staffId,
-          employee_id: staffId,
-          driver_name: staffName,
-          employee_name: staffName
-        })
-      });
-      if (res.ok) {
-        fetchAttendance();
-      }
-    } catch (err) {
-      console.error('Checkout error:', err);
-    }
-  };
-
-  // Auto-calculate lateness & working hours whenever times change in the modal
-  const handleModalTimeChange = (field, value) => {
-    setManualForm(prev => {
-      const updated = { ...prev, [field]: value };
-      const emp = employees.find(e => e.id === updated.employeeId);
-      const scheduledStart = updated.shiftStartTime || emp?.shift_start_time || '12:00';
-      const shiftHours = parseFloat(updated.scheduledHours || emp?.shift_hours || 8.0);
-      const graceM = parseInt(emp?.grace_period_minutes || 15);
-
-      // 1. Compute Lateness (التأخير التلقائي)
-      if (updated.checkInTime && scheduledStart) {
-        try {
-          const [sH, sM] = scheduledStart.split(':').map(Number);
-          const [cH, cM] = updated.checkInTime.split(':').map(Number);
-          const startMin = sH * 60 + sM;
-          const checkMin = cH * 60 + cM;
-          const diffMin = checkMin - startMin;
-
-          if (diffMin > graceM) {
-            updated.lateMinutes = String(diffMin);
-            updated.lateHours = String((diffMin / 60).toFixed(2));
-          } else {
-            updated.lateMinutes = '0';
-            updated.lateHours = '0';
-          }
-        } catch (e) {
-          updated.lateMinutes = '0';
-          updated.lateHours = '0';
-        }
-      }
-
-      // 2. Compute Working Hours (ساعات العمل التلقائية)
-      if (updated.checkInTime && updated.checkOutTime) {
-        try {
-          const [cH, cM] = updated.checkInTime.split(':').map(Number);
-          const [oH, oM] = updated.checkOutTime.split(':').map(Number);
-          let durationMin = (oH * 60 + oM) - (cH * 60 + cM);
-          if (durationMin < 0) durationMin += 24 * 60; // Overnight shift
-          const workedH = parseFloat((durationMin / 60).toFixed(2));
-          updated.workingHours = String(workedH);
-        } catch (e) {
-          updated.workingHours = String(shiftHours);
-        }
+      const baseBranch = emp.branch_id || 'b1';
+      if (openRecord) {
+        map.set(emp.id, {
+          isWorking: true,
+          activeBranch: openRecord.branch_id || baseBranch,
+          checkInTime: openRecord.check_in_time,
+          attendanceId: openRecord.id,
+          openRecord
+        });
       } else {
-        const lateH = parseFloat(updated.lateHours || 0);
-        updated.workingHours = String(Math.max(0, shiftHours - lateH).toFixed(2));
+        map.set(emp.id, {
+          isWorking: false,
+          activeBranch: baseBranch,
+          checkInTime: null,
+          attendanceId: null,
+          openRecord: null
+        });
+      }
+    });
+    return map;
+  }, [employees, todayAttendance]);
+
+  // Compute total hours worked per branch (b1 / b2)
+  const employeeHoursMap = useMemo(() => {
+    const map = new Map();
+    (employees || []).forEach(emp => {
+      const empLogs = (recentLogs || []).filter(l => String(l.employee_id) === String(emp.id));
+      let b1Hours = 0;
+      let b2Hours = 0;
+
+      empLogs.forEach(log => {
+        const h = parseFloat(log.working_hours || 0);
+        const b = log.branch_id || 'b1';
+        if (b === 'b2') b2Hours += h;
+        else b1Hours += h;
+      });
+
+      const currentState = employeeStateMap.get(emp.id);
+      if (currentState?.isWorking && currentState.checkInTime) {
+        const start = new Date(currentState.checkInTime).getTime();
+        const now = currentTime.getTime();
+        const elapsedH = Math.max(0, (now - start) / (1000 * 60 * 60));
+        if (currentState.activeBranch === 'b2') {
+          b2Hours += elapsedH;
+        } else {
+          b1Hours += elapsedH;
+        }
       }
 
-      return updated;
+      const totalHours = b1Hours + b2Hours;
+      map.set(emp.id, {
+        b1Hours: parseFloat(b1Hours.toFixed(2)),
+        b2Hours: parseFloat(b2Hours.toFixed(2)),
+        totalHours: parseFloat(totalHours.toFixed(2))
+      });
+    });
+    return map;
+  }, [employees, recentLogs, employeeStateMap, currentTime]);
+
+  // Open Movement Modal
+  const handleOpenMove = (emp, mode) => {
+    const currentState = employeeStateMap.get(emp.id);
+    const now = new Date();
+    const timeStr = now.toTimeString().slice(0, 5);
+
+    const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    const currentDay = dayNames[now.getDay()];
+
+    let defaultBranch = emp.branch_id || 'b1';
+    if (mode === 'transfer') {
+      defaultBranch = (currentState?.activeBranch === 'b1' ? 'b2' : 'b1');
+    } else if (mode === 'in') {
+      defaultBranch = currentState?.activeBranch || emp.branch_id || 'b1';
+    }
+
+    setMoveModal({
+      open: true,
+      mode,
+      employee: emp,
+      branch: defaultBranch,
+      day: currentDay,
+      time: timeStr,
+      notes: ''
     });
   };
 
-  // Open HR Manual Attendance Dialog
-  const handleOpenManualModal = (emp = null, existingAtt = null) => {
-    const defaultEmp = emp || (employees && employees.length > 0 ? employees[0] : null);
-    const nowStr = new Date().toTimeString().slice(0, 5);
+  // Submit Movement (Check-In / Transfer / Check-Out)
+  const handleSaveMovement = async () => {
+    if (!moveModal.employee) return;
+    const { mode, employee, branch, time, notes } = moveModal;
+    const empId = employee.id;
 
-    if (existingAtt) {
-      const cIn = existingAtt.check_in_time ? new Date(existingAtt.check_in_time).toTimeString().slice(0, 5) : (existingAtt.shift_start_time || '12:00');
-      const cOut = existingAtt.check_out_time ? new Date(existingAtt.check_out_time).toTimeString().slice(0, 5) : '';
-
-      setManualForm({
-        attendanceId: existingAtt.id,
-        employeeId: existingAtt.employee_id,
-        employeeName: existingAtt.employee_name,
-        date: existingAtt.attendance_date ? String(existingAtt.attendance_date).split('T')[0] : new Date().toISOString().split('T')[0],
-        checkInTime: cIn,
-        checkOutTime: cOut,
-        shiftStartTime: existingAtt.shift_start_time || '12:00',
-        scheduledHours: String(existingAtt.scheduled_hours || 8),
-        workingHours: String(existingAtt.working_hours || 8),
-        lateMinutes: String(existingAtt.late_minutes || 0),
-        lateHours: String(existingAtt.late_hours || 0),
-        notes: existingAtt.notes || 'تعديل تمام وحضور من الإدارة'
-      });
-    } else {
-      const startT = defaultEmp?.shift_start_time || '12:00';
-      const sH = String(defaultEmp?.shift_hours || 8);
-      setManualForm({
-        attendanceId: null,
-        employeeId: defaultEmp?.id || '',
-        employeeName: defaultEmp?.name || '',
-        date: new Date().toISOString().split('T')[0],
-        checkInTime: startT,
-        checkOutTime: '',
-        shiftStartTime: startT,
-        scheduledHours: sH,
-        workingHours: sH,
-        lateMinutes: '0',
-        lateHours: '0',
-        notes: 'تسجيل تمام وحضور يدوي من الإدارة'
-      });
+    let actionDateObj = new Date();
+    if (time) {
+      const [h, m] = time.split(':');
+      actionDateObj.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
     }
-    setManualModalOpen(true);
-  };
 
-  const handleSaveManualAttendance = async () => {
-    if (!manualForm.employeeId) return;
-    setSubmitting(true);
+    setActionLoadingId(empId);
     try {
-      const emp = employees.find(e => e.id === manualForm.employeeId);
+      let actionName = 'check_in';
+      if (mode === 'out') actionName = 'check_out';
+      if (mode === 'transfer') actionName = 'transfer';
+
       const res = await fetch('/api/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'manual_attendance',
-          attendance_id: manualForm.attendanceId,
-          staff_id: manualForm.employeeId,
-          employee_id: manualForm.employeeId,
-          employee_name: manualForm.employeeName || emp?.name,
-          attendance_date: manualForm.date,
-          check_in_time: `${manualForm.date}T${manualForm.checkInTime || '12:00'}:00`,
-          check_out_time: manualForm.checkOutTime ? `${manualForm.date}T${manualForm.checkOutTime}:00` : null,
-          shift_start_time: manualForm.shiftStartTime || '12:00',
-          scheduled_hours: parseFloat(manualForm.scheduledHours || 8),
-          working_hours: parseFloat(manualForm.workingHours || 8),
-          late_minutes: parseInt(manualForm.lateMinutes || 0),
-          late_hours: parseFloat(manualForm.lateHours || 0),
-          notes: manualForm.notes || 'تسجيل يدوي من الإدارة',
-          branch_id: emp?.branch_id || selectedBranchId !== 'all' ? selectedBranchId : 'b1'
+          action: actionName,
+          staff_id: empId,
+          employee_id: empId,
+          employee_name: employee.name,
+          branch_id: branch,
+          check_in_time: actionDateObj.toISOString(),
+          check_out_time: actionDateObj.toISOString(),
+          notes: notes || (mode === 'transfer' ? `نقل إلى ${branch === 'b2' ? 'فرع المسلة' : 'فرع عزت'}` : '')
         })
       });
+
+      const data = await res.json();
       if (res.ok) {
-        setManualModalOpen(false);
-        fetchAttendance();
+        setToast({ open: true, message: data.message || '✅ تم تسجيل الحركة بنجاح', severity: 'success' });
+        setMoveModal(prev => ({ ...prev, open: false }));
+        await loadData(true);
+      } else {
+        setToast({ open: true, message: data.error || 'فشل تسجيل الحركة', severity: 'error' });
       }
-    } catch (e) {
-      console.error('Error saving manual attendance:', e);
+    } catch (err) {
+      setToast({ open: true, message: 'حدث خطأ في الاتصال بالسيرفر', severity: 'error' });
     } finally {
-      setSubmitting(false);
+      setActionLoadingId(null);
     }
   };
 
-  const handleDeleteAttendance = async (attId) => {
-    if (!confirm('هل أنت متأكد من حذف سجل التمام هذا؟')) return;
+  // Add Employee Handler
+  const handleSaveEmployee = async () => {
+    if (!empForm.name.trim()) {
+      setToast({ open: true, message: 'يرجى كتابة اسم الموظف', severity: 'warning' });
+      return;
+    }
+    setSubmittingEmp(true);
     try {
-      await fetch('/api/attendance', {
+      const res = await fetch('/api/employees', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete_attendance', attendance_id: attId })
+        body: JSON.stringify({
+          name: empForm.name.trim(),
+          role: empForm.role,
+          branch_id: empForm.branch_id,
+          phone: empForm.phone || '',
+          hourly_rate: (parseFloat(empForm.weekly_wage || 0) / Math.max(1, parseFloat(empForm.weekly_hours || 70))).toFixed(2),
+          salary: parseFloat(empForm.weekly_wage || 0),
+          shift_hours: parseFloat(empForm.shift_hours || 8),
+          shift_start_time: empForm.shift_start_time || '12:00',
+          salary_type: 'weekly'
+        })
       });
-      fetchAttendance();
-    } catch (e) {}
+
+      if (res.ok) {
+        setToast({ open: true, message: `✅ تم إضافة الموظف ${empForm.name} بنجاح`, severity: 'success' });
+        setAddEmpOpen(false);
+        setEmpForm({
+          name: '',
+          role: 'دليفري',
+          branch_id: 'b1',
+          phone: '',
+          weekly_hours: '70',
+          weekly_wage: '1050',
+          shift_hours: '8',
+          shift_start_time: '12:00',
+        });
+        // Trigger attendance sync so new drivers appear immediately in delivery page dropdown
+        const isDeliveryRole = ['دليفري', 'طيار', 'driver'].some(r =>
+          empForm.role.toLowerCase().includes(r)
+        );
+        if (isDeliveryRole) {
+          fetch('/api/attendance').catch(() => {});
+        }
+        await loadData(true);
+      } else {
+        const err = await res.json();
+        setToast({ open: true, message: err.error || 'فشل إضافة الموظف', severity: 'error' });
+      }
+    } catch (e) {
+      setToast({ open: true, message: 'حدث خطأ أثناء الاتصال', severity: 'error' });
+    } finally {
+      setSubmittingEmp(false);
+    }
   };
 
-  // Comprehensive Payroll Metrics Calculation for Attendance Board
-  const calculateEmpPayrollMetrics = (emp) => {
-    const summaryObj = unpaidSummary.find(s => s.employee_id === emp.id);
-    const todayRecord = todayAttendance.find(a => a.employee_id === emp.id);
-
-    const sType = emp.salary_type || emp.salaryType || 'weekly';
-    const wRate = parseFloat(emp.weekly_rate || emp.weeklyRate || 0);
-    const bSal = parseFloat(emp.base_salary || emp.baseSalary || wRate || 0);
-    const wDays = parseInt(emp.work_days_per_week || emp.workDaysPerWeek || 6);
-    const sHours = parseFloat(emp.shift_hours || emp.shiftHours || 8.0);
-    const dRate = parseFloat(emp.daily_rate || emp.dailyRate || (sType === 'weekly' && wDays > 0 ? (wRate / wDays) : (bSal / 30)));
-    const hRate = parseFloat(emp.hourly_rate || emp.hourlyRate || (dRate > 0 && sHours > 0 ? (dRate / sHours) : 0));
-    const lateDeductionRate = parseFloat(emp.late_deduction_rate || emp.lateDeductionRate || 1.0);
-
-    // Attended Days & Hours in current cycle
-    const attendedDays = parseInt(summaryObj?.days_attended ?? emp.unpaid_days_count ?? emp.unpaidDaysCount ?? (todayRecord ? 1 : 0));
-    const workingHours = parseFloat(summaryObj?.total_working_hours ?? emp.unpaid_working_hours ?? emp.unpaidWorkingHours ?? (todayRecord ? (todayRecord.working_hours || sHours) : 0));
-    const lateHours = parseFloat(summaryObj?.total_late_hours ?? emp.unpaid_late_hours ?? emp.unpaidLateHours ?? (todayRecord ? todayRecord.late_hours : 0));
-    const lateMinutes = parseInt(summaryObj?.total_late_minutes ?? emp.unpaid_late_minutes ?? emp.unpaidLateMinutes ?? (todayRecord ? todayRecord.late_minutes : 0));
-    const overtimeHours = parseFloat(summaryObj?.total_overtime_hours ?? emp.unpaid_overtime_hours ?? emp.unpaidOvertimeHours ?? emp.overtime_hours ?? emp.overtimeHours ?? 0);
-
-    // Absent Days in standard weekly cycle
-    const absentDays = Math.max(0, wDays - attendedDays);
-
-    // Earned Wages
-    const earnedSoFar = sType === 'hourly'
-      ? (workingHours * hRate)
-      : (attendedDays > 0 ? (attendedDays * dRate) : 0);
-
-    const lateDeductionAmount = lateHours * hRate * lateDeductionRate;
-    const overtimeAmount = overtimeHours * hRate * 1.5;
-    const directBonus = parseFloat(emp.bonus || 0);
-    const directDeductions = parseFloat(emp.deductions || 0);
-    const advances = parseFloat(emp.total_advances ?? emp.advances ?? 0);
-
-    const totalBonus = overtimeAmount + directBonus;
-    const totalDeductions = lateDeductionAmount + directDeductions;
-    const netPayable = Math.max(0, (earnedSoFar > 0 ? earnedSoFar : (sType === 'weekly' ? wRate : bSal)) + totalBonus - totalDeductions - advances);
-
-    return {
-      sType,
-      wRate,
-      bSal,
-      wDays,
-      sHours,
-      dRate,
-      hRate,
-      attendedDays,
-      workingHours,
-      lateHours,
-      lateMinutes,
-      overtimeHours,
-      absentDays,
-      earnedSoFar,
-      lateDeductionAmount,
-      overtimeAmount,
-      directBonus,
-      directDeductions,
-      advances,
-      totalBonus,
-      totalDeductions,
-      netPayable
-    };
+  // Open Deduction Modal
+  const handleOpenDeduction = (emp) => {
+    setDedModal({
+      open: true,
+      employee: emp,
+      reason: 'سلفة',
+      amount: '',
+      notes: '',
+      date: new Date().toISOString().split('T')[0]
+    });
   };
 
-  // Immediate Print Attendance / Salary Slip Report
-  const handlePrintEmployeeReport = (emp) => {
-    const metrics = calculateEmpPayrollMetrics(emp);
-    const slipPayload = {
-      employee_id: emp.id,
-      employee_name: emp.name,
-      employee_role: emp.role,
-      branch_name: emp.branch_name || 'الفرع الرئيسي',
-      salary_type: metrics.sType,
-      daily_rate: metrics.dRate,
-      days_attended: metrics.attendedDays,
-      hours_worked: metrics.workingHours,
-      late_hours: metrics.lateHours,
-      late_deduction_amount: metrics.lateDeductionAmount,
-      earned_amount: metrics.earnedSoFar,
-      base_salary: metrics.bSal,
-      hourly_rate: metrics.hRate,
-      overtime_hours: metrics.overtimeHours,
-      overtime_amount: metrics.overtimeAmount,
-      deduction_hours: metrics.lateHours,
-      deduction_amount: metrics.lateDeductionAmount,
-      bonus_amount: metrics.directBonus,
-      direct_deductions: metrics.directDeductions,
-      advances_amount: metrics.advances,
-      net_paid: metrics.netPayable,
-      notes: `كشف حضور ومستحقات (حضر: ${metrics.attendedDays} يوم | غياب: ${metrics.absentDays} يوم | تأخير: ${metrics.lateMinutes} دقيقة)`,
-      payment_date: new Date()
-    };
-    printSalaryReceipt(slipPayload, companySettings);
+  // Save Deduction / Advance
+  const handleSaveDeduction = async () => {
+    const val = parseFloat(dedModal.amount);
+    if (isNaN(val) || val <= 0) {
+      setToast({ open: true, message: 'يرجى كتابة قيمة صالحة للخصم / السلفة', severity: 'warning' });
+      return;
+    }
+    setSubmittingDed(true);
+    try {
+      const res = await fetch('/api/employees/bonus-deductions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employee_id: dedModal.employee.id,
+          employee_name: dedModal.employee.name,
+          type: 'deduction',
+          category: dedModal.reason,
+          amount: val,
+          notes: dedModal.notes || dedModal.reason,
+          month: dedModal.date ? dedModal.date.substring(0, 7) : new Date().toISOString().substring(0, 7)
+        })
+      });
+
+      if (res.ok) {
+        setToast({ open: true, message: `✅ تم تسجيل ${dedModal.reason} بمبلغ ${val} ج.م لـ ${dedModal.employee.name}`, severity: 'success' });
+        setDedModal(prev => ({ ...prev, open: false }));
+        await loadData(true);
+      } else {
+        const err = await res.json();
+        setToast({ open: true, message: err.error || 'فشل حفظ الخصم', severity: 'error' });
+      }
+    } catch (err) {
+      setToast({ open: true, message: 'حدث خطأ في الاتصال', severity: 'error' });
+    } finally {
+      setSubmittingDed(false);
+    }
   };
 
-  const readyCount = activeQueue.filter(q => q.status === 'ready').length;
-  const onDeliveryCount = activeQueue.filter(q => q.status === 'on_delivery').length;
-  const clockedInEmployeesCount = employees.filter(e => e.isClockedIn || e.status === 'active').length;
-  const totalLateTodayCount = todayAttendance.filter(a => parseInt(a.late_minutes || 0) > 0).length;
+  // Print Salary Slip
+  const handlePrintSalary = (emp) => {
+    const h = employeeHoursMap.get(emp.id) || { b1Hours: 0, b2Hours: 0, totalHours: 0 };
+    const reqHours = parseFloat(emp.shift_hours ? emp.shift_hours * 6 : 70);
+    const weeklyWage = parseFloat(emp.salary || emp.hourly_rate * reqHours || 1050);
+    const hourlyRate = reqHours > 0 ? (weeklyWage / reqHours) : (parseFloat(emp.hourly_rate) || 15);
+    const earnedGross = h.totalHours * hourlyRate;
 
-  const displayEmployees = employees.filter(emp => {
-    if (!staffSearch.trim()) return true;
-    const q = staffSearch.trim().toLowerCase();
-    return (
-      (emp.name && emp.name.toLowerCase().includes(q)) ||
-      (emp.role && emp.role.toLowerCase().includes(q)) ||
-      (emp.phone && emp.phone.includes(q))
-    );
-  });
+    const empDeds = (allBonusDeductions || []).filter(d => String(d.employee_id) === String(emp.id) && d.type === 'deduction');
+    const totalDeds = empDeds.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0);
+    const netPay = earnedGross - totalDeds;
 
-  // ==========================================
-  // SIMPLIFIED VIEW FOR NON-ADMIN CASHIERS / USERS
-  // ==========================================
-  if (!isAdmin) {
-    return (
-      <Box sx={{ p: { xs: 1.5, md: 3 }, display: 'flex', flexDirection: 'column', gap: 2.5, pb: { xs: 10, md: 4 } }}>
-        {/* Simplified Header */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ width: 48, height: 48, borderRadius: '16px', bgcolor: 'rgba(16, 185, 129, 0.12)', color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <HowToReg sx={{ fontSize: 28 }} />
-            </Box>
-            <Box>
-              <Typography variant="h4" sx={{ fontWeight: 900, color: '#1A1A2E', fontSize: { xs: '1.25rem', md: '1.6rem' } }}>
-                📋 إثبات الحضور والتمام اليومي
-              </Typography>
-              <Typography variant="body2" sx={{ color: '#6B7280', fontWeight: 600 }}>
-                تسجيل حضور وانصراف موظفي وطياري الفرع بكل سهولة
-              </Typography>
-            </Box>
-          </Box>
+    printSalaryReceipt({
+      employee: emp,
+      payment_type: 'weekly',
+      total_working_hours: h.totalHours,
+      b1_hours: h.b1Hours,
+      b2_hours: h.b2Hours,
+      total_amount: earnedGross,
+      deductions_total: totalDeds,
+      net_amount: netPay,
+      deductions: empDeds,
+      notes: `مسير حساب ساعات الفروع (عزت: ${h.b1Hours} س | المسلة: ${h.b2Hours} س)`
+    });
+  };
 
-          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Button
-              variant="outlined"
-              startIcon={<Refresh />}
-              onClick={() => fetchAttendance()}
-              sx={{ borderRadius: '12px', fontWeight: 800 }}
-            >
-              تحديث
-            </Button>
+  // Filter Employees
+  const filteredEmployees = useMemo(() => {
+    return (employees || []).filter(emp => {
+      const matchSearch = !searchQuery || 
+        emp.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        emp.role?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        emp.phone?.includes(searchQuery);
 
-            <Button
-              variant="contained"
-              startIcon={<PersonAdd />}
-              onClick={() => setCheckInOpen(true)}
-              sx={{ bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' }, borderRadius: '12px', fontWeight: 900, px: 2.5 }}
-            >
-              + تسجيل حضور سريع ⚡
-            </Button>
-          </Box>
-        </Box>
+      if (!matchSearch) return false;
 
-        {/* Simplified 3 KPI Cards */}
-        <Grid container spacing={2}>
-          <Grid xs={12} sm={4}>
-            <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: '#FFFFFF' }}>
-              <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#ECFDF5', color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <HowToReg />
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary" fontWeight={700}>الموظفون الحاضرون بالشيفت</Typography>
-                <Typography variant="h6" fontWeight={900} color="#059669">{clockedInEmployeesCount} / {employees.length} موظف</Typography>
-              </Box>
-            </Paper>
-          </Grid>
+      const state = employeeStateMap.get(emp.id);
+      if (statusFilter === 'present') return state?.isWorking;
+      if (statusFilter === 'absent') return !state?.isWorking;
+      if (statusFilter === 'b1') return state?.isWorking && state?.activeBranch === 'b1';
+      if (statusFilter === 'b2') return state?.isWorking && state?.activeBranch === 'b2';
+      return true;
+    });
+  }, [employees, searchQuery, statusFilter, employeeStateMap]);
 
-          <Grid xs={12} sm={4}>
-            <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: '#FFFFFF' }}>
-              <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#EFF6FF', color: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <DeliveryDining />
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary" fontWeight={700}>الطيارون المتواجدون بالدور</Typography>
-                <Typography variant="h6" fontWeight={900} color="#2563EB">{activeQueue.length} طيار</Typography>
-              </Box>
-            </Paper>
-          </Grid>
+  // Overall Statistics
+  const totalEmployeesCount = employees.length;
+  const workingCount = Array.from(employeeStateMap.values()).filter(s => s.isWorking).length;
+  const b1WorkingCount = Array.from(employeeStateMap.values()).filter(s => s.isWorking && s.activeBranch === 'b1').length;
+  const b2WorkingCount = Array.from(employeeStateMap.values()).filter(s => s.isWorking && s.activeBranch === 'b2').length;
 
-          <Grid xs={12} sm={4}>
-            <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: '#FFFFFF' }}>
-              <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#FEF2F2', color: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Warning />
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary" fontWeight={700}>تأخيرات مسجلة اليوم</Typography>
-                <Typography variant="h6" fontWeight={900} color="#DC2626">{totalLateTodayCount} موظف متأخر</Typography>
-              </Box>
-            </Paper>
-          </Grid>
-        </Grid>
-
-        {/* Main Tabs Navigation */}
-        <Paper elevation={1} sx={{ borderRadius: '16px', border: '1px solid #E2E8F0', bgcolor: '#FFF' }}>
-          <Tabs
-            value={tabValue}
-            onChange={(e, val) => setTabValue(val)}
-            indicatorColor="primary"
-            textColor="primary"
-            sx={{
-              px: 2,
-              minHeight: 50,
-              '& .MuiTab-root': {
-                fontWeight: 800,
-                fontSize: '0.95rem',
-                minHeight: 50
-              }
-            }}
-          >
-            <Tab icon={<HowToReg sx={{ fontSize: 20 }} />} iconPosition="start" label="👥 كشف حضور وتمامات الموظفين والطيارين" />
-            <Tab icon={<SwapVert sx={{ fontSize: 20 }} />} iconPosition="start" label={`🛵 طابور دور الطيارين (${activeQueue.length})`} />
-            <Tab icon={<History sx={{ fontSize: 20 }} />} iconPosition="start" label="🕒 سجل حركات اليوم" />
-          </Tabs>
-        </Paper>
-
-        {/* TAB 0: SIMPLIFIED CHECK-IN / CHECK-OUT TABLE */}
-        {tabValue === 0 && (
-          <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1px solid #E5E7EB', bgcolor: '#FFF' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1.5 }}>
-              <TextField
-                size="small"
-                placeholder="🔍 ابحث بالاسم أو الوظيفة أو الهاتف..."
-                value={staffSearch}
-                onChange={(e) => setStaffSearch(e.target.value)}
-                sx={{ width: { xs: '100%', sm: 320 }, '& .MuiOutlinedInput-root': { borderRadius: '12px', bgcolor: '#F8FAFC' } }}
-              />
-              <Typography variant="caption" color="text.secondary" fontWeight={700}>
-                إجمالي موظفي الفرع: <b>{displayEmployees.length}</b>
-              </Typography>
-            </Box>
-
-            {loading ? (
-              <Box sx={{ py: 4, textAlign: 'center' }}><CircularProgress size={32} /></Box>
-            ) : displayEmployees.length === 0 ? (
-              <Alert severity="info" sx={{ borderRadius: '12px', fontWeight: 700 }}>
-                لا يوجد موظفين مسجلين مطابقين للبحث.
-              </Alert>
-            ) : (
-              <TableContainer>
-                <Table size="small">
-                  <TableHead sx={{ bgcolor: '#F8FAFC' }}>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 900 }}>الموظف والوظيفة</TableCell>
-                      <TableCell sx={{ fontWeight: 900 }}>ميعاد الشيفت</TableCell>
-                      <TableCell sx={{ fontWeight: 900 }}>حالة اليوم والتمام</TableCell>
-                      <TableCell sx={{ fontWeight: 900 }} align="center">إجراء التمام (حضور / انصراف)</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {displayEmployees.map((emp) => {
-                      const todayRecord = todayAttendance.find(a => a.employee_id === emp.id);
-                      const isClockedIn = emp.isClockedIn || emp.status === 'active';
-                      const isDriver = emp.role?.includes('طيار') || emp.role?.includes('دليفري') || emp.role?.toLowerCase()?.includes('driver');
-
-                      let lateDisplay = null;
-                      if (todayRecord) {
-                        const lateM = parseInt(todayRecord.late_minutes || 0);
-                        if (lateM > 0) {
-                          lateDisplay = (
-                            <Chip
-                              icon={<Warning sx={{ fontSize: '14px !important' }} />}
-                              label={`تأخير: ${lateM} دقيقة`}
-                              size="small"
-                              sx={{ bgcolor: '#FEF2F2', color: '#DC2626', fontWeight: 900, height: 22, fontSize: '0.72rem' }}
-                            />
-                          );
-                        } else {
-                          lateDisplay = (
-                            <Chip
-                              icon={<CheckCircle sx={{ fontSize: '14px !important' }} />}
-                              label="في الميعاد 🟢"
-                              size="small"
-                              sx={{ bgcolor: '#ECFDF5', color: '#059669', fontWeight: 900, height: 22, fontSize: '0.72rem' }}
-                            />
-                          );
-                        }
-                      }
-
-                      const checkInFormatted = todayRecord?.check_in_time
-                        ? new Date(todayRecord.check_in_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-                        : (emp.currentCheckInTime ? new Date(emp.currentCheckInTime).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '-');
-
-                      return (
-                        <TableRow key={emp.id} hover>
-                          {/* 1. Employee Info */}
-                          <TableCell sx={{ fontWeight: 800 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Box sx={{ width: 38, height: 38, borderRadius: '10px', bgcolor: isClockedIn ? '#D1FAE5' : '#F1F5F9', color: isClockedIn ? '#059669' : '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.2rem' }}>
-                                {isDriver ? '🛵' : '👤'}
-                              </Box>
-                              <Box>
-                                <Typography variant="body2" fontWeight={800} color="#1E293B">
-                                  {emp.name}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {emp.role || 'موظف'} {emp.phone ? `| 📞 ${emp.phone}` : ''}
-                                </Typography>
-                              </Box>
-                            </Box>
-                          </TableCell>
-
-                          {/* 2. Shift Info */}
-                          <TableCell>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Schedule sx={{ fontSize: 15, color: '#3B82F6' }} />
-                              <Typography variant="body2" fontWeight={800}>
-                                {emp.shift_hours || 8} س (ميعاد {emp.shift_start_time || emp.shiftStartTime || '12:00'})
-                              </Typography>
-                            </Box>
-                          </TableCell>
-
-                          {/* 3. Status Today */}
-                          <TableCell>
-                            {isClockedIn ? (
-                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                  <Chip label="حاضر بالشيفت 🟢" size="small" color="success" sx={{ fontWeight: 800, height: 22, fontSize: '0.72rem' }} />
-                                  <Typography variant="caption" fontWeight={800}>
-                                    دخول: {checkInFormatted}
-                                  </Typography>
-                                </Box>
-                                {lateDisplay}
-                              </Box>
-                            ) : todayRecord ? (
-                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
-                                <Chip label="انتهى الشيفت / منصرف" size="small" variant="outlined" sx={{ fontWeight: 700, height: 22, fontSize: '0.72rem' }} />
-                                {lateDisplay}
-                              </Box>
-                            ) : (
-                              <Chip label="⚪ لم يحضر اليوم بعد" size="small" sx={{ bgcolor: '#F1F5F9', color: '#64748B', fontWeight: 700, height: 22, fontSize: '0.72rem' }} />
-                            )}
-                          </TableCell>
-
-                          {/* 4. Action Button */}
-                          <TableCell align="center">
-                            {isClockedIn ? (
-                              <Button
-                                size="medium"
-                                variant="contained"
-                                color="error"
-                                startIcon={<Logout />}
-                                onClick={() => handleCheckOut(todayRecord?.id, emp.id, emp.name)}
-                                sx={{ borderRadius: '10px', fontWeight: 900, px: 2.5, py: 0.6, fontSize: '0.85rem' }}
-                              >
-                                تسجيل انصراف
-                              </Button>
-                            ) : (
-                              <Button
-                                size="medium"
-                                variant="contained"
-                                color="success"
-                                startIcon={<PlayArrow />}
-                                onClick={() => handleQuickCheckIn(emp.id, emp.name, isDriver)}
-                                sx={{ borderRadius: '10px', fontWeight: 900, px: 2.5, py: 0.6, fontSize: '0.85rem', bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' } }}
-                              >
-                                إثبات تمام (حضور)
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-          </Paper>
-        )}
-
-        {/* TAB 1: DRIVER QUEUE SECTION */}
-        {tabValue === 1 && (
-          <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1.5px solid #E5E7EB' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <SwapVert sx={{ color: '#10B981' }} />
-                <Typography variant="h6" fontWeight={800} color="#1A1A2E">
-                  📋 طابور دور الطيارين (مرتب تلقائياً بالدقيقة)
-                </Typography>
-              </Box>
-              <Chip label="الترتيب تلقائي بالدقيقة" size="small" variant="outlined" sx={{ fontWeight: 700 }} />
-            </Box>
-
-            {loading ? (
-              <Box sx={{ py: 4, textAlign: 'center' }}><CircularProgress size={32} /></Box>
-            ) : activeQueue.length === 0 ? (
-              <Alert severity="info" sx={{ borderRadius: '12px', fontWeight: 700 }}>
-                لا يوجد طيارين مسجلين بالسيستم حالياً. اضغط على زر "تسجيل حضور سريع" لبدء طابور التوصيل.
-              </Alert>
-            ) : (
-              <Grid container spacing={2}>
-                {(() => {
-                  const readyQueue = (activeQueue || []).filter(q => q.status === 'ready');
-
-                  return activeQueue.map((item) => {
-                    const isOnDelivery = item.status === 'on_delivery';
-                    const readyIndex = readyQueue.findIndex(q => q.id === item.id);
-                    const isTopReady = !isOnDelivery && readyIndex === 0;
-
-                    let badgeLabel = `🟢 الدور ${readyIndex + 1}`;
-                    let badgeStyle = { bgcolor: '#E5E7EB', color: '#374151' };
-                    let cardStyle = { borderColor: '#E5E7EB', bgcolor: '#FFFFFF' };
-
-                    if (isOnDelivery) {
-                      badgeLabel = '🛵 في مشوار توصيل (خارج بالطلب)';
-                      badgeStyle = { bgcolor: '#3B82F6', color: '#FFFFFF' };
-                      cardStyle = { borderColor: '#3B82F6', bgcolor: '#EFF6FF' };
-                    } else if (isTopReady) {
-                      badgeLabel = '👑 الدور 1 (التالي للخروج)';
-                      badgeStyle = { bgcolor: '#10B981', color: '#FFFFFF' };
-                      cardStyle = { borderColor: '#10B981', bgcolor: '#F0FDF4' };
-                    }
-
-                    const formattedTime = item.check_in_time
-                      ? new Date(item.check_in_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-                      : '-';
-
-                    return (
-                      <Grid xs={12} sm={6} md={4} key={item.id}>
-                        <Card
-                          elevation={0}
-                          sx={{
-                            borderRadius: '16px',
-                            border: '2px solid',
-                            ...cardStyle,
-                            boxShadow: isTopReady ? '0 4px 14px rgba(16, 185, 129, 0.2)' : (isOnDelivery ? '0 4px 14px rgba(59, 130, 246, 0.15)' : 'none'),
-                            transition: 'all 0.2s ease',
-                          }}
-                        >
-                          <CardContent sx={{ p: 2 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-                              <Chip
-                                label={badgeLabel}
-                                size="small"
-                                sx={{
-                                  ...badgeStyle,
-                                  fontWeight: 900,
-                                  fontSize: '0.8rem'
-                                }}
-                              />
-                              <Typography variant="caption" sx={{ color: '#6B7280', fontWeight: 700 }}>
-                                الفرع: {item.branch_name || 'الرئيسي'}
-                              </Typography>
-                            </Box>
-
-                            <Typography variant="h6" fontWeight={800} sx={{ color: '#1A1A2E', mb: 0.5 }}>
-                              {item.driver_name}
-                            </Typography>
-
-                            <Typography variant="body2" sx={{ color: '#6B7280', display: 'flex', alignItems: 'center', gap: 0.5, mb: 1.5 }}>
-                              <AccessTime sx={{ fontSize: 16 }} />
-                              <span>وقت التمام: {formattedTime}</span>
-                            </Typography>
-
-                            <Box sx={{ mb: 2 }}>
-                              {item.status === 'on_delivery' ? (
-                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8 }}>
-                                  <Chip
-                                    icon={<DeliveryDining />}
-                                    label="🛵 خارج في أوردر توصيل"
-                                    color="warning"
-                                    size="small"
-                                    sx={{ fontWeight: 800 }}
-                                  />
-                                  {item.check_in_time && (
-                                    <DeliveryTimerBadge
-                                      dispatchedAt={item.check_in_time}
-                                      targetMinutes={deliveryTimerMinutes}
-                                    />
-                                  )}
-                                </Box>
-                              ) : (
-                                <Chip
-                                  icon={<CheckCircle />}
-                                  label="🟢 جاهز للخروج بالطلب"
-                                  color="success"
-                                  variant="outlined"
-                                  size="small"
-                                  sx={{ fontWeight: 800 }}
-                                />
-                              )}
-                            </Box>
-
-                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', pt: 1, borderTop: '1px solid #F3F4F6' }}>
-                              <Button
-                                size="small"
-                                color="error"
-                                startIcon={<Logout />}
-                                onClick={() => handleCheckOut(item.id, item.driver_id, item.driver_name)}
-                                sx={{ fontWeight: 700 }}
-                              >
-                                تسجيل انصراف
-                              </Button>
-                            </Box>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                    );
-                  });
-                })()}
-              </Grid>
-            )}
-          </Paper>
-        )}
-
-        {/* TAB 2: RECENT LOGS */}
-        {tabValue === 2 && (
-          <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1.5px solid #E5E7EB', bgcolor: '#FFF' }}>
-            <Typography variant="h6" fontWeight={900} color="#1A1A2E" sx={{ mb: 2 }}>
-              📜 سجل حركات اليوم والتمامات
-            </Typography>
-
-            <TableContainer>
-              <Table size="small">
-                <TableHead sx={{ bgcolor: '#F8FAFC' }}>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 900 }}>التاريخ</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>اسم الموظف</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>الوظيفة والفرع</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>وقت الحضور</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>وقت الانصراف</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>ساعات العمل</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>التأخير</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {recentLogs.map((log) => (
-                    <TableRow key={log.id} hover>
-                      <TableCell sx={{ fontWeight: 700 }}>{log.date}</TableCell>
-                      <TableCell sx={{ fontWeight: 800 }}>{log.employee_name}</TableCell>
-                      <TableCell>{log.role} ({log.branch_name || 'الرئيسي'})</TableCell>
-                      <TableCell sx={{ color: '#059669', fontWeight: 800 }}>
-                        {log.check_in_time ? new Date(log.check_in_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '-'}
-                      </TableCell>
-                      <TableCell sx={{ color: '#DC2626', fontWeight: 800 }}>
-                        {log.check_out_time ? new Date(log.check_out_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : (log.status === 'active' ? '🟢 حاضر بالشيفت' : '-')}
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>{log.working_hours || '-'} س</TableCell>
-                      <TableCell sx={{ color: parseInt(log.late_minutes || 0) > 0 ? '#DC2626' : '#6B7280', fontWeight: 700 }}>
-                        {parseInt(log.late_minutes || 0) > 0 ? `تأخير ${log.late_minutes} د` : 'في الميعاد 🟢'}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        )}
-
-        {/* Quick Check-in Dialog */}
-        <Dialog open={checkInOpen} onClose={() => setCheckInOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '20px', p: 1 } }}>
-          <DialogTitle sx={{ fontWeight: 900, pb: 1 }}>⚡ تسجيل حضور وتمام سريع</DialogTitle>
-          <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '12px !important' }}>
-            <FormControl fullWidth size="small">
-              <InputLabel>اختر الموظف / الطيار</InputLabel>
-              <Select
-                value={selectedStaffId}
-                label="اختر الموظف / الطيار"
-                onChange={(e) => setSelectedStaffId(e.target.value)}
-              >
-                {employees.map(e => (
-                  <MenuItem key={e.id} value={e.id}>
-                    {e.role?.includes('طيار') ? '🛵' : '👤'} {e.name} - ({e.role || 'موظف'})
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <TextField
-              size="small"
-              type="time"
-              label="وقت الحضور الفعلي"
-              value={checkInTimeInput}
-              onChange={(e) => setCheckInTimeInput(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-              helperText="اتركه فارغاً لاعتماد الوقت الحالي تلقائياً"
-            />
-          </DialogContent>
-          <DialogActions sx={{ px: 3, pb: 2 }}>
-            <Button onClick={() => setCheckInOpen(false)} sx={{ fontWeight: 700 }}>إلغاء</Button>
-            <Button
-              variant="contained"
-              color="success"
-              onClick={handleCustomTimeCheckIn}
-              disabled={!selectedStaffId || submitting}
-              sx={{ borderRadius: '10px', fontWeight: 900, px: 3 }}
-            >
-              {submitting ? <CircularProgress size={20} /> : 'تسجيل حضور 🟢'}
-            </Button>
-          </DialogActions>
-        </Dialog>
-      </Box>
-    );
-  }
-
-  // ==========================================
-  // FULL HR VIEW FOR ADMIN
-  // ==========================================
   return (
-    <Box sx={{ p: { xs: 1.5, md: 3 }, display: 'flex', flexDirection: 'column', gap: 2.5, pb: { xs: 10, md: 4 } }}>
-      {/* Page Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{ width: 48, height: 48, borderRadius: '16px', bgcolor: 'rgba(16, 185, 129, 0.12)', color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <HowToReg sx={{ fontSize: 28 }} />
+    <Box sx={{ minHeight: '100vh', bgcolor: '#F4F5F7', color: '#171717', pb: 10 }}>
+      {/* Top Header */}
+      <Box sx={{ bgcolor: '#161616', color: '#FFF', px: 2.5, py: 2, borderBottom: '3px solid #E65100' }}>
+        <Box sx={{ maxWidth: 880, mx: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Button
+              onClick={() => router.push('/')}
+              sx={{ color: '#FFF', bgcolor: 'rgba(255,255,255,0.1)', minWidth: 38, height: 38, borderRadius: '10px', p: 0 }}
+            >
+              <ArrowBack />
+            </Button>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 900, fontSize: { xs: '1.1rem', sm: '1.3rem' } }}>
+                🥙 حواوشي البرادعي
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#94A3B8', fontWeight: 700, fontSize: '0.75rem' }}>
+                المسلة • عزت • نظام التمامات والبصمة السريعة
+              </Typography>
+            </Box>
           </Box>
-          <Box>
-            <Typography variant="h4" sx={{ fontWeight: 900, color: '#1A1A2E', fontSize: { xs: '1.3rem', md: '1.8rem' } }}>
-              تمامات الموظفين والطيارين وحساب الساعات والتأخير
-            </Typography>
-            <Typography variant="body2" sx={{ color: '#6B7280', fontWeight: 600 }}>
-              تسجيل التمامات، رصد ساعات الحضور والتأخير تلقائياً، والربط المباشر مع حساب الرواتب الأسبوعية
-            </Typography>
+
+          {/* Live Clock Badge */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Chip
+              icon={<AccessTime sx={{ color: '#FCD34D !important', fontSize: 16 }} />}
+              label={currentTime.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+              sx={{ bgcolor: '#262626', color: '#FFF', fontWeight: 800, fontSize: '0.82rem', border: '1px solid #404040' }}
+            />
+            <IconButton onClick={() => loadData(false)} sx={{ color: '#FFF', bgcolor: '#262626', '&:hover': { bgcolor: '#333' } }}>
+              <Refresh fontSize="small" />
+            </IconButton>
           </Box>
-        </Box>
-
-        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-          {isAdmin && (
-            <FormControl size="small" sx={{ minWidth: 160 }}>
-              <Select
-                value={selectedBranchId}
-                onChange={(e) => setSelectedBranchId(e.target.value)}
-                sx={{ borderRadius: '12px', bgcolor: '#FFF', fontWeight: 800 }}
-              >
-                <MenuItem value="all">🏢 كافـة الفـروع</MenuItem>
-                {branches.map((b) => (
-                  <MenuItem key={b.id} value={b.id}>🏢 {b.name}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
-
-          <Button
-            variant="outlined"
-            startIcon={<Refresh />}
-            onClick={() => fetchAttendance()}
-            sx={{ borderRadius: '12px', fontWeight: 800 }}
-          >
-            تحديث
-          </Button>
-
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<EditCalendar />}
-            onClick={() => handleOpenManualModal()}
-            sx={{ borderRadius: '12px', fontWeight: 800, px: 2, bgcolor: '#2563EB' }}
-          >
-            + تسجيل تمام يدوي لـ HR
-          </Button>
-
-          <Button
-            variant="contained"
-            startIcon={<PersonAdd />}
-            onClick={() => setCheckInOpen(true)}
-            sx={{ bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' }, borderRadius: '12px', fontWeight: 900, px: 2.5 }}
-          >
-            إثبات تمام موظف / طيار (حضور)
-          </Button>
-
-          <Button
-            variant="contained"
-            color="warning"
-            startIcon={<AccountBalanceWallet />}
-            onClick={() => router.push('/salaries')}
-            sx={{ borderRadius: '12px', fontWeight: 900, px: 2, bgcolor: '#F59E0B', '&:hover': { bgcolor: '#D97706' } }}
-          >
-            💰 شاشة القبض والمرتبات
-          </Button>
         </Box>
       </Box>
 
-      {/* KPI Cards */}
-      <Grid container spacing={2}>
-        <Grid xs={6} sm={3}>
-          <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: '#FFFFFF' }}>
-            <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#ECFDF5', color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <HowToReg />
-            </Box>
-            <Box>
-              <Typography variant="caption" color="text.secondary" fontWeight={700}>الموظفين الحاضرين بالسيستم</Typography>
-              <Typography variant="h6" fontWeight={900} color="#059669">{clockedInEmployeesCount} / {employees.length} موظف</Typography>
-            </Box>
-          </Paper>
-        </Grid>
-
-        <Grid xs={6} sm={3}>
-          <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: '#FFFFFF' }}>
-            <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#EFF6FF', color: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <DeliveryDining />
-            </Box>
-            <Box>
-              <Typography variant="caption" color="text.secondary" fontWeight={700}>الطيارين المتواجدين بالدور</Typography>
-              <Typography variant="h6" fontWeight={900} color="#2563EB">{activeQueue.length} طيار</Typography>
-            </Box>
-          </Paper>
-        </Grid>
-
-        <Grid xs={6} sm={3}>
-          <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: '#FFFFFF' }}>
-            <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#FEF2F2', color: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Warning />
-            </Box>
-            <Box>
-              <Typography variant="caption" color="text.secondary" fontWeight={700}>تأخيرات مسجلة اليوم</Typography>
-              <Typography variant="h6" fontWeight={900} color="#DC2626">{totalLateTodayCount} موظف متأخر</Typography>
-            </Box>
-          </Paper>
-        </Grid>
-
-        <Grid xs={6} sm={3}>
-          <Paper sx={{ p: 2, borderRadius: '16px', border: '1.5px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: '#FFFFFF' }}>
-            <Box sx={{ width: 44, height: 44, borderRadius: '12px', bgcolor: '#FFFBEB', color: '#F59E0B', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <AccessTime />
-            </Box>
-            <Box>
-              <Typography variant="caption" color="text.secondary" fontWeight={700}>نظام المرتب السائد</Typography>
-              <Typography variant="h6" fontWeight={900} color="#D97706">🗓️ أسبوعي (Weekly)</Typography>
-            </Box>
-          </Paper>
-        </Grid>
-      </Grid>
-
-      {/* Main Tabs Navigation */}
-      <Paper elevation={1} sx={{ borderRadius: '16px', border: '1px solid #E2E8F0', bgcolor: '#FFF' }}>
-        <Tabs
-          value={tabValue}
-          onChange={(e, val) => setTabValue(val)}
-          indicatorColor="primary"
-          textColor="primary"
+      {/* Main Container */}
+      <Box sx={{ maxWidth: 880, mx: 'auto', p: { xs: 1.5, sm: 2 } }}>
+        
+        {/* Navigation Tabs (3 Main Sections) */}
+        <Paper
+          elevation={0}
           sx={{
-            px: 2,
-            minHeight: 52,
-            '& .MuiTab-root': {
-              fontWeight: 800,
-              fontSize: '0.95rem',
-              minHeight: 52
-            }
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 1,
+            p: 0.8,
+            mb: 2,
+            borderRadius: '14px',
+            bgcolor: '#FFF',
+            border: '1px solid #E2E8F0'
           }}
         >
-          <Tab icon={<HowToReg sx={{ fontSize: 20 }} />} iconPosition="start" label="👥 تمام وسجل حضور الموظفين العام والتأخيرات" />
-          <Tab icon={<SwapVert sx={{ fontSize: 20 }} />} iconPosition="start" label={`🛵 طابور دور الطيارين (${activeQueue.length})`} />
-          <Tab icon={<History sx={{ fontSize: 20 }} />} iconPosition="start" label="📜 سجل التمامات السابقة وتعديلات HR" />
-        </Tabs>
-      </Paper>
+          <Button
+            onClick={() => setActiveTab(0)}
+            sx={{
+              py: 1.3,
+              borderRadius: '10px',
+              fontWeight: 900,
+              fontSize: { xs: '0.85rem', sm: '1rem' },
+              bgcolor: activeTab === 0 ? '#171717' : 'transparent',
+              color: activeTab === 0 ? '#FFF' : '#4B5563',
+              '&:hover': { bgcolor: activeTab === 0 ? '#262626' : '#F3F4F6' }
+            }}
+          >
+            👷 الحضور ({workingCount})
+          </Button>
 
-      {/* TAB 0: ALL EMPLOYEES ATTENDANCE & REAL-TIME TRACKING */}
-      {tabValue === 0 && (
-        <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1px solid #E5E7EB', bgcolor: '#FFF' }}>
-          {/* Sunday-to-Sunday Weekly Cycle Progress Banner */}
-          {(() => {
-            const d = new Date();
-            const day = d.getDay(); // 0: Sunday, ..., 6: Saturday
-            const sunday = new Date(d);
-            sunday.setDate(d.getDate() - day);
-            const saturday = new Date(sunday);
-            saturday.setDate(sunday.getDate() + 6);
-            const formatDate = (dt) => dt.toISOString().split('T')[0];
-            const isSunday = day === 0;
-            const daysNames = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+          <Button
+            onClick={() => setActiveTab(1)}
+            sx={{
+              py: 1.3,
+              borderRadius: '10px',
+              fontWeight: 900,
+              fontSize: { xs: '0.85rem', sm: '1rem' },
+              bgcolor: activeTab === 1 ? '#171717' : 'transparent',
+              color: activeTab === 1 ? '#FFF' : '#4B5563',
+              '&:hover': { bgcolor: activeTab === 1 ? '#262626' : '#F3F4F6' }
+            }}
+          >
+            👥 الموظفين ({totalEmployeesCount})
+          </Button>
 
-            return (
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 2,
-                  mb: 3,
-                  borderRadius: '16px',
-                  bgcolor: isSunday ? '#ECFDF5' : '#F0FDF4',
-                  border: isSunday ? '2px solid #10B981' : '1.5px solid #86EFAC'
-                }}
-              >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 1.5 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                    <Box sx={{ width: 40, height: 40, borderRadius: '10px', bgcolor: isSunday ? '#10B981' : '#059669', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Schedule />
-                    </Box>
-                    <Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="subtitle1" fontWeight={900} color="#166534">
-                          🗓️ دورة الحضور الأسبوعية الرسمية (من الأحد إلى الأحد)
-                        </Typography>
-                        {isSunday && (
-                          <Chip label="🔔 اليوم الأحد: موعد تقفيل الأسبوع وصرف المرتبات!" color="success" size="small" sx={{ fontWeight: 900 }} />
-                        )}
-                      </Box>
-                      <Typography variant="caption" color="text.secondary" fontWeight={700}>
-                        الأسبوع الحالي: من <b>الأحد {formatDate(sunday)}</b> إلى <b>السبت {formatDate(saturday)}</b>
-                      </Typography>
-                    </Box>
-                  </Box>
-
-                  <Button
-                    variant="contained"
-                    size="small"
-                    color="success"
-                    startIcon={<AccountBalanceWallet />}
-                    onClick={() => router.push('/salaries')}
-                    sx={{ borderRadius: '10px', fontWeight: 900, px: 2, py: 0.8, bgcolor: '#059669', '&:hover': { bgcolor: '#047857' } }}
-                  >
-                    🔄 تقفيل الأسبوع وصرف المرتبات
-                  </Button>
-                </Box>
-
-                <Box sx={{ display: 'flex', gap: 0.8, overflowX: 'auto', py: 0.5 }}>
-                  {daysNames.map((name, idx) => {
-                    const itemDt = new Date(sunday);
-                    itemDt.setDate(sunday.getDate() + idx);
-                    const isToday = idx === day;
-                    const isPassed = itemDt <= d;
-                    return (
-                      <Box
-                        key={idx}
-                        sx={{
-                          flex: 1,
-                          minWidth: 75,
-                          p: 0.8,
-                          borderRadius: '8px',
-                          textAlign: 'center',
-                          bgcolor: isToday ? '#10B981' : (isPassed ? '#E2E8F0' : '#FFFFFF'),
-                          color: isToday ? '#FFFFFF' : '#334155',
-                          border: isToday ? '2px solid #047857' : '1px solid #CBD5E1'
-                        }}
-                      >
-                        <Typography variant="caption" fontWeight={900} display="block" sx={{ fontSize: '0.75rem' }}>
-                          {name} {isToday ? '📍' : ''}
-                        </Typography>
-                        <Typography variant="caption" sx={{ fontSize: '0.65rem', opacity: 0.85 }}>
-                          {formatDate(itemDt).slice(5)}
-                        </Typography>
-                      </Box>
-                    );
-                  })}
-                </Box>
-              </Paper>
-            );
-          })()}
-
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-            <Box>
-              <Typography variant="h6" fontWeight={900} color="#1A1A2E">
-                👥 تمام الحضور والانصراف وسجل أيام الأسبوع الجارية
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                يوضح ميعاد الشيفت المقرَّر، وقت إثبات التمام الفعلي، التأخيرات المحتسبة بالدقيقة، وإجمالي الأيام والساعات المحضورة بالدورة الأسبوعية الجارية
-              </Typography>
-            </Box>
-            <Chip label="دورة أسبوعية من الأحد للأحد" color="primary" size="small" variant="outlined" sx={{ fontWeight: 800 }} />
-          </Box>
-
-          {loading ? (
-            <Box sx={{ py: 4, textAlign: 'center' }}><CircularProgress size={32} /></Box>
-          ) : employees.length === 0 ? (
-            <Alert severity="info" sx={{ borderRadius: '12px', fontWeight: 700 }}>
-              لا يوجد موظفين مسجلين حالياً. يمكنك إضافة الموظفين من شاشة المرتبات.
-            </Alert>
-          ) : (
-            <TableContainer>
-              <Table size="small">
-                <TableHead sx={{ bgcolor: '#F8FAFC' }}>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 900 }}>الموظف والفرع</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>نظام الراتب واليومية</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>ميعاد الشيفت وتمام اليوم</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>أيام وساعات الحضور المكتسبة</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>الغياب والتأخيرات والخصومات</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }}>المرتب الصافي الجاهز للصرف</TableCell>
-                    <TableCell sx={{ fontWeight: 900 }} align="center">إجراءات التمام والطباعة</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {employees.map((emp) => {
-                    const metrics = calculateEmpPayrollMetrics(emp);
-                    const todayRecord = todayAttendance.find(a => a.employee_id === emp.id);
-                    const isClockedIn = emp.isClockedIn || emp.status === 'active';
-                    const isDriver = emp.role?.includes('طيار') || emp.role?.includes('دليفري') || emp.role?.toLowerCase()?.includes('driver');
-
-                    // Lateness display for today
-                    let lateDisplay = null;
-                    if (todayRecord) {
-                      const lateM = parseInt(todayRecord.late_minutes || 0);
-                      const lateH = parseFloat(todayRecord.late_hours || 0);
-                      if (lateM > 0) {
-                        lateDisplay = (
-                          <Chip
-                            icon={<Warning sx={{ fontSize: '14px !important' }} />}
-                            label={`تأخير اليوم: ${lateM} دقيقة (-${lateH} س)`}
-                            size="small"
-                            sx={{ bgcolor: '#FEF2F2', color: '#DC2626', fontWeight: 900, height: 22, fontSize: '0.72rem' }}
-                          />
-                        );
-                      } else {
-                        lateDisplay = (
-                          <Chip
-                            icon={<CheckCircle sx={{ fontSize: '14px !important' }} />}
-                            label="في الميعاد 🟢"
-                            size="small"
-                            sx={{ bgcolor: '#ECFDF5', color: '#059669', fontWeight: 900, height: 22, fontSize: '0.72rem' }}
-                          />
-                        );
-                      }
-                    }
-
-                    const checkInFormatted = todayRecord?.check_in_time
-                      ? new Date(todayRecord.check_in_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-                      : (emp.currentCheckInTime ? new Date(emp.currentCheckInTime).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '-');
-
-                    return (
-                      <TableRow key={emp.id} hover>
-                        {/* 1. Employee Info */}
-                        <TableCell sx={{ fontWeight: 800 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Box sx={{ width: 34, height: 34, borderRadius: '10px', bgcolor: isClockedIn ? '#D1FAE5' : '#F1F5F9', color: isClockedIn ? '#059669' : '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>
-                              {isDriver ? '🛵' : '👤'}
-                            </Box>
-                            <Box>
-                              <Typography variant="body2" fontWeight={800} color="#1E293B">
-                                {emp.name}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                🏢 {emp.branch_name || 'الفرع الرئيسي'} {emp.phone ? `| 📞 ${emp.phone}` : ''}
-                              </Typography>
-                            </Box>
-                          </Box>
-                        </TableCell>
-
-                        {/* 2. Salary System & Daily Rate */}
-                        <TableCell>
-                          <Typography variant="body2" fontWeight={700}>
-                            {emp.role}
-                          </Typography>
-                          <Box sx={{ display: 'flex', gap: 0.5, mt: 0.3, alignItems: 'center', flexWrap: 'wrap' }}>
-                            <Chip
-                              label={metrics.sType === 'weekly' ? '🗓️ أسبوعي' : (metrics.sType === 'hourly' ? '⏱️ بالساعة' : '📅 شهري')}
-                              size="small"
-                              sx={{ height: 20, fontSize: '0.7rem', fontWeight: 800, bgcolor: metrics.sType === 'weekly' ? '#FEF3C7' : '#EFF6FF', color: metrics.sType === 'weekly' ? '#92400E' : '#1E40AF' }}
-                            />
-                            {metrics.sType === 'weekly' && metrics.wRate > 0 && (
-                              <Typography variant="caption" color="text.secondary" fontWeight="bold">
-                                {metrics.wRate} ج.م/أسبوع
-                              </Typography>
-                            )}
-                          </Box>
-                          {metrics.dRate > 0 && (
-                            <Typography variant="caption" color="#0369A1" fontWeight="bold" display="block">
-                              اليومية: {metrics.dRate.toFixed(1)} ج ({metrics.hRate.toFixed(1)} ج/س)
-                            </Typography>
-                          )}
-                        </TableCell>
-
-                        {/* 3. Official Shift & Today Check-in */}
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <Schedule sx={{ fontSize: 15, color: '#3B82F6' }} />
-                            <Typography variant="body2" fontWeight={800}>
-                              {metrics.sHours} س (ميعاد {emp.shift_start_time || emp.shiftStartTime || '12:00'})
-                            </Typography>
-                          </Box>
-                          {isClockedIn ? (
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3, mt: 0.5 }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <Chip label="حاضر بالشيفت" size="small" color="success" sx={{ fontWeight: 800, height: 20, fontSize: '0.68rem' }} />
-                                <Typography variant="caption" fontWeight={800}>
-                                  {checkInFormatted}
-                                </Typography>
-                              </Box>
-                              {lateDisplay}
-                            </Box>
-                          ) : todayRecord ? (
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3, mt: 0.5 }}>
-                              <Chip label="انتهى الشيفت / منصرف" size="small" variant="outlined" sx={{ fontWeight: 700, height: 20, fontSize: '0.68rem' }} />
-                              {lateDisplay}
-                            </Box>
-                          ) : (
-                            <Chip label="⚪ لم يحضر اليوم بعد" size="small" sx={{ bgcolor: '#F1F5F9', color: '#64748B', fontWeight: 700, mt: 0.5, height: 20, fontSize: '0.68rem' }} />
-                          )}
-                        </TableCell>
-
-                        {/* 4. Attended Days & Hours in Current Cycle */}
-                        <TableCell>
-                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
-                            <Box sx={{ display: 'flex', gap: 0.6, alignItems: 'center' }}>
-                              <Chip
-                                label={`🗓️ حضر: ${metrics.attendedDays} يوم`}
-                                size="small"
-                                sx={{ bgcolor: '#EFF6FF', color: '#1D4ED8', fontWeight: 900, height: 22 }}
-                              />
-                              <Chip
-                                label={`⏱️ ${metrics.workingHours.toFixed(1)} س`}
-                                size="small"
-                                sx={{ bgcolor: '#F0FDF4', color: '#15803D', fontWeight: 900, height: 22 }}
-                              />
-                            </Box>
-                            <Typography variant="caption" color="text.secondary" fontWeight="bold">
-                              المستحق للأيام: <strong>{(metrics.earnedSoFar > 0 ? metrics.earnedSoFar : (metrics.sType === 'weekly' ? metrics.wRate : metrics.bSal)).toFixed(1)} ج.م</strong>
-                            </Typography>
-                          </Box>
-                        </TableCell>
-
-                        {/* 5. Absent Days & Lateness Deductions */}
-                        <TableCell>
-                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.3 }}>
-                            <Box sx={{ display: 'flex', gap: 0.6, alignItems: 'center' }}>
-                              <Chip
-                                label={`❌ غياب: ${metrics.absentDays} يوم`}
-                                size="small"
-                                sx={{ bgcolor: metrics.absentDays > 0 ? '#FFF1F2' : '#F8FAFC', color: metrics.absentDays > 0 ? '#E11D48' : '#64748B', fontWeight: 800, height: 22 }}
-                              />
-                              {metrics.lateHours > 0 && (
-                                <Chip
-                                  label={`⚠️ تأخير ${metrics.lateHours} س`}
-                                  size="small"
-                                  sx={{ bgcolor: '#FEF2F2', color: '#DC2626', fontWeight: 900, height: 22 }}
-                                />
-                              )}
-                            </Box>
-                            {metrics.lateDeductionAmount > 0 && (
-                              <Typography variant="caption" color="error.main" fontWeight="bold">
-                                خصم التأخيرات: -{metrics.lateDeductionAmount.toFixed(1)} ج.م ({metrics.lateMinutes} د)
-                              </Typography>
-                            )}
-                            {metrics.advances > 0 && (
-                              <Typography variant="caption" color="error.main" fontWeight="bold">
-                                سلف مسحوبة: -{metrics.advances} ج.م
-                              </Typography>
-                            )}
-                          </Box>
-                        </TableCell>
-
-                        {/* 6. Net Payable Salary */}
-                        <TableCell sx={{ fontWeight: 900, color: '#059669' }}>
-                          <Box sx={{ bgcolor: '#ECFDF5', p: 0.8, borderRadius: '10px', border: '1.5px solid #A7F3D0', textAlign: 'center' }}>
-                            <Typography variant="caption" color="#047857" fontWeight={800} display="block">
-                              الصافي الجاهز:
-                            </Typography>
-                            <Typography variant="body2" fontWeight={900} color="#065F46">
-                              {metrics.netPayable.toLocaleString()} ج.م
-                            </Typography>
-                          </Box>
-                        </TableCell>
-
-                        {/* 7. Action Buttons */}
-                        <TableCell align="center">
-                          <Box sx={{ display: 'flex', gap: 0.8, justifyContent: 'center', flexWrap: 'wrap', alignItems: 'center' }}>
-                            {isClockedIn ? (
-                              <Button
-                                size="small"
-                                variant="outlined"
-                                color="error"
-                                startIcon={<Logout />}
-                                onClick={() => handleCheckOut(todayRecord?.id, emp.id, emp.name)}
-                                sx={{ borderRadius: '8px', fontWeight: 800, fontSize: '0.72rem', py: 0.4 }}
-                              >
-                                انصراف
-                              </Button>
-                            ) : (
-                              <Button
-                                size="small"
-                                variant="contained"
-                                color="success"
-                                startIcon={<PlayArrow />}
-                                onClick={() => handleQuickCheckIn(emp.id, emp.name, isDriver)}
-                                sx={{ borderRadius: '8px', fontWeight: 900, fontSize: '0.72rem', bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' }, py: 0.4 }}
-                              >
-                                إثبات تمام
-                              </Button>
-                            )}
-
-                            <Tooltip title="تعديل تمام / إضافة عذر أو إجازة مع احتساب ساعات العمل والتأخير">
-                              <IconButton
-                                size="small"
-                                color="primary"
-                                onClick={() => handleOpenManualModal(emp, todayRecord)}
-                                sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', p: 0.6 }}
-                              >
-                                <EditCalendar fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-
-                            <Tooltip title="طباعة كشف التمام والمستحقات فوراً (إيصال حراري)">
-                              <IconButton
-                                size="small"
-                                color="secondary"
-                                onClick={() => handlePrintEmployeeReport(emp)}
-                                sx={{ border: '1px solid #CBD5E1', borderRadius: '8px', p: 0.6, bgcolor: '#F5F3FF', color: '#7C3AED' }}
-                              >
-                                <Print fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
+          <Button
+            onClick={() => setActiveTab(2)}
+            sx={{
+              py: 1.3,
+              borderRadius: '10px',
+              fontWeight: 900,
+              fontSize: { xs: '0.85rem', sm: '1rem' },
+              bgcolor: activeTab === 2 ? '#171717' : 'transparent',
+              color: activeTab === 2 ? '#FFF' : '#4B5563',
+              '&:hover': { bgcolor: activeTab === 2 ? '#262626' : '#F3F4F6' }
+            }}
+          >
+            💵 المرتبات
+          </Button>
         </Paper>
-      )}
 
-      {/* TAB 1: DRIVER QUEUE SECTION */}
-      {tabValue === 1 && (
-        <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1.5px solid #E5E7EB' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <SwapVert sx={{ color: '#10B981' }} />
-              <Typography variant="h6" fontWeight={800} color="#1A1A2E">
-                📋 طابور دور الطيارين (مرتب تلقائياً بالدقيقة)
-              </Typography>
+        {/* TAB 0: الحضور والتمامات */}
+        {activeTab === 0 && (
+          <Box>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, mb: 1.5 }}>
+              <Box sx={{ bgcolor: '#FFF', p: 1.2, borderRadius: '12px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 800 }}>فرع عزت</Typography>
+                <Typography variant="h6" sx={{ color: '#047857', fontWeight: 900 }}>{b1WorkingCount} شغال</Typography>
+              </Box>
+              <Box sx={{ bgcolor: '#FFF', p: 1.2, borderRadius: '12px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 800 }}>فرع المسلة</Typography>
+                <Typography variant="h6" sx={{ color: '#1D4ED8', fontWeight: 900 }}>{b2WorkingCount} شغال</Typography>
+              </Box>
+              <Box sx={{ bgcolor: '#FFF', p: 1.2, borderRadius: '12px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 800 }}>إجمالي الحاضرين</Typography>
+                <Typography variant="h6" sx={{ color: '#161616', fontWeight: 900 }}>{workingCount} / {totalEmployeesCount}</Typography>
+              </Box>
             </Box>
-            <Chip label="الترتيب تلقائي بالدقيقة" size="small" variant="outlined" sx={{ fontWeight: 700 }} />
-          </Box>
 
-          {loading ? (
-            <Box sx={{ py: 4, textAlign: 'center' }}><CircularProgress size={32} /></Box>
-          ) : activeQueue.length === 0 ? (
-            <Alert severity="info" sx={{ borderRadius: '12px', fontWeight: 700 }}>
-              لا يوجد طيارين مسجلين بالسيستم حالياً. اضغط على زر "إثبات تمام موظف / طيار (حضور)" لبدء طابور التوصيل.
-            </Alert>
-          ) : (
-            <Grid container spacing={2}>
-              {(() => {
-                const readyQueue = (activeQueue || []).filter(q => q.status === 'ready');
+            <Paper elevation={0} sx={{ p: 1.2, mb: 2, borderRadius: '12px', border: '1px solid #E2E8F0', bgcolor: '#FFF' }}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="🔍 ابحث بالاسم أو الوظيفة (دليفري، صنايعي، كاشير)..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                sx={{
+                  mb: 1,
+                  '& .MuiOutlinedInput-root': { borderRadius: '9px', bgcolor: '#F8FAFC' }
+                }}
+              />
+              <Stack direction="row" spacing={0.8} sx={{ overflowX: 'auto', pb: 0.5 }}>
+                <Chip
+                  label="الكل"
+                  clickable
+                  onClick={() => setStatusFilter('all')}
+                  color={statusFilter === 'all' ? 'primary' : 'default'}
+                  sx={{ fontWeight: 800 }}
+                />
+                <Chip
+                  label="● شغالين الآن"
+                  clickable
+                  onClick={() => setStatusFilter('present')}
+                  color={statusFilter === 'present' ? 'success' : 'default'}
+                  sx={{ fontWeight: 800 }}
+                />
+                <Chip
+                  label="فرع عزت"
+                  clickable
+                  onClick={() => setStatusFilter('b1')}
+                  color={statusFilter === 'b1' ? 'success' : 'default'}
+                  sx={{ fontWeight: 800 }}
+                />
+                <Chip
+                  label="فرع المسلة"
+                  clickable
+                  onClick={() => setStatusFilter('b2')}
+                  color={statusFilter === 'b2' ? 'primary' : 'default'}
+                  sx={{ fontWeight: 800 }}
+                />
+                <Chip
+                  label="○ غير مسجلين"
+                  clickable
+                  onClick={() => setStatusFilter('absent')}
+                  color={statusFilter === 'absent' ? 'warning' : 'default'}
+                  sx={{ fontWeight: 800 }}
+                />
+              </Stack>
+            </Paper>
 
-                return activeQueue.map((item) => {
-                  const isOnDelivery = item.status === 'on_delivery';
-                  const readyIndex = readyQueue.findIndex(q => q.id === item.id);
-                  const isTopReady = !isOnDelivery && readyIndex === 0;
-
-                  let badgeLabel = `🟢 الدور ${readyIndex + 1}`;
-                  let badgeStyle = { bgcolor: '#E5E7EB', color: '#374151' };
-                  let cardStyle = { borderColor: '#E5E7EB', bgcolor: '#FFFFFF' };
-
-                  if (isOnDelivery) {
-                    badgeLabel = '🛵 في مشوار توصيل (خارج بالطلب)';
-                    badgeStyle = { bgcolor: '#3B82F6', color: '#FFFFFF' };
-                    cardStyle = { borderColor: '#3B82F6', bgcolor: '#EFF6FF' };
-                  } else if (isTopReady) {
-                    badgeLabel = '👑 الدور 1 (التالي للخروج)';
-                    badgeStyle = { bgcolor: '#10B981', color: '#FFFFFF' };
-                    cardStyle = { borderColor: '#10B981', bgcolor: '#F0FDF4' };
-                  }
-
-                  const formattedTime = item.check_in_time
-                    ? new Date(item.check_in_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
-                    : '-';
+            {loading ? (
+              <Box sx={{ textAlign: 'center', py: 6 }}>
+                <CircularProgress size={36} sx={{ color: '#E65100' }} />
+                <Typography sx={{ mt: 1.5, fontWeight: 700, color: '#64748B' }}>جاري تحميل التمامات...</Typography>
+              </Box>
+            ) : filteredEmployees.length === 0 ? (
+              <Paper sx={{ p: 4, textAlign: 'center', borderRadius: '14px', bgcolor: '#FFF' }}>
+                <Typography sx={{ fontWeight: 800, color: '#64748B' }}>لا يوجد موظفين يطابقون البحث</Typography>
+              </Paper>
+            ) : (
+              <Stack spacing={1.5}>
+                {filteredEmployees.map((emp) => {
+                  const state = employeeStateMap.get(emp.id) || { isWorking: false, activeBranch: 'b1' };
+                  const hoursInfo = employeeHoursMap.get(emp.id) || { b1Hours: 0, b2Hours: 0, totalHours: 0 };
+                  const isActing = actionLoadingId === emp.id;
 
                   return (
-                    <Grid xs={12} sm={6} md={4} key={item.id}>
-                      <Card
-                        elevation={0}
+                    <Paper
+                      key={emp.id}
+                      elevation={0}
+                      sx={{
+                        p: 1.8,
+                        borderRadius: '14px',
+                        bgcolor: '#FFF',
+                        border: '1.5px solid',
+                        borderColor: state.isWorking ? (state.activeBranch === 'b2' ? '#3B82F6' : '#10B981') : '#E2E8F0',
+                        boxShadow: state.isWorking ? '0 3px 10px rgba(0,0,0,0.04)' : 'none'
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="h6" sx={{ fontWeight: 900, fontSize: '1.15rem', color: '#171717' }}>
+                            {emp.name}
+                          </Typography>
+                          <Chip
+                            label={emp.role || 'عامل'}
+                            size="small"
+                            sx={{ bgcolor: '#F1F5F9', fontWeight: 800, fontSize: '0.75rem' }}
+                          />
+                        </Box>
+
+                        <Box sx={{ textAlign: 'left' }}>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              display: 'inline-block',
+                              px: 1,
+                              py: 0.3,
+                              borderRadius: '8px',
+                              fontWeight: 900,
+                              fontSize: '0.75rem',
+                              bgcolor: state.isWorking ? (state.activeBranch === 'b2' ? '#DBEAFE' : '#DCFCE7') : '#F1F5F9',
+                              color: state.isWorking ? (state.activeBranch === 'b2' ? '#1E40AF' : '#166534') : '#64748B'
+                            }}
+                          >
+                            {state.isWorking 
+                              ? `● شغال (فرع ${state.activeBranch === 'b2' ? 'المسلة' : 'عزت'})` 
+                              : '○ غير مسجل'}
+                          </Typography>
+                          <Typography variant="caption" sx={{ display: 'block', color: '#64748B', fontWeight: 700, fontSize: '0.7rem' }}>
+                            {state.isWorking && state.checkInTime
+                              ? `حضور: ${new Date(state.checkInTime).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}`
+                              : `الفرع الأساسي: ${emp.branch_id === 'b2' ? 'المسلة' : 'عزت'}`}
+                          </Typography>
+                        </Box>
+                      </Box>
+
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
+                        <Typography variant="caption" sx={{ color: '#475569', fontWeight: 700, fontSize: '0.75rem' }}>
+                          ساعات الأسبوع: <strong>عزت ({hoursInfo.b1Hours}س)</strong> • <strong>المسلة ({hoursInfo.b2Hours}س)</strong>
+                        </Typography>
+                      </Box>
+
+                      <Box
                         sx={{
-                          borderRadius: '16px',
-                          border: '2px solid',
-                          ...cardStyle,
-                          boxShadow: isTopReady ? '0 4px 14px rgba(16, 185, 129, 0.2)' : (isOnDelivery ? '0 4px 14px rgba(59, 130, 246, 0.15)' : 'none'),
-                          transition: 'all 0.2s ease',
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr 1fr',
+                          gap: 1
                         }}
                       >
-                        <CardContent sx={{ p: 2 }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-                            <Chip
-                              label={badgeLabel}
-                              size="small"
-                              sx={{
-                                ...badgeStyle,
-                                fontWeight: 900,
-                                fontSize: '0.8rem'
-                              }}
-                            />
-                            <Typography variant="caption" sx={{ color: '#6B7280', fontWeight: 700 }}>
-                              الفرع: {item.branch_name || 'الرئيسي'}
-                            </Typography>
-                          </Box>
+                        <Button
+                          variant="contained"
+                          disabled={isActing}
+                          onClick={() => handleOpenMove(emp, 'in')}
+                          sx={{
+                            bgcolor: state.isWorking ? '#E2E8F0' : '#171717',
+                            color: state.isWorking ? '#64748B' : '#FFF',
+                            fontWeight: 900,
+                            borderRadius: '10px',
+                            py: 1,
+                            fontSize: '0.9rem',
+                            '&:hover': { bgcolor: state.isWorking ? '#CBD5E1' : '#262626' }
+                          }}
+                        >
+                          {state.isWorking ? 'تعديل حضور' : 'حضور'}
+                        </Button>
 
-                          <Typography variant="h6" fontWeight={800} sx={{ color: '#1A1A2E', mb: 0.5 }}>
-                            {item.driver_name}
-                          </Typography>
+                        <Button
+                          variant="contained"
+                          disabled={isActing || !state.isWorking}
+                          onClick={() => handleOpenMove(emp, 'transfer')}
+                          sx={{
+                            bgcolor: '#EA580C',
+                            color: '#FFF',
+                            fontWeight: 900,
+                            borderRadius: '10px',
+                            py: 1,
+                            fontSize: '0.9rem',
+                            '&:hover': { bgcolor: '#C2410C' },
+                            '&.Mui-disabled': { bgcolor: '#FED7AA', color: '#9A3412' }
+                          }}
+                        >
+                          🔄 نقل
+                        </Button>
 
-                          <Typography variant="body2" sx={{ color: '#6B7280', display: 'flex', alignItems: 'center', gap: 0.5, mb: 1.5 }}>
-                            <AccessTime sx={{ fontSize: 16 }} />
-                            <span>وقت التمام: {formattedTime}</span>
-                          </Typography>
-
-                          {/* Delivery Timer status if out on order */}
-                          <Box sx={{ mb: 2 }}>
-                            {item.status === 'on_delivery' ? (
-                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8 }}>
-                                <Chip
-                                  icon={<DeliveryDining />}
-                                  label="🛵 خارج في أوردر توصيل"
-                                  color="warning"
-                                  size="small"
-                                  sx={{ fontWeight: 800 }}
-                                />
-                                {item.check_in_time && (
-                                  <DeliveryTimerBadge
-                                    dispatchedAt={item.check_in_time}
-                                    targetMinutes={deliveryTimerMinutes}
-                                  />
-                                )}
-                              </Box>
-                            ) : (
-                              <Chip
-                                icon={<CheckCircle />}
-                                label="🟢 جاهز للخروج بالطلب"
-                                color="success"
-                                variant="outlined"
-                                size="small"
-                                sx={{ fontWeight: 800 }}
-                              />
-                            )}
-                          </Box>
-
-                          {/* Actions */}
-                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', pt: 1, borderTop: '1px solid #F3F4F6' }}>
-                            <Button
-                              size="small"
-                              color="error"
-                              startIcon={<Logout />}
-                              onClick={() => handleCheckOut(item.id, item.driver_id, item.driver_name)}
-                              sx={{ fontWeight: 700 }}
-                            >
-                              تسجيل انصراف
-                            </Button>
-                          </Box>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  );
-                });
-              })()}
-            </Grid>
-          )}
-        </Paper>
-      )}
-
-      {/* TAB 2: ATTENDANCE HISTORY LOGS FOR HR */}
-      {tabValue === 2 && (
-        <Paper sx={{ p: 2.5, borderRadius: '20px', border: '1px solid #E5E7EB', bgcolor: '#FFF' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h6" fontWeight={900} color="#1A1A2E">
-              📜 سجل التمامات السابقة والعمليات المسجلة
-            </Typography>
-            <Button
-              size="small"
-              variant="contained"
-              startIcon={<EditCalendar />}
-              onClick={() => handleOpenManualModal()}
-              sx={{ borderRadius: '10px', fontWeight: 800 }}
-            >
-              + إضافة تمام يدوي جديد
-            </Button>
-          </Box>
-
-          <TableContainer>
-            <Table size="small">
-              <TableHead sx={{ bgcolor: '#F8FAFC' }}>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 900 }}>التاريخ</TableCell>
-                  <TableCell sx={{ fontWeight: 900 }}>اسم الموظف</TableCell>
-                  <TableCell sx={{ fontWeight: 900 }}>الوظيفة والفرع</TableCell>
-                  <TableCell sx={{ fontWeight: 900 }}>وقت الحضور</TableCell>
-                  <TableCell sx={{ fontWeight: 900 }}>وقت الانصراف</TableCell>
-                  <TableCell sx={{ fontWeight: 900 }}>ساعات العمل</TableCell>
-                  <TableCell sx={{ fontWeight: 900 }}>التأخير</TableCell>
-                  <TableCell sx={{ fontWeight: 900 }}>حالة الصرف</TableCell>
-                  <TableCell sx={{ fontWeight: 900 }}>ملاحظات</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 900 }}>إجراء</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {recentLogs.map((log) => (
-                  <TableRow key={log.id} hover>
-                    <TableCell sx={{ fontWeight: 800 }}>
-                      {log.attendance_date ? String(log.attendance_date).split('T')[0] : '-'}
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: '#1E293B' }}>{log.employee_name}</TableCell>
-                    <TableCell>{log.employee_role} ({log.branch_name || 'الرئيسي'})</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: '#059669' }}>
-                      {log.check_in_time ? new Date(log.check_in_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '-'}
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: '#DC2626' }}>
-                      {log.check_out_time ? new Date(log.check_out_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : 'قيد العمل 🟢'}
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>{parseFloat(log.working_hours || 0).toFixed(1)} س</TableCell>
-                    <TableCell>
-                      {parseInt(log.late_minutes || 0) > 0 ? (
-                        <Chip label={`⚠️ تأخير ${log.late_minutes} د (${log.late_hours} س)`} size="small" color="error" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 800 }} />
-                      ) : (
-                        <Chip label="في الميعاد 🟢" size="small" color="success" variant="outlined" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 800 }} />
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={log.is_paid ? '✔️ تم الصرف والقبض' : '⏳ جاري / مستحق'}
-                        size="small"
-                        sx={{
-                          bgcolor: log.is_paid ? '#D1FAE5' : '#FEF3C7',
-                          color: log.is_paid ? '#065F46' : '#92400E',
-                          fontWeight: 800,
-                          height: 20,
-                          fontSize: '0.7rem'
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell sx={{ fontSize: '0.8rem', color: '#64748B' }}>{log.notes || '-'}</TableCell>
-                    <TableCell align="center">
-                      <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
-                        <IconButton size="small" color="primary" onClick={() => handleOpenManualModal(null, log)}>
-                          <EditCalendar fontSize="small" />
-                        </IconButton>
-                        {!log.is_paid && (
-                          <IconButton size="small" color="error" onClick={() => handleDeleteAttendance(log.id)}>
-                            <Clear fontSize="small" />
-                          </IconButton>
-                        )}
+                        <Button
+                          variant="contained"
+                          disabled={isActing || !state.isWorking}
+                          onClick={() => handleOpenMove(emp, 'out')}
+                          sx={{
+                            bgcolor: '#DC2626',
+                            color: '#FFF',
+                            fontWeight: 900,
+                            borderRadius: '10px',
+                            py: 1,
+                            fontSize: '0.9rem',
+                            '&:hover': { bgcolor: '#B91C1C' },
+                            '&.Mui-disabled': { bgcolor: '#FECACA', color: '#991B1B' }
+                          }}
+                        >
+                          انصراف
+                        </Button>
                       </Box>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {recentLogs.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={10} align="center" sx={{ py: 3, color: '#94A3B8' }}>
-                      لا توجد سجلات تمامات سابقة
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Paper>
-      )}
+                    </Paper>
+                  );
+                })}
+              </Stack>
+            )}
+          </Box>
+        )}
 
-      {/* QUICK CHECK-IN MODAL */}
-      <Dialog open={checkInOpen} onClose={() => setCheckInOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 900 }}>إثبات تمام حضور الموظفين والطيارين</DialogTitle>
-        <DialogContent sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Typography variant="body2" color="text.secondary">
-            اختر الموظف أو طيار الدليفري لإثبات التمام الفعلي اليوم وسيتم احتساب التأخير ومقارنته بموعد الشيفت تلقائياً.
-          </Typography>
-
-          <FormControl fullWidth size="small" sx={{ mt: 1 }}>
-            <InputLabel>اختر الموظف / الطيار</InputLabel>
-            <Select
-              value={selectedStaffId}
-              label="اختر الموظف / الطيار"
-              onChange={(e) => setSelectedStaffId(e.target.value)}
-            >
-              {allStaffOptions.map((s) => (
-                <MenuItem key={s.id} value={s.id}>
-                  {s.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          <FormControl fullWidth size="small">
-            <InputLabel>الفرع المتواجد فيه</InputLabel>
-            <Select
-              value={selectedBranchForCheckIn}
-              label="الفرع المتواجد فيه"
-              onChange={(e) => setSelectedBranchForCheckIn(e.target.value)}
-            >
-              {branches.map((b) => (
-                <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </DialogContent>
-
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setCheckInOpen(false)}>إلغاء</Button>
-          <Button
-            variant="contained"
-            disabled={!selectedStaffId || submitting}
-            onClick={handleModalCheckIn}
-            sx={{ bgcolor: '#10B981', '&:hover': { bgcolor: '#059669' }, fontWeight: 900 }}
-          >
-            {submitting ? 'جاري التسجيل...' : 'إثبات التمام (حضور)'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* MANUAL / EDIT ATTENDANCE DIALOG FOR HR */}
-      <Dialog open={manualModalOpen} onClose={() => setManualModalOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 900 }}>
-          {manualForm.attendanceId ? '✏️ تعديل سجل التمام وساعات الحضور' : '➕ تسجيل تمام وحضور يدوي لـ HR'}
-        </DialogTitle>
-        <DialogContent sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Typography variant="body2" color="text.secondary">
-            يمكن لـ HR تسجيل أو تعديل ساعات العمل أو تسجيل عذر أو تعديل التأخير المحتسب لأي يوم.
-          </Typography>
-
-          <FormControl fullWidth size="small" sx={{ mt: 1 }}>
-            <InputLabel>الموظف</InputLabel>
-            <Select
-              value={manualForm.employeeId}
-              label="الموظف"
-              disabled={Boolean(manualForm.attendanceId)}
-              onChange={(e) => {
-                const empId = e.target.value;
-                const emp = employees.find(x => x.id === empId);
-                const sStart = emp?.shift_start_time || emp?.shiftStartTime || '12:00';
-                const sH = String(emp?.shift_hours || emp?.shiftHours || 8);
-                setManualForm(prev => ({
-                  ...prev,
-                  employeeId: empId,
-                  employeeName: emp?.name || '',
-                  shiftStartTime: sStart,
-                  checkInTime: sStart,
-                  checkOutTime: '',
-                  scheduledHours: sH,
-                  workingHours: sH,
-                  lateMinutes: '0',
-                  lateHours: '0'
-                }));
+        {/* TAB 1: الموظفين */}
+        {activeTab === 1 && (
+          <Box>
+            <Button
+              variant="contained"
+              fullWidth
+              startIcon={<Add />}
+              onClick={() => setAddEmpOpen(prev => !prev)}
+              sx={{
+                bgcolor: '#171717',
+                color: '#FFF',
+                fontWeight: 900,
+                py: 1.5,
+                borderRadius: '12px',
+                fontSize: '1rem',
+                mb: 2,
+                '&:hover': { bgcolor: '#262626' }
               }}
             >
-              {employees.map((emp) => (
-                <MenuItem key={emp.id} value={emp.id}>
-                  👤 {emp.name} ({emp.role} - {emp.branch_name || 'الرئيسي'})
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+              ➕ إضافة موظف جديد
+            </Button>
 
-          <Grid container spacing={2}>
-            <Grid xs={6}>
-              <TextField
-                fullWidth
-                size="small"
-                type="date"
-                label="تاريخ اليوم"
-                value={manualForm.date}
-                onChange={(e) => setManualForm(prev => ({ ...prev, date: e.target.value }))}
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-            </Grid>
-            <Grid xs={6}>
-              <TextField
-                fullWidth
-                size="small"
-                type="time"
-                label="موعد بداية الشيفت المقرر"
-                value={manualForm.shiftStartTime}
-                onChange={(e) => handleModalTimeChange('shiftStartTime', e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-            </Grid>
-            <Grid xs={6}>
-              <TextField
-                fullWidth
-                size="small"
-                type="time"
-                label="وقت إثبات الحضور الفعلي"
-                value={manualForm.checkInTime}
-                onChange={(e) => handleModalTimeChange('checkInTime', e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
-            </Grid>
-            <Grid xs={6}>
-              <TextField
-                fullWidth
-                size="small"
-                type="time"
-                label="وقت الانصراف (اختياري)"
-                value={manualForm.checkOutTime}
-                onChange={(e) => handleModalTimeChange('checkOutTime', e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-                helperText="عند تحديده تُحسب ساعات العمل تلقائياً"
-              />
-            </Grid>
-            <Grid xs={6}>
-              <TextField
-                fullWidth
-                size="small"
-                type="number"
-                label="ساعات العمل المحتسبة"
-                value={manualForm.workingHours}
-                onChange={(e) => setManualForm(prev => ({ ...prev, workingHours: e.target.value }))}
-                inputProps={{ step: '0.5', min: '0' }}
-                helperText="تُحسب تلقائياً من الشيفت والانصراف"
-              />
-            </Grid>
-            <Grid xs={6}>
-              <TextField
-                fullWidth
-                size="small"
-                type="number"
-                label="ساعات التأخير المخصومة"
-                value={manualForm.lateHours}
-                onChange={(e) => {
-                  const lH = parseFloat(e.target.value) || 0;
-                  setManualForm(prev => ({ ...prev, lateHours: e.target.value, lateMinutes: String(Math.round(lH * 60)) }));
-                }}
-                inputProps={{ step: '0.25', min: '0' }}
-                helperText={`${manualForm.lateMinutes || 0} دقيقة تأخير (محسوبة تلقائياً)`}
-              />
-            </Grid>
-          </Grid>
+            {addEmpOpen && (
+              <Paper elevation={0} sx={{ p: 2.5, mb: 2.5, borderRadius: '14px', bgcolor: '#FFF', border: '2px solid #171717' }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 2, color: '#171717' }}>
+                  إضافة موظف جديد للنظام
+                </Typography>
 
-          {/* Live Calculation Preview Card */}
-          {(() => {
-            const selectedEmp = employees.find(e => e.id === manualForm.employeeId);
-            const sType = selectedEmp?.salary_type || selectedEmp?.salaryType || 'weekly';
-            const wRate = parseFloat(selectedEmp?.weekly_rate || selectedEmp?.weeklyRate || 0);
-            const bSal = parseFloat(selectedEmp?.base_salary || selectedEmp?.baseSalary || wRate || 0);
-            const wDays = parseInt(selectedEmp?.work_days_per_week || selectedEmp?.workDaysPerWeek || 6);
-            const sHours = parseFloat(manualForm.scheduledHours || selectedEmp?.shift_hours || 8.0);
-            const dRate = parseFloat(selectedEmp?.daily_rate || selectedEmp?.dailyRate || (sType === 'weekly' && wDays > 0 ? (wRate / wDays) : (bSal / 30)));
-            const hRate = parseFloat(selectedEmp?.hourly_rate || selectedEmp?.hourlyRate || (dRate > 0 && sHours > 0 ? (dRate / sHours) : 0));
-
-            const lateH = parseFloat(manualForm.lateHours || 0);
-            const lateM = parseInt(manualForm.lateMinutes || 0);
-            const workH = parseFloat(manualForm.workingHours || sHours);
-            const lateDeduction = lateH * hRate;
-            const netDayEarned = Math.max(0, (workH * hRate) - lateDeduction);
-
-            return (
-              <Paper sx={{ p: 2, bgcolor: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="subtitle2" fontWeight={900} color="#166534">
-                    📊 الحسبة التلقائية لليوم الحالي:
-                  </Typography>
-                  <Chip label={`اليومية المعتمدة: ${dRate.toFixed(1)} ج.م`} size="small" sx={{ bgcolor: '#DCFCE7', color: '#15803D', fontWeight: 900 }} />
-                </Box>
-                <Divider sx={{ my: 0.5 }} />
-                <Grid container spacing={1}>
-                  <Grid xs={6}>
-                    <Typography variant="caption" color="text.secondary" fontWeight={700}>أجر الساعة المقدر:</Typography>
-                    <Typography variant="body2" fontWeight={800} color="#1E293B">{hRate.toFixed(2)} ج.م / ساعة</Typography>
+                <Grid container spacing={1.5}>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: '#475569', mb: 0.5, display: 'block' }}>الاسم</Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder="اسم الموظف"
+                      value={empForm.name}
+                      onChange={(e) => setEmpForm(prev => ({ ...prev, name: e.target.value }))}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
+                    />
                   </Grid>
-                  <Grid xs={6}>
-                    <Typography variant="caption" color="text.secondary" fontWeight={700}>ساعات العمل المحتسبة:</Typography>
-                    <Typography variant="body2" fontWeight={800} color="#059669">{workH.toFixed(2)} ساعة</Typography>
+
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: '#475569', mb: 0.5, display: 'block' }}>الوظيفة</Typography>
+                    <FormControl fullWidth size="small">
+                      <Select
+                        value={empForm.role}
+                        onChange={(e) => setEmpForm(prev => ({ ...prev, role: e.target.value }))}
+                        sx={{ borderRadius: '9px' }}
+                      >
+                        <MenuItem value="دليفري">دليفري (طيار)</MenuItem>
+                        <MenuItem value="طيار">طيار توصيل</MenuItem>
+                        <MenuItem value="صنايعي">صنايعي حواوشي</MenuItem>
+                        <MenuItem value="كاشير">كاشير</MenuItem>
+                        <MenuItem value="عامل">عامل صالة / نظافة</MenuItem>
+                        <MenuItem value="شيف">شيف تجهيز</MenuItem>
+                      </Select>
+                    </FormControl>
                   </Grid>
-                  <Grid xs={6}>
-                    <Typography variant="caption" color="text.secondary" fontWeight={700}>خصم التأخير التلقائي:</Typography>
-                    <Typography variant="body2" fontWeight={900} color={lateDeduction > 0 ? '#DC2626' : '#059669'}>
-                      {lateDeduction > 0 ? `-${lateDeduction.toFixed(2)} ج.م (${lateM} د)` : 'لا يوجد تأخير 🟢'}
-                    </Typography>
+
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: '#475569', mb: 0.5, display: 'block' }}>الفرع الأساسي</Typography>
+                    <FormControl fullWidth size="small">
+                      <Select
+                        value={empForm.branch_id}
+                        onChange={(e) => setEmpForm(prev => ({ ...prev, branch_id: e.target.value }))}
+                        sx={{ borderRadius: '9px' }}
+                      >
+                        <MenuItem value="b1">فرع عزت</MenuItem>
+                        <MenuItem value="b2">فرع المسلة</MenuItem>
+                      </Select>
+                    </FormControl>
                   </Grid>
-                  <Grid xs={6}>
-                    <Typography variant="caption" color="text.secondary" fontWeight={700}>صافي مستحق اليومية:</Typography>
-                    <Typography variant="body2" fontWeight={900} color="#166534">
-                      {netDayEarned.toFixed(2)} ج.م
-                    </Typography>
+
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: '#475569', mb: 0.5, display: 'block' }}>ساعات الأسبوع المطلوبة</Typography>
+                    <TextField
+                      fullWidth
+                      type="number"
+                      size="small"
+                      value={empForm.weekly_hours}
+                      onChange={(e) => setEmpForm(prev => ({ ...prev, weekly_hours: e.target.value }))}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: '#475569', mb: 0.5, display: 'block' }}>الأجر الأسبوعي (ج.م)</Typography>
+                    <TextField
+                      fullWidth
+                      type="number"
+                      size="small"
+                      value={empForm.weekly_wage}
+                      onChange={(e) => setEmpForm(prev => ({ ...prev, weekly_wage: e.target.value }))}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: '#475569', mb: 0.5, display: 'block' }}>رقم الهاتف (اختياري)</Typography>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder="01xxxxxxxxx"
+                      value={empForm.phone}
+                      onChange={(e) => setEmpForm(prev => ({ ...prev, phone: e.target.value }))}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
+                    />
                   </Grid>
                 </Grid>
-              </Paper>
-            );
-          })()}
 
-          <TextField
-            fullWidth
-            size="small"
-            label="ملاحظات وبيان التمام / العذر"
-            multiline
-            rows={2}
-            value={manualForm.notes}
-            onChange={(e) => setManualForm(prev => ({ ...prev, notes: e.target.value }))}
-          />
+                <Button
+                  variant="contained"
+                  fullWidth
+                  disabled={submittingEmp}
+                  onClick={handleSaveEmployee}
+                  sx={{
+                    mt: 2,
+                    py: 1.2,
+                    bgcolor: '#171717',
+                    color: '#FFF',
+                    fontWeight: 900,
+                    borderRadius: '10px',
+                    '&:hover': { bgcolor: '#262626' }
+                  }}
+                >
+                  {submittingEmp ? 'جاري الحفظ...' : 'حفظ الموظف'}
+                </Button>
+              </Paper>
+            )}
+
+            <Stack spacing={1}>
+              {employees.map((emp) => {
+                const reqHours = parseFloat(emp.shift_hours ? emp.shift_hours * 6 : 70);
+                const wage = parseFloat(emp.salary || emp.hourly_rate * reqHours || 1050);
+                return (
+                  <Paper
+                    key={emp.id}
+                    elevation={0}
+                    sx={{
+                      p: 1.5,
+                      borderRadius: '12px',
+                      bgcolor: '#FFF',
+                      border: '1px solid #E2E8F0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <Box>
+                      <Typography sx={{ fontWeight: 900, fontSize: '1.05rem', color: '#171717' }}>
+                        {emp.name}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700 }}>
+                        {emp.role} • {emp.branch_id === 'b2' ? 'فرع المسلة' : 'فرع عزت'}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ textAlign: 'left' }}>
+                      <Typography sx={{ fontWeight: 900, color: '#047857', fontSize: '0.95rem' }}>
+                        {wage} ج
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700 }}>
+                        {reqHours} ساعة / أسبوع
+                      </Typography>
+                    </Box>
+                  </Paper>
+                );
+              })}
+            </Stack>
+          </Box>
+        )}
+
+        {/* TAB 2: المرتبات */}
+        {activeTab === 2 && (
+          <Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 1.5, color: '#171717' }}>
+              💵 كشوفات المرتبات والمستحقات المباشرة
+            </Typography>
+
+            <Stack spacing={2}>
+              {employees.map((emp) => {
+                const h = employeeHoursMap.get(emp.id) || { b1Hours: 0, b2Hours: 0, totalHours: 0 };
+                const reqHours = parseFloat(emp.shift_hours ? emp.shift_hours * 6 : 70);
+                const weeklyWage = parseFloat(emp.salary || (emp.hourly_rate ? emp.hourly_rate * reqHours : 1050));
+                const hourlyRate = reqHours > 0 ? (weeklyWage / reqHours) : (parseFloat(emp.hourly_rate) || 15);
+                const earnedGross = h.totalHours * hourlyRate;
+
+                const empDeds = (allBonusDeductions || []).filter(
+                  d => String(d.employee_id) === String(emp.id) && d.type === 'deduction'
+                );
+                const totalDeds = empDeds.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0);
+                const netPay = earnedGross - totalDeds;
+
+                const isNegative = netPay < -0.01;
+                const isPositive = netPay > 0.01;
+
+                return (
+                  <Paper
+                    key={emp.id}
+                    elevation={0}
+                    sx={{
+                      p: 2,
+                      borderRadius: '14px',
+                      bgcolor: '#FFF',
+                      border: '1.5px solid #E2E8F0',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                      <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 900, fontSize: '1.2rem', color: '#171717' }}>
+                          {emp.name}
+                        </Typography>
+                        <Chip
+                          label={emp.role || 'عامل'}
+                          size="small"
+                          sx={{ bgcolor: '#F1F5F9', fontWeight: 800, fontSize: '0.72rem' }}
+                        />
+                      </Box>
+
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        color="error"
+                        onClick={() => handleOpenDeduction(emp)}
+                        sx={{ fontWeight: 900, borderRadius: '8px', border: '1.5px solid' }}
+                      >
+                        ➖ خصم / سلفة
+                      </Button>
+                    </Box>
+
+                    <Box sx={{ py: 0.5 }}>
+                      <Typography sx={{ color: '#475569', fontSize: '0.9rem', mb: 0.4 }}>
+                        عزت: <strong>{h.b1Hours.toFixed(2)} س</strong> • المسلة: <strong>{h.b2Hours.toFixed(2)} س</strong>
+                      </Typography>
+
+                      <Typography sx={{ color: '#475569', fontSize: '0.9rem', mb: 0.4 }}>
+                        إجمالي الساعات: <strong>{h.totalHours.toFixed(2)} / {reqHours} ساعة</strong>
+                      </Typography>
+
+                      <Typography sx={{ color: '#1E40AF', fontSize: '0.9rem', mb: 0.4, fontWeight: 800 }}>
+                        مستحق الساعات: <strong>{earnedGross.toFixed(2)} ج.م</strong>
+                      </Typography>
+
+                      <Typography sx={{ color: '#DC2626', fontSize: '0.9rem', mb: 1, fontWeight: 800 }}>
+                        الخصومات والسلف: <strong>{totalDeds.toFixed(2)} ج.م</strong>
+                      </Typography>
+                    </Box>
+
+                    <Box
+                      sx={{
+                        p: 1.5,
+                        borderRadius: '10px',
+                        bgcolor: isNegative ? '#FFF0F0' : (isPositive ? '#F0FDF4' : '#F8FAFC'),
+                        border: '2px solid',
+                        borderColor: isNegative ? '#DC2626' : (isPositive ? '#16A34A' : '#CBD5E1'),
+                        textAlign: 'center',
+                        mb: 1
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 800, display: 'block' }}>
+                        صافي المستحق النهائي
+                      </Typography>
+                      <Typography
+                        variant="h4"
+                        sx={{
+                          fontWeight: 900,
+                          color: isNegative ? '#DC2626' : (isPositive ? '#16A34A' : '#171717'),
+                          mt: 0.3
+                        }}
+                      >
+                        {netPay.toFixed(2)} ج.م {isNegative ? '🔴 (مديونية)' : ''}
+                      </Typography>
+                    </Box>
+
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      startIcon={<Print />}
+                      onClick={() => handlePrintSalary(emp)}
+                      sx={{ fontWeight: 800, borderRadius: '8px', color: '#475569', borderColor: '#CBD5E1' }}
+                    >
+                      طباعة مسير الحساب
+                    </Button>
+
+                    {empDeds.length > 0 && (
+                      <Box sx={{ mt: 1.5, pt: 1, borderTop: '1px solid #E2E8F0' }}>
+                        <Typography variant="caption" sx={{ fontWeight: 800, color: '#64748B', display: 'block', mb: 0.5 }}>
+                          سجل الخصومات والسلف:
+                        </Typography>
+                        <Stack spacing={0.5}>
+                          {empDeds.slice(0, 5).map(d => (
+                            <Typography key={d.id} variant="caption" sx={{ color: '#64748B' }}>
+                              • {d.created_at ? d.created_at.substring(0, 10) : ''} | <strong>{d.category || d.notes}</strong>: {d.amount} ج.م
+                            </Typography>
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
+                  </Paper>
+                );
+              })}
+            </Stack>
+          </Box>
+        )}
+
+      </Box>
+
+      {/* MODAL: حركة التمام */}
+      <Dialog
+        open={moveModal.open}
+        onClose={() => setMoveModal(prev => ({ ...prev, open: false }))}
+        fullWidth
+        maxWidth="xs"
+        slotProps={{ paper: { sx: { borderRadius: '16px', p: 1 } } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, fontSize: '1.2rem', pb: 1, color: '#171717' }}>
+          {moveModal.mode === 'in' ? '🟢 تسجيل حضور: ' : (moveModal.mode === 'transfer' ? '🔄 نقل موظف: ' : '🔴 تسجيل انصراف: ')}
+          {moveModal.employee?.name}
+        </DialogTitle>
+
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pt: 1 }}>
+          {moveModal.mode !== 'out' && (
+            <Box>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: '#475569', mb: 0.5, display: 'block' }}>الفرع</Typography>
+              <FormControl fullWidth size="small">
+                <Select
+                  value={moveModal.branch}
+                  onChange={(e) => setMoveModal(prev => ({ ...prev, branch: e.target.value }))}
+                  sx={{ borderRadius: '9px' }}
+                >
+                  <MenuItem value="b1">فرع عزت</MenuItem>
+                  <MenuItem value="b2">فرع المسلة</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+          )}
+
+          <Box>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: '#475569', mb: 0.5, display: 'block' }}>اليوم</Typography>
+            <FormControl fullWidth size="small">
+              <Select
+                value={moveModal.day}
+                onChange={(e) => setMoveModal(prev => ({ ...prev, day: e.target.value }))}
+                sx={{ borderRadius: '9px' }}
+              >
+                <MenuItem value="السبت">السبت</MenuItem>
+                <MenuItem value="الأحد">الأحد</MenuItem>
+                <MenuItem value="الاثنين">الاثنين</MenuItem>
+                <MenuItem value="الثلاثاء">الثلاثاء</MenuItem>
+                <MenuItem value="الأربعاء">الأربعاء</MenuItem>
+                <MenuItem value="الخميس">الخميس</MenuItem>
+                <MenuItem value="الجمعة">الجمعة</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+
+          <Box>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: '#475569', mb: 0.5, display: 'block' }}>الوقت</Typography>
+            <TextField
+              fullWidth
+              type="time"
+              size="small"
+              value={moveModal.time}
+              onChange={(e) => setMoveModal(prev => ({ ...prev, time: e.target.value }))}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
+            />
+          </Box>
         </DialogContent>
 
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setManualModalOpen(false)}>إلغاء</Button>
+          <Button onClick={() => setMoveModal(prev => ({ ...prev, open: false }))} sx={{ fontWeight: 800, color: '#64748B' }}>
+            إلغاء
+          </Button>
           <Button
             variant="contained"
-            disabled={!manualForm.employeeId || submitting}
-            onClick={handleSaveManualAttendance}
-            sx={{ bgcolor: '#2563EB', fontWeight: 900 }}
+            onClick={handleSaveMovement}
+            sx={{
+              bgcolor: moveModal.mode === 'out' ? '#DC2626' : (moveModal.mode === 'transfer' ? '#EA580C' : '#171717'),
+              color: '#FFF',
+              fontWeight: 900,
+              borderRadius: '10px',
+              px: 3,
+              '&:hover': { bgcolor: '#000' }
+            }}
           >
-            {submitting ? 'جاري الحفظ...' : 'حفظ التمام'}
+            حفظ الحركة
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* MODAL: تسجيل خصم / سلفة */}
+      <Dialog
+        open={dedModal.open}
+        onClose={() => setDedModal(prev => ({ ...prev, open: false }))}
+        fullWidth
+        maxWidth="xs"
+        slotProps={{ paper: { sx: { borderRadius: '16px', p: 1 } } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, fontSize: '1.2rem', pb: 1, color: '#DC2626' }}>
+          ➖ تسجيل خصم أو سلفة
+        </DialogTitle>
+
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pt: 1 }}>
+          <Box>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: '#475569', mb: 0.5, display: 'block' }}>الموظف</Typography>
+            <TextField
+              fullWidth
+              size="small"
+              disabled
+              value={dedModal.employee?.name || ''}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '9px', bgcolor: '#F1F5F9' } }}
+            />
+          </Box>
+
+          <Box>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: '#475569', mb: 0.5, display: 'block' }}>سبب الخصم / النوع</Typography>
+            <FormControl fullWidth size="small">
+              <Select
+                value={dedModal.reason}
+                onChange={(e) => setDedModal(prev => ({ ...prev, reason: e.target.value }))}
+                sx={{ borderRadius: '9px' }}
+              >
+                <MenuItem value="سلفة">سلفة نقدية</MenuItem>
+                <MenuItem value="عقوبة">عقوبة / جزاء</MenuItem>
+                <MenuItem value="تأخير">خصم تأخير</MenuItem>
+                <MenuItem value="أكل">وجبات / أكل</MenuItem>
+                <MenuItem value="تالف">توالف / إتلاف</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+
+          <Box>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: '#475569', mb: 0.5, display: 'block' }}>القيمة (جنيه)</Typography>
+            <TextField
+              fullWidth
+              type="number"
+              size="small"
+              placeholder="0.00"
+              value={dedModal.amount}
+              onChange={(e) => setDedModal(prev => ({ ...prev, amount: e.target.value }))}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
+            />
+          </Box>
+
+          <Box>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: '#475569', mb: 0.5, display: 'block' }}>التاريخ</Typography>
+            <TextField
+              fullWidth
+              type="date"
+              size="small"
+              value={dedModal.date}
+              onChange={(e) => setDedModal(prev => ({ ...prev, date: e.target.value }))}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
+            />
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setDedModal(prev => ({ ...prev, open: false }))} sx={{ fontWeight: 800, color: '#64748B' }}>
+            إلغاء
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            disabled={submittingDed}
+            onClick={handleSaveDeduction}
+            sx={{ fontWeight: 900, borderRadius: '10px', px: 3 }}
+          >
+            {submittingDed ? 'جاري الحفظ...' : 'حفظ الخصم'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Toast Alert */}
+      {toast.open && (
+        <Alert
+          severity={toast.severity}
+          onClose={() => setToast(prev => ({ ...prev, open: false }))}
+          sx={{
+            position: 'fixed',
+            bottom: 24,
+            left: 24,
+            right: 24,
+            maxWidth: 400,
+            mx: 'auto',
+            zIndex: 9999,
+            fontWeight: 800,
+            borderRadius: '12px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
+          }}
+        >
+          {toast.message}
+        </Alert>
+      )}
     </Box>
   );
-}
+}

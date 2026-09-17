@@ -90,6 +90,25 @@ export default function OrderDetailsPanel({
     });
   });
 
+  branchRegisteredDrivers.forEach((d) => {
+    const driverId = d.id || d.driver_id;
+    const driverName = d.name || d.driver_name;
+    const alreadyIncluded = availableDriverOptions.some((option) =>
+      (driverId && String(option.id) === String(driverId)) ||
+      (driverName && option.name === driverName)
+    );
+
+    if (!alreadyIncluded && driverName) {
+      availableDriverOptions.push({
+        id: driverId || driverName,
+        name: driverName,
+        label: `⚪ ${driverName} (مسجل)`,
+        isCheckedIn: false,
+        isReady: false,
+      });
+    }
+  });
+
   const [driverName, setDriverName] = useState(availableDriverOptions[0]?.name || '');
   const [driverId, setDriverId] = useState(availableDriverOptions[0]?.id || '');
 
