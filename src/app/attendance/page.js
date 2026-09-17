@@ -5,10 +5,10 @@ import {
   Box, Typography, Paper, Grid, Button, Chip,
   TextField, Dialog, DialogTitle, DialogContent, DialogActions,
   CircularProgress, Alert, Stack, FormControl, Select, MenuItem,
-  IconButton
+  IconButton, InputLabel
 } from '@mui/material';
 import {
-  AccessTime, Refresh, Add, ArrowBack, Print
+  AccessTime, Refresh, Add, ArrowBack, Print, EditOutlined, DeleteOutlined, AccountBalanceWallet
 } from '@mui/icons-material';
 import { useBranchStore } from '@/store/useBranchStore';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -59,6 +59,12 @@ export default function AttendanceAndTamamatPage() {
     shift_start_time: '12:00',
   });
   const [submittingEmp, setSubmittingEmp] = useState(false);
+  const [editEmpOpen, setEditEmpOpen] = useState(false);
+  const [editEmpForm, setEditEmpForm] = useState(null);
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [deleteEmp, setDeleteEmp] = useState(null);
+  const [deletingEmp, setDeletingEmp] = useState(false);
+  const [payingEmpId, setPayingEmpId] = useState(null);
 
   // Modal: Deduction / Advance Modal
   const [dedModal, setDedModal] = useState({
@@ -315,6 +321,73 @@ export default function AttendanceAndTamamatPage() {
     }
   };
 
+  const handleOpenEditEmployee = (emp) => {
+    const shiftHours = parseFloat(emp.shift_hours || 8);
+    const weeklyWage = parseFloat(emp.salary || 0) || (parseFloat(emp.hourly_rate || 0) * shiftHours * 6);
+    setEditEmpForm({
+      id: emp.id,
+      name: emp.name || '',
+      role: emp.role || 'دليفري',
+      branch_id: emp.branch_id || 'b1',
+      phone: emp.phone || '',
+      weekly_hours: String(shiftHours * 6),
+      weekly_wage: String(weeklyWage || 0),
+      shift_hours: String(shiftHours),
+      shift_start_time: emp.shift_start_time || '12:00'
+    });
+    setEditEmpOpen(true);
+  };
+
+  const handleSaveEditedEmployee = async () => {
+    if (!editEmpForm?.name.trim()) return;
+    setSubmittingEdit(true);
+    try {
+      const weeklyWage = parseFloat(editEmpForm.weekly_wage) || 0;
+      const weeklyHours = parseFloat(editEmpForm.weekly_hours) || 70;
+      const res = await fetch(`/api/employees/${editEmpForm.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editEmpForm.name.trim(),
+          role: editEmpForm.role,
+          branch_id: editEmpForm.branch_id,
+          phone: editEmpForm.phone || '',
+          hourly_rate: weeklyHours > 0 ? weeklyWage / weeklyHours : 0,
+          base_salary: weeklyWage,
+          weekly_rate: weeklyWage,
+          shift_hours: parseFloat(editEmpForm.shift_hours) || 8,
+          shift_start_time: editEmpForm.shift_start_time || '12:00',
+          salary_type: 'weekly'
+        })
+      });
+      if (!res.ok) throw new Error('فشل حفظ تعديلات الموظف');
+      setToast({ open: true, message: '✅ تم حفظ تعديلات الموظف بنجاح', severity: 'success' });
+      setEditEmpOpen(false);
+      setEditEmpForm(null);
+      await loadData(true);
+    } catch (error) {
+      setToast({ open: true, message: error.message || 'فشل تعديل الموظف', severity: 'error' });
+    } finally {
+      setSubmittingEdit(false);
+    }
+  };
+
+  const handleDeleteEmployee = async () => {
+    if (!deleteEmp) return;
+    setDeletingEmp(true);
+    try {
+      const res = await fetch(`/api/employees/${deleteEmp.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('فشل إلغاء الموظف');
+      setToast({ open: true, message: `✅ تم إلغاء الموظف ${deleteEmp.name}`, severity: 'success' });
+      setDeleteEmp(null);
+      await loadData(true);
+    } catch (error) {
+      setToast({ open: true, message: error.message || 'فشل إلغاء الموظف', severity: 'error' });
+    } finally {
+      setDeletingEmp(false);
+    }
+  };
+
   // Open Deduction Modal
   const handleOpenDeduction = (emp) => {
     setDedModal({
@@ -389,6 +462,48 @@ export default function AttendanceAndTamamatPage() {
       deductions: empDeds,
       notes: `مسير حساب ساعات الفروع (عزت: ${h.b1Hours} س | المسلة: ${h.b2Hours} س)`
     });
+  };
+
+  const handlePaySalary = async (emp) => {
+    const h = employeeHoursMap.get(emp.id) || { b1Hours: 0, b2Hours: 0, totalHours: 0 };
+    const reqHours = parseFloat(emp.shift_hours ? emp.shift_hours * 6 : 70);
+    const weeklyWage = parseFloat(emp.salary || emp.hourly_rate * reqHours || 1050);
+    const hourlyRate = reqHours > 0 ? (weeklyWage / reqHours) : (parseFloat(emp.hourly_rate) || 15);
+    const earnedGross = h.totalHours * hourlyRate;
+    const empDeds = (allBonusDeductions || []).filter(d => String(d.employee_id) === String(emp.id) && d.type === 'deduction');
+    const deductionsTotal = empDeds.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0);
+    const netPay = Math.max(0, earnedGross - deductionsTotal);
+
+    if (!confirm(`تأكيد صرف مرتب ${emp.name} بقيمة ${netPay.toFixed(2)} ج.م؟\nسيتم إغلاق حضور الموظف وخصم السلف غير المسددة.`)) return;
+    setPayingEmpId(emp.id);
+    try {
+      const res = await fetch('/api/employees/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employee_id: emp.id,
+          employee_name: emp.name,
+          employee_role: emp.role,
+          salary_type: 'weekly',
+          base_salary: weeklyWage,
+          hourly_rate: hourlyRate,
+          days_attended: 0,
+          hours_worked: h.totalHours,
+          earned_amount: earnedGross,
+          deduction_amount: deductionsTotal,
+          net_paid: netPay,
+          month: new Date().toISOString().substring(0, 7),
+          notes: `صرف مرتب ${emp.name}`
+        })
+      });
+      if (!res.ok) throw new Error('فشل تسجيل صرف المرتب');
+      setToast({ open: true, message: `✅ تم صرف مرتب ${emp.name} بقيمة ${netPay.toFixed(2)} ج.م`, severity: 'success' });
+      await loadData(true);
+    } catch (error) {
+      setToast({ open: true, message: error.message || 'فشل صرف المرتب', severity: 'error' });
+    } finally {
+      setPayingEmpId(null);
+    }
   };
 
   // Filter Employees
@@ -888,6 +1003,14 @@ export default function AttendanceAndTamamatPage() {
                       <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 700 }}>
                         {reqHours} ساعة / أسبوع
                       </Typography>
+                      <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5 }}>
+                        <IconButton size="small" color="primary" onClick={() => handleOpenEditEmployee(emp)} aria-label="تعديل الموظف">
+                          <EditOutlined fontSize="small" />
+                        </IconButton>
+                        <IconButton size="small" color="error" onClick={() => setDeleteEmp(emp)} aria-label="إلغاء الموظف">
+                          <DeleteOutlined fontSize="small" />
+                        </IconButton>
+                      </Box>
                     </Box>
                   </Paper>
                 );
@@ -999,16 +1122,27 @@ export default function AttendanceAndTamamatPage() {
                       </Typography>
                     </Box>
 
-                    <Button
-                      fullWidth
-                      variant="outlined"
-                      size="small"
-                      startIcon={<Print />}
-                      onClick={() => handlePrintSalary(emp)}
-                      sx={{ fontWeight: 800, borderRadius: '8px', color: '#475569', borderColor: '#CBD5E1' }}
-                    >
-                      طباعة مسير الحساب
-                    </Button>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        startIcon={<AccountBalanceWallet />}
+                        disabled={payingEmpId === emp.id || netPay <= 0}
+                        onClick={() => handlePaySalary(emp)}
+                        sx={{ fontWeight: 900, borderRadius: '8px', bgcolor: '#059669', '&:hover': { bgcolor: '#047857' } }}
+                      >
+                        {payingEmpId === emp.id ? 'جاري الصرف...' : 'صرف المرتب'}
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<Print />}
+                        onClick={() => handlePrintSalary(emp)}
+                        sx={{ fontWeight: 800, borderRadius: '8px', color: '#475569', borderColor: '#CBD5E1' }}
+                      >
+                        طباعة المسير
+                      </Button>
+                    </Box>
 
                     {empDeds.length > 0 && (
                       <Box sx={{ mt: 1.5, pt: 1, borderTop: '1px solid #E2E8F0' }}>
@@ -1195,6 +1329,69 @@ export default function AttendanceAndTamamatPage() {
             sx={{ fontWeight: 900, borderRadius: '10px', px: 3 }}
           >
             {submittingDed ? 'جاري الحفظ...' : 'حفظ الخصم'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* MODAL: تعديل الموظف */}
+      <Dialog
+        open={editEmpOpen}
+        onClose={() => setEditEmpOpen(false)}
+        fullWidth
+        maxWidth="xs"
+        slotProps={{ paper: { sx: { borderRadius: '16px', p: 1 } } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900 }}>✏️ تعديل بيانات الموظف</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pt: 1 }}>
+          {editEmpForm && (
+            <>
+              <TextField fullWidth size="small" label="اسم الموظف" value={editEmpForm.name} onChange={(e) => setEditEmpForm({ ...editEmpForm, name: e.target.value })} />
+              <TextField fullWidth size="small" label="رقم الهاتف" value={editEmpForm.phone} onChange={(e) => setEditEmpForm({ ...editEmpForm, phone: e.target.value })} />
+              <FormControl fullWidth size="small">
+                <InputLabel>الوظيفة</InputLabel>
+                <Select value={editEmpForm.role} label="الوظيفة" onChange={(e) => setEditEmpForm({ ...editEmpForm, role: e.target.value })}>
+                  <MenuItem value="دليفري">دليفري (طيار)</MenuItem>
+                  <MenuItem value="طيار">طيار توصيل</MenuItem>
+                  <MenuItem value="صنايعي">صنايعي حواوشي</MenuItem>
+                  <MenuItem value="كاشير">كاشير</MenuItem>
+                  <MenuItem value="عامل">عامل صالة / نظافة</MenuItem>
+                  <MenuItem value="شيف">شيف تجهيز</MenuItem>
+                </Select>
+              </FormControl>
+              <FormControl fullWidth size="small">
+                <InputLabel>الفرع الأساسي</InputLabel>
+                <Select value={editEmpForm.branch_id} label="الفرع الأساسي" onChange={(e) => setEditEmpForm({ ...editEmpForm, branch_id: e.target.value })}>
+                  <MenuItem value="b1">فرع عزت</MenuItem>
+                  <MenuItem value="b2">فرع المسلة</MenuItem>
+                </Select>
+              </FormControl>
+              <TextField fullWidth type="number" size="small" label="الأجر الأسبوعي (ج.م)" value={editEmpForm.weekly_wage} onChange={(e) => setEditEmpForm({ ...editEmpForm, weekly_wage: e.target.value })} />
+              <TextField fullWidth type="number" size="small" label="ساعات الأسبوع" value={editEmpForm.weekly_hours} onChange={(e) => setEditEmpForm({ ...editEmpForm, weekly_hours: e.target.value })} />
+              <TextField fullWidth type="number" size="small" label="ساعات الشيفت اليومية" value={editEmpForm.shift_hours} onChange={(e) => setEditEmpForm({ ...editEmpForm, shift_hours: e.target.value })} />
+              <TextField fullWidth type="time" size="small" label="بداية الشيفت" value={editEmpForm.shift_start_time} onChange={(e) => setEditEmpForm({ ...editEmpForm, shift_start_time: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} />
+            </>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setEditEmpOpen(false)}>إلغاء</Button>
+          <Button variant="contained" onClick={handleSaveEditedEmployee} disabled={submittingEdit || !editEmpForm?.name.trim()} sx={{ bgcolor: '#2563EB', fontWeight: 900 }}>
+            {submittingEdit ? 'جاري الحفظ...' : 'حفظ التعديلات'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* MODAL: تأكيد إلغاء الموظف */}
+      <Dialog open={Boolean(deleteEmp)} onClose={() => setDeleteEmp(null)} fullWidth maxWidth="xs" slotProps={{ paper: { sx: { borderRadius: '16px', p: 1 } } }}>
+        <DialogTitle sx={{ fontWeight: 900, color: '#DC2626' }}>⚠️ إلغاء الموظف</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontWeight: 700 }}>
+            هل أنت متأكد من إلغاء الموظف <strong>{deleteEmp?.name}</strong>؟ سيتم حذفه من قائمة الموظفين والطيارين.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setDeleteEmp(null)}>رجوع</Button>
+          <Button variant="contained" color="error" onClick={handleDeleteEmployee} disabled={deletingEmp} sx={{ fontWeight: 900 }}>
+            {deletingEmp ? 'جاري الإلغاء...' : 'تأكيد الإلغاء'}
           </Button>
         </DialogActions>
       </Dialog>
