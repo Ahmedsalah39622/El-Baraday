@@ -1222,4 +1222,4 @@ export default function AttendanceAndTamamatPage() {
       )}
     </Box>
   );
-}
+}

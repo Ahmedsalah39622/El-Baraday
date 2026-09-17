@@ -92,6 +92,9 @@ export default function DeliveryPage() {
 
   const effectiveBranch = (user && user.role !== 'admin' && user.branch_id) ? user.branch_id : selectedBranchId;
 
+  // Filter drivers checked-in for current active shift & branch
+  const checkedInDrivers = (activeQueue || []).filter(q => !effectiveBranch || effectiveBranch === 'all' || !q.branch_id || q.branch_id === 'all' || q.branch_id === effectiveBranch);
+
   const autoPrintedOrderIds = useRef(new Set());
   const isInitialFetch = useRef(true);
 
