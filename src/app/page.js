@@ -537,10 +537,7 @@ export default function POSPage() {
     if (!isInvInShift(inv, 'b1', b1ActiveShift)) return sum;
 
     const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
-    if (isDelivery) {
-      const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
-      if (!isCashCollected) return sum;
-    }
+    if (isDelivery) return sum;
 
     const pm = inv.paymentMethod || inv.payment_method || 'cash';
     if (pm !== 'cash') return sum;
@@ -553,10 +550,7 @@ export default function POSPage() {
     if (!isInvInShift(inv, 'b2', b2ActiveShift)) return sum;
 
     const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
-    if (isDelivery) {
-      const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
-      if (!isCashCollected) return sum;
-    }
+    if (isDelivery) return sum;
 
     const pm = inv.paymentMethod || inv.payment_method || 'cash';
     if (pm !== 'cash') return sum;
@@ -586,13 +580,11 @@ export default function POSPage() {
     }, 0);
   }, [invoices, b1ActiveShift]);
 
-  // Branch 1 total follows the drawer rule: cash drawer + delivery sales.
-  const b1TotalSales = b1CashSales + b1DeliverySales;
-
   const b1PaymentSales = useMemo(() => {
     if (!b1ActiveShift) return { card: 0, vodafone_cash: 0, instapay: 0 };
     return (invoices || []).reduce((totals, inv) => {
       if (!isInvInShift(inv, 'b1', b1ActiveShift)) return totals;
+      if (inv.orderType === 'delivery' || inv.order_type === 'delivery') return totals;
       const rawPaymentMethod = inv.paymentMethod || inv.payment_method || 'cash';
       const paymentMethod = rawPaymentMethod === 'visa' ? 'card' : rawPaymentMethod;
       if (paymentMethod in totals) {
@@ -601,6 +593,9 @@ export default function POSPage() {
       return totals;
     }, { card: 0, vodafone_cash: 0, instapay: 0 });
   }, [invoices, b1ActiveShift]);
+
+  // Total sales = non-delivery drawer cash + non-cash methods + delivery sales.
+  const b1TotalSales = b1CashSales + b1DeliverySales + b1PaymentSales.card + b1PaymentSales.vodafone_cash + b1PaymentSales.instapay;
 
   // Branch 2 Delivery Sales
   const b2DeliverySales = useMemo(() => {
@@ -624,13 +619,11 @@ export default function POSPage() {
     }, 0);
   }, [invoices, b2ActiveShift]);
 
-  // Branch 2 total follows the drawer rule: cash drawer + delivery sales.
-  const b2TotalSales = b2CashSales + b2DeliverySales;
-
   const b2PaymentSales = useMemo(() => {
     if (!b2ActiveShift) return { card: 0, vodafone_cash: 0, instapay: 0 };
     return (invoices || []).reduce((totals, inv) => {
       if (!isInvInShift(inv, 'b2', b2ActiveShift)) return totals;
+      if (inv.orderType === 'delivery' || inv.order_type === 'delivery') return totals;
       const rawPaymentMethod = inv.paymentMethod || inv.payment_method || 'cash';
       const paymentMethod = rawPaymentMethod === 'visa' ? 'card' : rawPaymentMethod;
       if (paymentMethod in totals) {
@@ -639,6 +632,8 @@ export default function POSPage() {
       return totals;
     }, { card: 0, vodafone_cash: 0, instapay: 0 });
   }, [invoices, b2ActiveShift]);
+
+  const b2TotalSales = b2CashSales + b2DeliverySales + b2PaymentSales.card + b2PaymentSales.vodafone_cash + b2PaymentSales.instapay;
 
   // Current branch metrics for single-branch cashier
   const currentDeliverySales = effectiveBranchId === 'b2' ? b2DeliverySales : b1DeliverySales;
