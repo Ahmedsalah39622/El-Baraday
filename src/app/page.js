@@ -586,13 +586,20 @@ export default function POSPage() {
     }, 0);
   }, [invoices, b1ActiveShift]);
 
-  // Branch 1 Total Sales
-  const b1TotalSales = useMemo(() => {
-    if (!b1ActiveShift) return 0;
-    return (invoices || []).reduce((sum, inv) => {
-      if (!isInvInShift(inv, 'b1', b1ActiveShift)) return sum;
-      return sum + (parseFloat(inv.total) || 0);
-    }, 0);
+  // Branch 1 total follows the drawer rule: cash drawer + delivery sales.
+  const b1TotalSales = b1CashSales + b1DeliverySales;
+
+  const b1PaymentSales = useMemo(() => {
+    if (!b1ActiveShift) return { card: 0, vodafone_cash: 0, instapay: 0 };
+    return (invoices || []).reduce((totals, inv) => {
+      if (!isInvInShift(inv, 'b1', b1ActiveShift)) return totals;
+      const rawPaymentMethod = inv.paymentMethod || inv.payment_method || 'cash';
+      const paymentMethod = rawPaymentMethod === 'visa' ? 'card' : rawPaymentMethod;
+      if (paymentMethod in totals) {
+        totals[paymentMethod] += parseFloat(inv.paidAmount ?? inv.total ?? 0) || 0;
+      }
+      return totals;
+    }, { card: 0, vodafone_cash: 0, instapay: 0 });
   }, [invoices, b1ActiveShift]);
 
   // Branch 2 Delivery Sales
@@ -617,13 +624,20 @@ export default function POSPage() {
     }, 0);
   }, [invoices, b2ActiveShift]);
 
-  // Branch 2 Total Sales
-  const b2TotalSales = useMemo(() => {
-    if (!b2ActiveShift) return 0;
-    return (invoices || []).reduce((sum, inv) => {
-      if (!isInvInShift(inv, 'b2', b2ActiveShift)) return sum;
-      return sum + (parseFloat(inv.total) || 0);
-    }, 0);
+  // Branch 2 total follows the drawer rule: cash drawer + delivery sales.
+  const b2TotalSales = b2CashSales + b2DeliverySales;
+
+  const b2PaymentSales = useMemo(() => {
+    if (!b2ActiveShift) return { card: 0, vodafone_cash: 0, instapay: 0 };
+    return (invoices || []).reduce((totals, inv) => {
+      if (!isInvInShift(inv, 'b2', b2ActiveShift)) return totals;
+      const rawPaymentMethod = inv.paymentMethod || inv.payment_method || 'cash';
+      const paymentMethod = rawPaymentMethod === 'visa' ? 'card' : rawPaymentMethod;
+      if (paymentMethod in totals) {
+        totals[paymentMethod] += parseFloat(inv.paidAmount ?? inv.total ?? 0) || 0;
+      }
+      return totals;
+    }, { card: 0, vodafone_cash: 0, instapay: 0 });
   }, [invoices, b2ActiveShift]);
 
   // Current branch metrics for single-branch cashier
@@ -710,8 +724,8 @@ export default function POSPage() {
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          p: { xs: 2, md: 3 },
-          gap: 2,
+          p: { xs: 1, md: 3 },
+          gap: { xs: 1, md: 2 },
           overflow: 'hidden',
         }}
       >
@@ -720,7 +734,7 @@ export default function POSPage() {
           sx={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 1.2,
+            gap: { xs: 0.6, md: 1.2 },
             width: '100%',
           }}
         >
@@ -803,7 +817,7 @@ export default function POSPage() {
               sx={{
                 display: { xs: 'flex', md: 'none' },
                 width: '100%',
-                gap: 1,
+                gap: 0.6,
               }}
             >
               {/* Branch 1 Mobile Card */}
@@ -813,12 +827,12 @@ export default function POSPage() {
                   bgcolor: isSystemLoading ? '#F8FAFC' : (b1ActiveShift ? '#F0FDF4' : '#F9FAFB'),
                   border: '1.5px solid',
                   borderColor: isSystemLoading ? '#E2E8F0' : (b1ActiveShift ? '#10B981' : '#CBD5E1'),
-                  p: 1,
+                  p: 0.6,
                   borderRadius: '12px',
                   boxShadow: isSystemLoading ? 'none' : (b1ActiveShift ? '0 2px 5px rgba(16, 185, 129, 0.1)' : 'none'),
                 }}
               >
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.6, borderBottom: '1px solid', borderColor: b1ActiveShift ? '#DCFCE7' : '#E2E8F0', pb: 0.3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.3, borderBottom: '1px solid', borderColor: b1ActiveShift ? '#DCFCE7' : '#E2E8F0', pb: 0.2 }}>
                   <Typography variant="caption" sx={{ color: isSystemLoading ? '#64748B' : (b1ActiveShift ? '#047857' : '#64748B'), fontWeight: 800, fontSize: '0.72rem' }}>
                     فرع عزت
                   </Typography>
@@ -832,19 +846,19 @@ export default function POSPage() {
                   </Box>
                 ) : b1ActiveShift ? (
                   <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5 }}>
-                    <Box sx={{ bgcolor: '#FFF', px: 0.6, py: 0.3, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
-                      <Typography variant="caption" sx={{ color: '#047857', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>💵 خزنة</Typography>
+                    <Box sx={{ bgcolor: '#FFF', px: 0.3, py: 0.2, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#047857', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>💵 كاش محصل</Typography>
                       <Typography variant="caption" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.72rem', lineHeight: 1.1 }}>{canSeeSafe ? `${b1CashSales.toFixed(0)}` : '🔒'}</Typography>
                     </Box>
-                    <Box sx={{ bgcolor: '#FFF', px: 0.6, py: 0.3, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
-                      <Typography variant="caption" sx={{ color: '#C2410C', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>🛵 دليفري</Typography>
+                    <Box sx={{ bgcolor: '#FFF', px: 0.3, py: 0.2, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#C2410C', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>🛵 مبيعات دليفري</Typography>
                       <Typography variant="caption" sx={{ color: '#9A3412', fontWeight: 900, fontSize: '0.72rem', lineHeight: 1.1 }}>{canSeeSafe ? `${b1DeliverySales.toFixed(0)}` : '🔒'}</Typography>
                     </Box>
-                    <Box sx={{ bgcolor: '#FFF', px: 0.6, py: 0.3, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
-                      <Typography variant="caption" sx={{ color: '#B45309', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>📦 خدمة</Typography>
+                    <Box sx={{ bgcolor: '#FFF', px: 0.3, py: 0.2, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#B45309', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>📦 رسوم التوصيل</Typography>
                       <Typography variant="caption" sx={{ color: '#78350F', fontWeight: 900, fontSize: '0.72rem', lineHeight: 1.1 }}>{canSeeSafe ? `${b1DeliveryFees.toFixed(0)}` : '🔒'}</Typography>
                     </Box>
-                    <Box sx={{ bgcolor: '#FFF', px: 0.6, py: 0.3, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                    <Box sx={{ bgcolor: '#FFF', px: 0.3, py: 0.2, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
                       <Typography variant="caption" sx={{ color: '#1D4ED8', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>⭐ إجمالي</Typography>
                       <Typography variant="caption" sx={{ color: '#1E40AF', fontWeight: 900, fontSize: '0.72rem', lineHeight: 1.1 }}>{canSeeSafe ? `${b1TotalSales.toFixed(0)}` : '🔒'}</Typography>
                     </Box>
@@ -863,12 +877,12 @@ export default function POSPage() {
                   bgcolor: isSystemLoading ? '#F8FAFC' : (b2ActiveShift ? '#EFF6FF' : '#F9FAFB'),
                   border: '1.5px solid',
                   borderColor: isSystemLoading ? '#E2E8F0' : (b2ActiveShift ? '#3B82F6' : '#CBD5E1'),
-                  p: 1,
+                  p: 0.6,
                   borderRadius: '12px',
                   boxShadow: isSystemLoading ? 'none' : (b2ActiveShift ? '0 2px 5px rgba(59, 130, 246, 0.1)' : 'none'),
                 }}
               >
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.6, borderBottom: '1px solid', borderColor: b2ActiveShift ? '#DBEAFE' : '#E2E8F0', pb: 0.3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.3, borderBottom: '1px solid', borderColor: b2ActiveShift ? '#DBEAFE' : '#E2E8F0', pb: 0.2 }}>
                   <Typography variant="caption" sx={{ color: isSystemLoading ? '#64748B' : (b2ActiveShift ? '#1E40AF' : '#64748B'), fontWeight: 800, fontSize: '0.72rem' }}>
                     فرع المسلة
                   </Typography>
@@ -882,19 +896,19 @@ export default function POSPage() {
                   </Box>
                 ) : b2ActiveShift ? (
                   <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5 }}>
-                    <Box sx={{ bgcolor: '#FFF', px: 0.6, py: 0.3, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
-                      <Typography variant="caption" sx={{ color: '#047857', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>💵 خزنة</Typography>
+                    <Box sx={{ bgcolor: '#FFF', px: 0.3, py: 0.2, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#047857', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>💵 كاش محصل</Typography>
                       <Typography variant="caption" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.72rem', lineHeight: 1.1 }}>{canSeeSafe ? `${b2CashSales.toFixed(0)}` : '🔒'}</Typography>
                     </Box>
-                    <Box sx={{ bgcolor: '#FFF', px: 0.6, py: 0.3, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
-                      <Typography variant="caption" sx={{ color: '#C2410C', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>🛵 دليفري</Typography>
+                    <Box sx={{ bgcolor: '#FFF', px: 0.3, py: 0.2, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#C2410C', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>🛵 مبيعات دليفري</Typography>
                       <Typography variant="caption" sx={{ color: '#9A3412', fontWeight: 900, fontSize: '0.72rem', lineHeight: 1.1 }}>{canSeeSafe ? `${b2DeliverySales.toFixed(0)}` : '🔒'}</Typography>
                     </Box>
-                    <Box sx={{ bgcolor: '#FFF', px: 0.6, py: 0.3, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
-                      <Typography variant="caption" sx={{ color: '#B45309', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>📦 خدمة</Typography>
+                    <Box sx={{ bgcolor: '#FFF', px: 0.3, py: 0.2, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#B45309', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>📦 رسوم التوصيل</Typography>
                       <Typography variant="caption" sx={{ color: '#78350F', fontWeight: 900, fontSize: '0.72rem', lineHeight: 1.1 }}>{canSeeSafe ? `${b2DeliveryFees.toFixed(0)}` : '🔒'}</Typography>
                     </Box>
-                    <Box sx={{ bgcolor: '#FFF', px: 0.6, py: 0.3, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                    <Box sx={{ bgcolor: '#FFF', px: 0.3, py: 0.2, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
                       <Typography variant="caption" sx={{ color: '#1D4ED8', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>⭐ إجمالي</Typography>
                       <Typography variant="caption" sx={{ color: '#1E40AF', fontWeight: 900, fontSize: '0.72rem', lineHeight: 1.1 }}>{canSeeSafe ? `${b2TotalSales.toFixed(0)}` : '🔒'}</Typography>
                     </Box>
@@ -991,7 +1005,7 @@ export default function POSPage() {
                     {/* Cash Drawer */}
                     <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
                       <Typography variant="caption" sx={{ color: '#047857', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>
-                        💵 الخزنة
+                        💵 كاش محصل
                       </Typography>
                       <Typography variant="subtitle2" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.88rem' }}>
                         {canSeeSafe ? `${b1CashSales.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '🔒'}
@@ -1002,7 +1016,7 @@ export default function POSPage() {
                     {/* Delivery Sales */}
                     <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
                       <Typography variant="caption" sx={{ color: '#C2410C', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>
-                        🛵 دليفري
+                        🛵 مبيعات دليفري
                       </Typography>
                       <Typography variant="subtitle2" sx={{ color: '#9A3412', fontWeight: 900, fontSize: '0.88rem' }}>
                         {canSeeSafe ? `${b1DeliverySales.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '🔒'}
@@ -1013,7 +1027,7 @@ export default function POSPage() {
                     {/* Delivery Fee */}
                     <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
                       <Typography variant="caption" sx={{ color: '#B45309', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>
-                        📦 الخدمة
+                        📦 رسوم التوصيل
                       </Typography>
                       <Typography variant="subtitle2" sx={{ color: '#78350F', fontWeight: 900, fontSize: '0.88rem' }}>
                         {canSeeSafe ? `${b1DeliveryFees.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '🔒'}
@@ -1030,6 +1044,20 @@ export default function POSPage() {
                         {canSeeSafe ? `${b1TotalSales.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '🔒'}
                         <Typography component="span" sx={{ fontSize: '0.65rem', fontWeight: 700, mr: 0.3 }}>ج.م</Typography>
                       </Typography>
+                    </Box>
+
+                    {/* Payment Method Breakdown */}
+                    <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#2563EB', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>💳 فيزا / شبكة</Typography>
+                      <Typography variant="subtitle2" sx={{ color: '#1D4ED8', fontWeight: 900, fontSize: '0.88rem' }}>{canSeeSafe ? `${b1PaymentSales.card.toLocaleString()}` : '🔒'} <Typography component="span" sx={{ fontSize: '0.65rem', fontWeight: 700 }}>ج.م</Typography></Typography>
+                    </Box>
+                    <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#DC2626', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>📱 فودافون كاش</Typography>
+                      <Typography variant="subtitle2" sx={{ color: '#B91C1C', fontWeight: 900, fontSize: '0.88rem' }}>{canSeeSafe ? `${b1PaymentSales.vodafone_cash.toLocaleString()}` : '🔒'} <Typography component="span" sx={{ fontSize: '0.65rem', fontWeight: 700 }}>ج.م</Typography></Typography>
+                    </Box>
+                    <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#7E22CE', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>⚡ إنستا باي</Typography>
+                      <Typography variant="subtitle2" sx={{ color: '#6B21A8', fontWeight: 900, fontSize: '0.88rem' }}>{canSeeSafe ? `${b1PaymentSales.instapay.toLocaleString()}` : '🔒'} <Typography component="span" sx={{ fontSize: '0.65rem', fontWeight: 700 }}>ج.م</Typography></Typography>
                     </Box>
                   </Box>
                 ) : (
@@ -1087,7 +1115,7 @@ export default function POSPage() {
                     {/* Cash Drawer */}
                     <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
                       <Typography variant="caption" sx={{ color: '#047857', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>
-                        💵 الخزنة
+                        💵 كاش محصل
                       </Typography>
                       <Typography variant="subtitle2" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.88rem' }}>
                         {canSeeSafe ? `${b2CashSales.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '🔒'}
@@ -1098,7 +1126,7 @@ export default function POSPage() {
                     {/* Delivery Sales */}
                     <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
                       <Typography variant="caption" sx={{ color: '#C2410C', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>
-                        🛵 دليفري
+                        🛵 مبيعات دليفري
                       </Typography>
                       <Typography variant="subtitle2" sx={{ color: '#9A3412', fontWeight: 900, fontSize: '0.88rem' }}>
                         {canSeeSafe ? `${b2DeliverySales.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '🔒'}
@@ -1109,7 +1137,7 @@ export default function POSPage() {
                     {/* Delivery Fee */}
                     <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
                       <Typography variant="caption" sx={{ color: '#B45309', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>
-                        📦 الخدمة
+                        📦 رسوم التوصيل
                       </Typography>
                       <Typography variant="subtitle2" sx={{ color: '#78350F', fontWeight: 900, fontSize: '0.88rem' }}>
                         {canSeeSafe ? `${b2DeliveryFees.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '🔒'}
@@ -1126,6 +1154,20 @@ export default function POSPage() {
                         {canSeeSafe ? `${b2TotalSales.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '🔒'}
                         <Typography component="span" sx={{ fontSize: '0.65rem', fontWeight: 700, mr: 0.3 }}>ج.م</Typography>
                       </Typography>
+                    </Box>
+
+                    {/* Payment Method Breakdown */}
+                    <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#2563EB', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>💳 فيزا / شبكة</Typography>
+                      <Typography variant="subtitle2" sx={{ color: '#1D4ED8', fontWeight: 900, fontSize: '0.88rem' }}>{canSeeSafe ? `${b2PaymentSales.card.toLocaleString()}` : '🔒'} <Typography component="span" sx={{ fontSize: '0.65rem', fontWeight: 700 }}>ج.م</Typography></Typography>
+                    </Box>
+                    <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#DC2626', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>📱 فودافون كاش</Typography>
+                      <Typography variant="subtitle2" sx={{ color: '#B91C1C', fontWeight: 900, fontSize: '0.88rem' }}>{canSeeSafe ? `${b2PaymentSales.vodafone_cash.toLocaleString()}` : '🔒'} <Typography component="span" sx={{ fontSize: '0.65rem', fontWeight: 700 }}>ج.م</Typography></Typography>
+                    </Box>
+                    <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
+                      <Typography variant="caption" sx={{ color: '#7E22CE', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>⚡ إنستا باي</Typography>
+                      <Typography variant="subtitle2" sx={{ color: '#6B21A8', fontWeight: 900, fontSize: '0.88rem' }}>{canSeeSafe ? `${b2PaymentSales.instapay.toLocaleString()}` : '🔒'} <Typography component="span" sx={{ fontSize: '0.65rem', fontWeight: 700 }}>ج.م</Typography></Typography>
                     </Box>
                   </Box>
                 ) : (

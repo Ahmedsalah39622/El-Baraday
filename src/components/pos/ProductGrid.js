@@ -8,7 +8,7 @@ export default function ProductGrid({ products = [], onSelectProduct, categoryTi
   return (
     <Box sx={{ flex: 1, overflowY: 'auto', pr: 0.5, pl: 0.5 }}>
       {/* Section Title */}
-      <Typography variant="h6" sx={{ fontWeight: 800, mb: 2, color: '#1A1A2E' }}>
+      <Typography variant="h6" sx={{ display: { xs: 'none', md: 'block' }, fontWeight: 800, mb: 2, color: '#1A1A2E' }}>
         {categoryTitle}
       </Typography>
 
@@ -17,8 +17,8 @@ export default function ProductGrid({ products = [], onSelectProduct, categoryTi
         sx={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(145px, 1fr))',
-          gap: 2,
-          pb: 4,
+          gap: { xs: 1, md: 2 },
+            pb: { xs: 12, md: 4 },
         }}
       >
         {products.map((product) => {
@@ -40,7 +40,7 @@ export default function ProductGrid({ products = [], onSelectProduct, categoryTi
                 maxWidth: '100%',
                 overflow: 'hidden',
                 boxSizing: 'border-box',
-                p: 1.5,
+                p: { xs: 0.8, md: 1.5 },
               }}
             >
               {/* Offer Special Discount Badge */}
@@ -71,8 +71,8 @@ export default function ProductGrid({ products = [], onSelectProduct, categoryTi
                 className="product-card-image"
                 sx={{
                   width: '100%',
-                  height: 110,
-                  maxHeight: 110,
+                    height: { xs: 82, md: 110 },
+                    maxHeight: { xs: 82, md: 110 },
                   borderRadius: '14px',
                   objectFit: 'cover',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
