@@ -27,6 +27,32 @@ async function ensureOrderColumns() {
   markSchemaChecked('orderCols');
 }
 
+async function normalizeBranchOrderNumbers() {
+  try {
+    const res = await query(`
+      SELECT id, COALESCE(NULLIF(TRIM(branch_id), ''), 'b1') AS branch_id, created_at
+      FROM orders
+      ORDER BY branch_id ASC, created_at ASC, id ASC
+    `);
+
+    const groups = {};
+    (res.rows || []).forEach((row) => {
+      const branch = row.branch_id || 'b1';
+      if (!groups[branch]) groups[branch] = [];
+      groups[branch].push(row.id);
+    });
+
+    for (const [branch, ids] of Object.entries(groups)) {
+      for (let index = 0; index < ids.length; index += 1) {
+        const nextValue = index + 1;
+        await query('UPDATE orders SET order_number = ? WHERE id = ? AND order_number <> ?', [nextValue, ids[index], nextValue]);
+      }
+    }
+  } catch (e) {
+    console.warn('⚠️ Order numbering normalization skipped:', e.message);
+  }
+}
+
 async function getBranchNextOrderNumber(branchId, activeShiftRecord = null) {
   const normalizedBranch = (!branchId || branchId === 'all') ? 'b1' : branchId;
 
@@ -129,6 +155,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     await ensureOrderColumns();
+    await normalizeBranchOrderNumbers();
     const body = await request.json();
     const {
       order_type, payment_method, customer_name, customer_phone, customer_area,
@@ -169,11 +196,8 @@ export async function POST(request) {
       nextNum = 1;
     }
 
-    const activeShiftId = activeShiftRecord ? activeShiftRecord.id : null;
     for (let safety = 0; safety < 20; safety += 1) {
-      const dupCheck = activeShiftId
-        ? await query('SELECT id FROM orders WHERE branch_id = ? AND shift_id = ? AND order_number = ? LIMIT 1', [targetBranch, activeShiftId, nextNum])
-        : await query('SELECT id FROM orders WHERE branch_id = ? AND order_number = ? AND shift_id IS NULL LIMIT 1', [targetBranch, nextNum]);
+      const dupCheck = await query('SELECT id FROM orders WHERE branch_id = ? AND order_number = ? LIMIT 1', [targetBranch, nextNum]);
       if (!dupCheck.rows || dupCheck.rows.length === 0) break;
       nextNum += 1;
     }
@@ -181,6 +205,7 @@ export async function POST(request) {
     const orderId = `ord_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
     // Insert order into DB with branch_id, payment_method, and shift_id
+    const activeShiftId = activeShiftRecord ? activeShiftRecord.id : null;
     const orderResult = await query(
       `INSERT INTO orders (id, order_number, order_type, payment_method, customer_name, customer_phone, customer_area,
         customer_address, customer_floor, customer_apartment, driver_name, driver_id, subtotal, delivery_fee, discount, total,
