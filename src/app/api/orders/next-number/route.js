@@ -5,44 +5,30 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const branchId = searchParams.get('branch_id') || 'b1';
+    const normalizedBranch = (!branchId || branchId === 'all') ? 'b1' : branchId;
 
-    // 1. Find active shift for branch
     let shiftSql = "SELECT id, start_time FROM shifts WHERE status = 'active'";
     const shiftParams = [];
-    if (branchId && branchId !== 'all') {
-      shiftSql += " AND (branch_id = $1 OR branch_id IS NULL OR branch_id = '' OR branch_id = 'all')";
-      shiftParams.push(branchId);
+    if (normalizedBranch && normalizedBranch !== 'all') {
+      shiftSql += " AND (branch_id = ? OR branch_id IS NULL OR branch_id = '' OR branch_id = 'all')";
+      shiftParams.push(normalizedBranch);
     }
     shiftSql += " ORDER BY start_time DESC LIMIT 1";
 
     const shiftRes = await query(shiftSql, shiftParams);
     const activeShift = shiftRes.rows && shiftRes.rows[0];
 
-    // If no shift is active, the next shift will start at order #1!
-    if (!activeShift) {
-      return NextResponse.json({ next: 1 });
-    }
-
-    let sql = "";
-    let params = [];
-
-    if (branchId && branchId !== 'all') {
-      sql = "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND (shift_id = $2 OR (shift_id IS NULL AND created_at >= $3))";
-      params = [branchId, activeShift.id, activeShift.start_time];
+    let nextVal = 1;
+    if (activeShift) {
+      const sql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 AS next FROM orders WHERE branch_id = ? AND (shift_id = ? OR (shift_id IS NULL AND created_at >= ?))";
+      const res = await query(sql, [normalizedBranch, activeShift.id, activeShift.start_time]);
+      nextVal = parseInt(res?.rows?.[0]?.next || '1', 10) || 1;
     } else {
-      sql = "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE (shift_id = $1 OR (shift_id IS NULL AND created_at >= $2))";
-      params = [activeShift.id, activeShift.start_time];
+      const res = await query('SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 AS next FROM orders WHERE branch_id = ?', [normalizedBranch]);
+      nextVal = parseInt(res?.rows?.[0]?.next || '1', 10) || 1;
     }
 
-    try {
-      const res = await query(sql, params);
-      const nextVal = (res && res.rows && res.rows.length > 0 && res.rows[0].next)
-        ? parseInt(res.rows[0].next)
-        : 1;
-      return NextResponse.json({ next: nextVal });
-    } catch (e) {
-      return NextResponse.json({ next: 1 });
-    }
+    return NextResponse.json({ next: nextVal });
   } catch (error) {
     console.error('Error fetching next order number:', error);
     return NextResponse.json({ next: 1 });

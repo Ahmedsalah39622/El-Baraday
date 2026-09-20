@@ -253,7 +253,7 @@ CREATE TABLE IF NOT EXISTS `users` (
 -- ==================== ORDERS ====================
 CREATE TABLE IF NOT EXISTS `orders` (
   `id` VARCHAR(100) PRIMARY KEY,
-  `order_number` INT AUTO_INCREMENT UNIQUE,
+  `order_number` INT NOT NULL,
   `order_type` VARCHAR(50) DEFAULT 'dine_in',
   `table_number` VARCHAR(100),
   `customer_id` VARCHAR(100),

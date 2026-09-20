@@ -167,9 +167,15 @@ export const useShiftStore = create(
       const shiftId = current?.id;
       const targetBranch = current?.branch_id || 'b1';
       
-      // Clear active shift from state immediately and reset next order number to 1
+      // Clear active shift from state immediately and reset this branch counter to 1
       set({ activeShift: null });
-      useInvoiceStore.setState({ nextOrderNumber: 1 });
+      useInvoiceStore.setState((state) => ({
+        nextOrderNumber: 1,
+        nextOrderNumbersByBranch: {
+          ...state.nextOrderNumbersByBranch,
+          [targetBranch]: 1,
+        },
+      }));
 
       if (shiftId) {
         try {

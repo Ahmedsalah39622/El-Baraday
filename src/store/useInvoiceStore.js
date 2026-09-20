@@ -6,14 +6,23 @@ export const useInvoiceStore = create((set, get) => ({
   invoices: [],
   customInvoices: [],
   nextOrderNumber: 1,
+  nextOrderNumbersByBranch: {},
   loading: false,
 
   fetchNextOrderNumber: async (branchId = 'b1') => {
+    const safeBranchId = (!branchId || branchId === 'all') ? 'b1' : branchId;
     try {
-      const res = await fetch(`/api/orders/next-number?branch_id=${branchId}`);
+      const res = await fetch(`/api/orders/next-number?branch_id=${encodeURIComponent(safeBranchId)}`);
       if (res.ok) {
         const data = await res.json();
-        if (data.next) set({ nextOrderNumber: parseInt(data.next) || 1 });
+        const nextVal = parseInt(data.next, 10) || 1;
+        set((state) => ({
+          nextOrderNumber: nextVal,
+          nextOrderNumbersByBranch: {
+            ...state.nextOrderNumbersByBranch,
+            [safeBranchId]: nextVal,
+          },
+        }));
       }
     } catch (e) {}
   },
@@ -301,7 +310,7 @@ export const useInvoiceStore = create((set, get) => ({
 
   addInvoice: async (invoice) => {
     const targetBranch = invoice.branch_id || invoice.branchId || 'b1';
-    const currentNum = get().nextOrderNumber;
+    const currentNum = get().nextOrderNumbersByBranch[targetBranch] || get().nextOrderNumber || 1;
     const newInvoice = {
       ...invoice,
       id: Date.now().toString(),
@@ -323,7 +332,11 @@ export const useInvoiceStore = create((set, get) => ({
     // Optimistic local update
     set((state) => ({
       invoices: [newInvoice, ...state.invoices],
-      nextOrderNumber: state.nextOrderNumber + 1,
+      nextOrderNumber: currentNum + 1,
+      nextOrderNumbersByBranch: {
+        ...state.nextOrderNumbersByBranch,
+        [targetBranch]: currentNum + 1,
+      },
     }));
 
     // Save to DB

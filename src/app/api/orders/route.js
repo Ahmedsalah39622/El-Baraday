@@ -11,7 +11,62 @@ async function ensureOrderColumns() {
   try { await query('ALTER TABLE orders ADD COLUMN source_branch_name VARCHAR(255) DEFAULT NULL'); } catch (e) { }
   try { await query('ALTER TABLE orders ADD COLUMN customer_floor VARCHAR(50) DEFAULT NULL'); } catch (e) { }
   try { await query('ALTER TABLE orders ADD COLUMN customer_apartment VARCHAR(50) DEFAULT NULL'); } catch (e) { }
+  try { await query('ALTER TABLE orders MODIFY order_number INT NOT NULL'); } catch (e) { }
+
+  try {
+    const indexRes = await query('SHOW INDEX FROM orders WHERE Column_name = ? AND Non_unique = 0', ['order_number']);
+    for (const indexRow of indexRes.rows || []) {
+      const idxName = indexRow.Key_name;
+      if (idxName && idxName !== 'PRIMARY') {
+        try { await query(`ALTER TABLE orders DROP INDEX \`${idxName}\``); } catch (e) { }
+      }
+    }
+  } catch (e) { }
+
+  try { await query('CREATE INDEX IF NOT EXISTS idx_orders_branch_order_number ON orders (branch_id, order_number)'); } catch (e) { }
   markSchemaChecked('orderCols');
+}
+
+async function normalizeBranchOrderNumbers() {
+  try {
+    const res = await query(`
+      SELECT id, COALESCE(NULLIF(TRIM(branch_id), ''), 'b1') AS branch_id, created_at
+      FROM orders
+      ORDER BY branch_id ASC, created_at ASC, id ASC
+    `);
+
+    const groups = {};
+    (res.rows || []).forEach((row) => {
+      const branch = row.branch_id || 'b1';
+      if (!groups[branch]) groups[branch] = [];
+      groups[branch].push(row.id);
+    });
+
+    for (const [branch, ids] of Object.entries(groups)) {
+      for (let index = 0; index < ids.length; index += 1) {
+        const nextValue = index + 1;
+        await query('UPDATE orders SET order_number = ? WHERE id = ? AND order_number <> ?', [nextValue, ids[index], nextValue]);
+      }
+    }
+  } catch (e) {
+    console.warn('⚠️ Order numbering normalization skipped:', e.message);
+  }
+}
+
+async function getBranchNextOrderNumber(branchId, activeShiftRecord = null) {
+  const normalizedBranch = (!branchId || branchId === 'all') ? 'b1' : branchId;
+
+  if (activeShiftRecord) {
+    const sql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 AS next FROM orders WHERE branch_id = ? AND (shift_id = ? OR (shift_id IS NULL AND created_at >= ?))";
+    const params = [normalizedBranch, activeShiftRecord.id, activeShiftRecord.start_time];
+    const res = await query(sql, params);
+    const nextValue = parseInt(res?.rows?.[0]?.next || '1', 10);
+    if (!Number.isNaN(nextValue) && nextValue > 0) return nextValue;
+  }
+
+  const fallbackRes = await query('SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 AS next FROM orders WHERE branch_id = ?', [normalizedBranch]);
+  const fallbackValue = parseInt(fallbackRes?.rows?.[0]?.next || '1', 10);
+  return Number.isNaN(fallbackValue) || fallbackValue < 1 ? 1 : fallbackValue;
 }
 
 
@@ -100,6 +155,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     await ensureOrderColumns();
+    await normalizeBranchOrderNumbers();
     const body = await request.json();
     const {
       order_type, payment_method, customer_name, customer_phone, customer_area,
@@ -120,37 +176,30 @@ export async function POST(request) {
     const cashCollectedVal = cashCollectedBool ? 1 : 0;
     const cashCollectedAtVal = cashCollectedBool ? new Date().toISOString() : null;
 
-    // Get next sequential order number STRICTLY SCOPED TO ACTIVE SHIFT & BRANCH
+    // Get next sequential order number scoped to this branch and active shift.
     let nextNum = 1;
     let activeShiftRecord = null;
     try {
       let shiftSql = "SELECT id, start_time FROM shifts WHERE status = 'active'";
       const shiftParams = [];
       if (targetBranch && targetBranch !== 'all') {
-        shiftSql += " AND (branch_id = $1 OR branch_id IS NULL OR branch_id = '' OR branch_id = 'all')";
+        shiftSql += " AND (branch_id = ? OR branch_id IS NULL OR branch_id = '' OR branch_id = 'all')";
         shiftParams.push(targetBranch);
       }
       shiftSql += " ORDER BY start_time DESC LIMIT 1";
 
       const shiftRes = await query(shiftSql, shiftParams);
       activeShiftRecord = shiftRes.rows && shiftRes.rows[0];
-
-      if (activeShiftRecord) {
-        const sql = (targetBranch && targetBranch !== 'all')
-          ? "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND (shift_id = $2 OR (shift_id IS NULL AND created_at >= $3))"
-          : "SELECT COALESCE(MAX(CAST(order_number AS INTEGER)), 0) + 1 as next FROM orders WHERE (shift_id = $1 OR (shift_id IS NULL AND created_at >= $2))";
-        const params = (targetBranch && targetBranch !== 'all') ? [targetBranch, activeShiftRecord.id, activeShiftRecord.start_time] : [activeShiftRecord.id, activeShiftRecord.start_time];
-        const nextRes = await query(sql, params);
-        if (nextRes && nextRes.rows && nextRes.rows.length > 0 && nextRes.rows[0].next) {
-          nextNum = parseInt(nextRes.rows[0].next) || 1;
-        }
-      } else {
-        // Shift is closed / not active -> next order will start from 1
-        nextNum = 1;
-      }
+      nextNum = await getBranchNextOrderNumber(targetBranch, activeShiftRecord);
     } catch (err) {
       console.warn('⚠️ Standard nextNum query failed:', err.message);
       nextNum = 1;
+    }
+
+    for (let safety = 0; safety < 20; safety += 1) {
+      const dupCheck = await query('SELECT id FROM orders WHERE branch_id = ? AND order_number = ? LIMIT 1', [targetBranch, nextNum]);
+      if (!dupCheck.rows || dupCheck.rows.length === 0) break;
+      nextNum += 1;
     }
 
     const orderId = `ord_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
