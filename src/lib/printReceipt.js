@@ -15,6 +15,21 @@ export function markOrderAsPrinted(orderId, orderNumber) {
 export function printThermalReceipt(orderData) {
   if (!orderData) return;
 
+  const tryDesktopNativePrint = (receiptHtml) => {
+    if (typeof window === 'undefined') return false;
+    if (!window.electronAPI || typeof window.electronAPI.printThermalReceipt !== 'function') return false;
+
+    try {
+      window.electronAPI.printThermalReceipt(receiptHtml).catch((error) => {
+        console.error('Desktop printer error:', error);
+      });
+      return true;
+    } catch (error) {
+      console.error('Desktop printer bridge error:', error);
+      return false;
+    }
+  };
+
   const orderId = orderData.id || orderData.order_id;
   const orderNum = orderData.orderNumber || orderData.order_number || '1';
 
@@ -539,6 +554,9 @@ export function printThermalReceipt(orderData) {
 
   setTimeout(() => {
     try {
+      if (tryDesktopNativePrint(html)) {
+        return;
+      }
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
     } catch (e) {

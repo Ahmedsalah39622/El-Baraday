@@ -183,7 +183,7 @@ export async function POST(request) {
       let shiftSql = "SELECT id, start_time FROM shifts WHERE status = 'active'";
       const shiftParams = [];
       if (targetBranch && targetBranch !== 'all') {
-        shiftSql += " AND (branch_id = ? OR branch_id IS NULL OR branch_id = '' OR branch_id = 'all')";
+        shiftSql += " AND branch_id = ?";
         shiftParams.push(targetBranch);
       }
       shiftSql += " ORDER BY start_time DESC LIMIT 1";
