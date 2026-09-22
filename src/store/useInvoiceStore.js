@@ -408,10 +408,17 @@ export const useInvoiceStore = create((set, get) => ({
         }
         return { success: true, data: { ...newInvoice, ...created, id: created.id, orderNumber: String(created.order_number) } };
       }
+      set((state) => ({
+        invoices: state.invoices.filter((inv) => inv.id !== newInvoice.id),
+      }));
+      return { success: false, error: `Order save failed (${res.status})` };
     } catch (err) {
+      set((state) => ({
+        invoices: state.invoices.filter((inv) => inv.id !== newInvoice.id),
+      }));
       console.warn('⚠️ Order saved locally only:', err.message);
+      return { success: false, error: err.message };
     }
-    return { success: true, data: newInvoice };
   },
 
   getTodayInvoices: () => {

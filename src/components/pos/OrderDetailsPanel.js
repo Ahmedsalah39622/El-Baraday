@@ -356,6 +356,11 @@ export default function OrderDetailsPanel({
       notes: finalNotes,
     });
 
+    if (!invoiceRes?.success) {
+      alert(`❌ لم يتم حفظ الأوردر، لذلك لن تتم طباعة البون.\n${invoiceRes?.error || 'خطأ غير معروف'}`);
+      return;
+    }
+
     const savedOrder = invoiceRes?.data;
     const finalOrderDataToPrint = {
       ...currentOrderData,
