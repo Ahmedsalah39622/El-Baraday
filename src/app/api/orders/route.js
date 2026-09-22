@@ -181,6 +181,9 @@ export async function POST(request) {
 
       const shiftRes = await query(shiftSql, shiftParams);
       activeShiftRecord = shiftRes.rows && shiftRes.rows[0];
+      if (!activeShiftRecord) {
+        return NextResponse.json({ error: 'لا توجد شيفت مفتوحة لهذا الفرع' }, { status: 409 });
+      }
       nextNum = await getBranchNextOrderNumber(targetBranch);
     } catch (err) {
       console.warn('⚠️ Standard nextNum query failed:', err.message);
