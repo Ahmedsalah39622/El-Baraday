@@ -73,7 +73,7 @@ export default function ReportsPage() {
     setLoading(true);
     try {
       // 1. Fetch Invoices
-      fetchInvoices(1000, targetBranch);
+      fetchInvoices(10000, targetBranch);
 
       // 2. Fetch Daily Summary API
       const summaryUrl = `/api/reports/daily?date=${dateFrom}${targetBranch && targetBranch !== 'all' ? `&branch_id=${targetBranch}` : ''}`;

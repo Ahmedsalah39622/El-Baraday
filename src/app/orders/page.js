@@ -84,12 +84,12 @@ export default function OrdersPage() {
     : activeShiftsList.some(s => s.branch_id === targetBranch || (!s.branch_id && targetBranch === 'b1'));
 
   useEffect(() => {
-    fetchInvoices(1000, targetBranch);
+    fetchInvoices(10000, targetBranch);
     fetchShifts(targetBranch);
 
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
-        fetchInvoices(1000, targetBranch, true);
+        fetchInvoices(10000, targetBranch, true);
         fetchShifts(targetBranch);
       }
     }, 3000);
@@ -990,7 +990,7 @@ export default function OrdersPage() {
         open={editModalOpen}
         onClose={() => setEditModalOpen(false)}
         order={orderToEdit}
-        onSaveSuccess={() => fetchInvoices(1000, targetBranch)}
+        onSaveSuccess={() => fetchInvoices(10000, targetBranch)}
       />
     </Box>
   );

@@ -75,7 +75,7 @@ export default function OperationsDashboard({ onSwitchToPos }) {
     setLoading(true);
     try {
       await Promise.all([
-        fetchInvoices(1000, effectiveBranchId, true),
+        fetchInvoices(10000, effectiveBranchId, true),
         fetchShifts(effectiveBranchId),
       ]);
 

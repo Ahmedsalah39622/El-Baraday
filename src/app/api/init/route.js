@@ -186,7 +186,7 @@ export async function GET(req) {
         )
         ${branchId && branchId !== 'all' ? `AND o.branch_id = $1` : ''}
         ORDER BY o.created_at DESC
-        LIMIT 1000
+        LIMIT 10000
       `, (branchId && branchId !== 'all') ? [branchId] : []),
       safeQuery('SELECT * FROM app_settings'),
       safeQuery(`SELECT * FROM shifts ${shiftsWhere} LIMIT 20`, params),
