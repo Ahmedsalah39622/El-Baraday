@@ -59,9 +59,11 @@ function getBasicShiftConsumption(invoices) {
       const name = String(item.name || item.product_name || item.productName || '').trim();
       if (!name || !BASIC_ITEM_KEYWORDS.some((keyword) => name.includes(keyword))) return;
       const key = `${name}::${item.unit || 'قطعة'}`;
+      const itemPrice = parseFloat(item.price || 0);
       totals.set(key, {
         name,
         unit: item.unit || 'قطعة',
+        price: itemPrice,
         quantity: (totals.get(key)?.quantity || 0) + (parseFloat(item.quantity) || 0),
       });
     });

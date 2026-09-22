@@ -579,8 +579,14 @@ export function printShiftConsumptionReceipt({ branchName = 'الفرع الرئ
       <td style="text-align:right;font-weight:800;">${String(item.name || 'صنف')}</td>
       <td>${item.quantity}</td>
       <td>${item.unit || 'قطعة'}</td>
+      <td>${(parseFloat(item.price) || 0).toFixed(2)}</td>
+      <td style="font-weight:900;">${((parseFloat(item.price) || 0) * (parseFloat(item.quantity) || 0)).toFixed(2)}</td>
     </tr>
   `).join('');
+  const totalConsumptionValue = (items || []).reduce(
+    (sum, item) => sum + ((parseFloat(item.price) || 0) * (parseFloat(item.quantity) || 0)),
+    0
+  );
   const consumptionTotals = (items || []).reduce((totals, item) => {
     const itemName = `${item.name || ''} ${item.size || ''}`.toLowerCase().trim();
     const quantity = parseFloat(item.quantity) || 0;
@@ -634,11 +640,12 @@ export function printShiftConsumptionReceipt({ branchName = 'الفرع الرئ
         </div>
         <div class="separator"></div>
         <table>
-          <thead><tr><th>#</th><th>الصنف</th><th>الكمية</th><th>الوحدة</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="4">لا توجد أصناف أساسية مصروفة</td></tr>'}</tbody>
+          <thead><tr><th>#</th><th>الصنف</th><th>الكمية</th><th>الوحدة</th><th>السعر</th><th>الإجمالي</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="6">لا توجد أصناف أساسية مصروفة</td></tr>'}</tbody>
         </table>
         ${categorySummaryHtml}
         <div class="total">الإجمالي العدد: ${formatQuantity(consumptionTotals.all)}</div>
+        <div class="total">إجمالي قيمة الأصناف: ${totalConsumptionValue.toFixed(2)} ج.م</div>
         <p class="center" style="margin-top:8px;">تمت الطباعة عند تقفيل الشيفت</p>
       </main></body>
     </html>`;

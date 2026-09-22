@@ -532,15 +532,12 @@ export default function POSPage() {
     return true;
   };
 
-  // Calculate Branch 1 cash drawer amount: Returns 0.00 if Branch 1 shift is CLOSED
-  const b1CashSales = !b1ActiveShift ? 0 : b1ActiveShift.startAmount + (invoices || []).reduce((sum, inv) => {
+  // Cash sales used in the sales breakdown exclude delivery orders, which are shown separately.
+  const b1CashSales = !b1ActiveShift ? 0 : (invoices || []).reduce((sum, inv) => {
     if (!isInvInShift(inv, 'b1', b1ActiveShift)) return sum;
 
     const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
-    if (isDelivery) {
-      const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
-      if (!isCashCollected) return sum;
-    }
+    if (isDelivery) return sum;
 
     const pm = inv.paymentMethod || inv.payment_method || 'cash';
     if (pm !== 'cash') return sum;
@@ -548,19 +545,35 @@ export default function POSPage() {
     return sum + (parseFloat(inv.paidAmount ?? inv.total ?? 0));
   }, 0);
 
+  // Physical drawer balance includes opening cash and cash-collected delivery orders.
+  const b1DrawerCash = !b1ActiveShift ? 0 : b1ActiveShift.startAmount + (invoices || []).reduce((sum, inv) => {
+    if (!isInvInShift(inv, 'b1', b1ActiveShift)) return sum;
+    const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
+    if (isDelivery && !(inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected')) return sum;
+    const pm = inv.paymentMethod || inv.payment_method || 'cash';
+    if (pm !== 'cash') return sum;
+    return sum + (parseFloat(inv.paidAmount ?? inv.total ?? 0));
+  }, 0);
+
   // Calculate Branch 2 cash drawer amount: Returns 0.00 if Branch 2 shift is CLOSED
-  const b2CashSales = !b2ActiveShift ? 0 : b2ActiveShift.startAmount + (invoices || []).reduce((sum, inv) => {
+  const b2CashSales = !b2ActiveShift ? 0 : (invoices || []).reduce((sum, inv) => {
     if (!isInvInShift(inv, 'b2', b2ActiveShift)) return sum;
 
     const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
-    if (isDelivery) {
-      const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
-      if (!isCashCollected) return sum;
-    }
+    if (isDelivery) return sum;
 
     const pm = inv.paymentMethod || inv.payment_method || 'cash';
     if (pm !== 'cash') return sum;
 
+    return sum + (parseFloat(inv.paidAmount ?? inv.total ?? 0));
+  }, 0);
+
+  const b2DrawerCash = !b2ActiveShift ? 0 : b2ActiveShift.startAmount + (invoices || []).reduce((sum, inv) => {
+    if (!isInvInShift(inv, 'b2', b2ActiveShift)) return sum;
+    const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
+    if (isDelivery && !(inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected')) return sum;
+    const pm = inv.paymentMethod || inv.payment_method || 'cash';
+    if (pm !== 'cash') return sum;
     return sum + (parseFloat(inv.paidAmount ?? inv.total ?? 0));
   }, 0);
 
@@ -649,9 +662,9 @@ export default function POSPage() {
   const isShiftActive = activeShift && activeShift.status === 'active';
   const currentTillCash = isAdmin
     ? (selectedBranchId === 'all'
-        ? (b1CashSales + b2CashSales)
-        : (selectedBranchId === 'b2' ? b2CashSales : b1CashSales))
-    : (effectiveBranchId === 'b2' ? b2CashSales : b1CashSales);
+        ? (b1DrawerCash + b2DrawerCash)
+        : (selectedBranchId === 'b2' ? b2DrawerCash : b1DrawerCash))
+      : (effectiveBranchId === 'b2' ? b2DrawerCash : b1DrawerCash);
 
   // Filter products by category & search, explicitly sorted by sortOrder
   const filteredProducts = (products || [])
@@ -848,7 +861,7 @@ export default function POSPage() {
                 ) : b1ActiveShift ? (
                   <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5 }}>
                     <Box sx={{ bgcolor: '#FFF', px: 0.3, py: 0.2, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
-                      <Typography variant="caption" sx={{ color: '#047857', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>💵 كاش محصل</Typography>
+                      <Typography variant="caption" sx={{ color: '#047857', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>💵 كاش غير دليفري</Typography>
                       <Typography variant="caption" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.72rem', lineHeight: 1.1 }}>{canSeeSafe ? `${b1CashSales.toFixed(0)}` : '🔒'}</Typography>
                     </Box>
                     <Box sx={{ bgcolor: '#FFF', px: 0.3, py: 0.2, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
@@ -898,7 +911,7 @@ export default function POSPage() {
                 ) : b2ActiveShift ? (
                   <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5 }}>
                     <Box sx={{ bgcolor: '#FFF', px: 0.3, py: 0.2, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
-                      <Typography variant="caption" sx={{ color: '#047857', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>💵 كاش محصل</Typography>
+                      <Typography variant="caption" sx={{ color: '#047857', fontWeight: 700, fontSize: '0.58rem', display: 'block', lineHeight: 1 }}>💵 كاش غير دليفري</Typography>
                       <Typography variant="caption" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.72rem', lineHeight: 1.1 }}>{canSeeSafe ? `${b2CashSales.toFixed(0)}` : '🔒'}</Typography>
                     </Box>
                     <Box sx={{ bgcolor: '#FFF', px: 0.3, py: 0.2, borderRadius: '6px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
@@ -1006,7 +1019,7 @@ export default function POSPage() {
                     {/* Cash Drawer */}
                     <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
                       <Typography variant="caption" sx={{ color: '#047857', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>
-                        💵 كاش محصل
+                        💵 كاش غير دليفري
                       </Typography>
                       <Typography variant="subtitle2" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.88rem' }}>
                         {canSeeSafe ? `${b1CashSales.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '🔒'}
@@ -1116,7 +1129,7 @@ export default function POSPage() {
                     {/* Cash Drawer */}
                     <Box sx={{ bgcolor: '#FFFFFF', p: 0.8, borderRadius: '8px', border: '1px solid #E2E8F0', textAlign: 'center' }}>
                       <Typography variant="caption" sx={{ color: '#047857', fontWeight: 800, fontSize: '0.68rem', display: 'block', mb: 0.2 }}>
-                        💵 كاش محصل
+                        💵 كاش غير دليفري
                       </Typography>
                       <Typography variant="subtitle2" sx={{ color: '#065F46', fontWeight: 900, fontSize: '0.88rem' }}>
                         {canSeeSafe ? `${b2CashSales.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : '🔒'}
