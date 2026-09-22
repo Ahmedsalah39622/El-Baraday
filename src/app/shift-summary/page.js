@@ -48,6 +48,44 @@ import { useShiftStore } from '@/store/useShiftStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useBranchStore } from '@/store/useBranchStore';
 import { generateReportPDF } from '@/lib/reportPdfExport';
+import { printShiftConsumptionReceipt } from '@/lib/printReceipt';
+
+const BASIC_ITEM_KEYWORDS = ['حواوشي', 'رغيف', 'عيش', 'خبز', 'فراخ', 'دجاج', 'لحمة', 'لحم', 'كبدة', 'سجق'];
+
+function getBasicShiftConsumption(invoices) {
+  const totals = new Map();
+  (invoices || []).forEach((invoice) => {
+    (invoice.items || []).forEach((item) => {
+      const name = String(item.name || item.product_name || item.productName || '').trim();
+      if (!name || !BASIC_ITEM_KEYWORDS.some((keyword) => name.includes(keyword))) return;
+      const key = `${name}::${item.unit || 'قطعة'}`;
+      totals.set(key, {
+        name,
+        unit: item.unit || 'قطعة',
+        quantity: (totals.get(key)?.quantity || 0) + (parseFloat(item.quantity) || 0),
+      });
+    });
+  });
+  return Array.from(totals.values()).sort((a, b) => b.quantity - a.quantity);
+}
+
+function getBasicConsumptionCounts(items) {
+  return (items || []).reduce((counts, item) => {
+    const name = `${item.name || ''} ${item.size || ''}`.toLowerCase().trim();
+    const quantity = parseFloat(item.quantity) || 0;
+    const isLarge = name.includes('كبير') || name.includes('large') || /(?:^|\s|\()l(?:arge)?(?:\s|\)|$)/i.test(name);
+    const isSmall = name.includes('صغير') || name.includes('small') || /(?:^|\s|\()s(?:mall)?(?:\s|\)|$)/i.test(name);
+    if (isLarge) counts.large += quantity;
+    if (isSmall) counts.small += quantity;
+    if (name.includes('فراخ') || name.includes('دجاج')) counts.chicken += quantity;
+    counts.all += quantity;
+    return counts;
+  }, { large: 0, small: 0, chicken: 0, all: 0 });
+}
+
+function formatQuantity(quantity) {
+  return Number.isInteger(quantity) ? quantity : quantity.toFixed(2);
+}
 
 export default function ShiftSummaryPage() {
   const { invoices, fetchInvoices } = useInvoiceStore();
@@ -287,6 +325,8 @@ export default function ShiftSummaryPage() {
   );
 
   const activeShiftNetDeliverySales = Math.max(0, activeShiftDeliverySalesTotal - activeShiftDeliveryFeesSum);
+  const basicShiftConsumption = getBasicShiftConsumption(activeShiftInvoices);
+  const basicConsumptionCounts = getBasicConsumptionCounts(basicShiftConsumption);
 
   // Live Deficit / Surplus Calculations in Close Dialog
   const parsedActualCash = actualDrawerCash !== '' ? parseFloat(actualDrawerCash) : expectedDrawerCash;
@@ -303,6 +343,7 @@ export default function ShiftSummaryPage() {
 
   const handleConfirmCloseShift = async () => {
     if (isDeficit && !deficitNotes.trim()) return;
+    const shiftEnd = new Date().toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' });
     if (effectiveBranchId === 'all' && relevantActiveShifts.length > 1) {
       for (const s of relevantActiveShifts) {
         const sStart = parseFloat(s.start_amount || s.startAmount || 0);
@@ -310,9 +351,24 @@ export default function ShiftSummaryPage() {
         const sSales = sInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0);
         const sExp = sStart + sSales;
         await closeShift(sExp, sExp, sSales, sInvoices.length, deficitNotes.trim());
+        printShiftConsumptionReceipt({
+          branchName: getBranchNameById(s.branch_id || 'b1'),
+          cashierName: s.cashier_name || s.cashierName || cashierDisplayName,
+          shiftStart: s.start_time || s.startTime || '',
+          shiftEnd,
+          items: getBasicShiftConsumption(sInvoices),
+        });
       }
     } else {
+      const closingShift = relevantActiveShifts[0] || activeShift;
       await closeShift(parsedActualCash, expectedDrawerCash, totalSales, activeShiftInvoices.length, deficitNotes.trim());
+      printShiftConsumptionReceipt({
+        branchName: getBranchNameById(closingShift?.branch_id || effectiveBranchId),
+        cashierName: closingShift?.cashier_name || closingShift?.cashierName || cashierDisplayName,
+        shiftStart: closingShift?.start_time || closingShift?.startTime || '',
+        shiftEnd,
+        items: basicShiftConsumption,
+      });
     }
     setCloseDialogOpen(false);
     setActualDrawerCash('');
@@ -369,6 +425,8 @@ export default function ShiftSummaryPage() {
       { title: 'الكاشير مسئول الوردية', value: targetShift?.cashier_name || targetShift?.cashierName || cashierDisplayName },
       { title: 'النقدية الأولى (العهدة)', value: `${startAmt.toFixed(2)} ج.م` },
       { title: 'إجمالي مبيعات الشيفت', value: `${overallSalesAmt.toFixed(2)} ج.م` },
+      { title: 'صافي أوردرات الدليفري', value: `${(isLive ? activeShiftNetDeliverySales : 0).toFixed(2)} ج.م` },
+      { title: 'إجمالي خدمة الدليفري', value: `${(isLive ? activeShiftDeliveryFeesSum : 0).toFixed(2)} ج.م` },
       { title: 'المبلغ المتوقع بالخزينة', value: `${expAmt.toFixed(2)} ج.م` },
       { title: 'المبلغ الفعلي الخزينة', value: `${actAmt.toFixed(2)} ج.م` },
       { title: 'حالة الخزينة والعجز', value: shiftStatusText }
@@ -383,7 +441,12 @@ export default function ShiftSummaryPage() {
 
     const data = [
       { item: 'بداية العهدة (النقدية الأولى)', value: `${startAmt.toFixed(2)} ج.م`, notes: 'عهدة استلام الوردية' },
-      { item: 'إجمالي مبيعات الكاش', value: `+${salesAmt.toFixed(2)} ج.م`, notes: `${isLive ? activeShiftInvoices.length : (targetShift?.total_orders || 0)} فاتورة` },
+      { item: 'إجمالي مبيعات الوردية', value: `+${overallSalesAmt.toFixed(2)} ج.م`, notes: `${isLive ? activeShiftInvoices.length : (targetShift?.total_orders || 0)} فاتورة` },
+      ...(isLive ? [
+        { item: 'مبيعات الكاش الداخلة للخزينة', value: `+${salesAmt.toFixed(2)} ج.م`, notes: 'بعد استبعاد الدفع الإلكتروني والدليفري غير المحصل' },
+        { item: 'صافي أوردرات الدليفري', value: `${activeShiftNetDeliverySales.toFixed(2)} ج.م`, notes: 'إجمالي الدليفري ناقص خدمة التوصيل' },
+        { item: 'إجمالي خدمة الدليفري', value: `${activeShiftDeliveryFeesSum.toFixed(2)} ج.م`, notes: 'رسوم التوصيل' },
+      ] : []),
       { item: 'المبلغ المتوقع بالخزينة', value: `${expAmt.toFixed(2)} ج.م`, notes: 'العهدة + مبيعات الكاش' },
       { item: 'المبلغ الجردي الفعلي المسلم', value: `${actAmt.toFixed(2)} ج.م`, notes: 'المبلغ المحصّل باليد' },
       { item: 'الفارق (العجز / الزيادة)', value: `${diff.toFixed(2)} ج.م`, notes: targetShift?.notes || deficitNotes || 'تصفية وتسوية خزينة' }
@@ -453,6 +516,20 @@ export default function ShiftSummaryPage() {
                 sx={{ borderColor: '#E5E7EB', color: '#1A1A2E', borderRadius: '12px', fontWeight: 700 }}
               >
                 طباعة تقرير الشيفت والتظريف (PDF)
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<Print />}
+                onClick={() => printShiftConsumptionReceipt({
+                  branchName: branchDisplayName,
+                  cashierName: cashierDisplayName,
+                  shiftStart: relevantActiveShifts[0]?.start_time || relevantActiveShifts[0]?.startTime || '',
+                  shiftEnd: '',
+                  items: basicShiftConsumption,
+                })}
+                sx={{ borderColor: '#F59E0B', color: '#B45309', borderRadius: '12px', fontWeight: 700 }}
+              >
+                طباعة المصروفات الأساسية
               </Button>
               <Button
                 variant="contained"
@@ -827,13 +904,50 @@ export default function ShiftSummaryPage() {
                 <Typography variant="body2" fontWeight="bold">{startCash.toFixed(2)} ج.م</Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', color: 'success.main' }}>
-                <Typography variant="body2" fontWeight="bold">+ مبيعات الكاش:</Typography>
-                <Typography variant="body2" fontWeight="bold">+{totalSales.toFixed(2)} ج.m</Typography>
+                <Typography variant="body2" fontWeight="bold">إجمالي مبيعات الوردية:</Typography>
+                <Typography variant="body2" fontWeight="bold">{totalSales.toFixed(2)} ج.م</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', color: '#047857' }}>
+                <Typography variant="body2" fontWeight="bold">مبيعات الكاش الداخلة للخزينة:</Typography>
+                <Typography variant="body2" fontWeight="bold">+{activeShiftCashSales.toFixed(2)} ج.م</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', color: '#7C3AED' }}>
+                <Typography variant="body2" fontWeight="bold">صافي أوردرات الدليفري:</Typography>
+                <Typography variant="body2" fontWeight="bold">{activeShiftNetDeliverySales.toFixed(2)} ج.م</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', color: '#C2410C' }}>
+                <Typography variant="body2" fontWeight="bold">إجمالي خدمة الدليفري:</Typography>
+                <Typography variant="body2" fontWeight="bold">{activeShiftDeliveryFeesSum.toFixed(2)} ج.م</Typography>
               </Box>
               <Divider sx={{ my: 0.5 }} />
               <Box sx={{ display: 'flex', justifyContent: 'space-between', color: '#92400E' }}>
                 <Typography variant="body1" fontWeight="900">المبلغ المتوقع بالخزينة:</Typography>
                 <Typography variant="h6" fontWeight="900">{expectedDrawerCash.toFixed(2)} ج.م</Typography>
+              </Box>
+            </Stack>
+          </Paper>
+
+          <Paper variant="outlined" sx={{ p: 1.5, bgcolor: '#FFFDF5', borderColor: '#FCD34D', borderRadius: '12px' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 900, color: '#92400E', mb: 1, textAlign: 'center' }}>
+              ملخص عدد الأصناف الأساسية
+            </Typography>
+            <Stack spacing={0.6}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="body2" fontWeight="bold">عدد الكبير:</Typography>
+                <Typography variant="body2" fontWeight="900">{formatQuantity(basicConsumptionCounts.large)} قطعة</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="body2" fontWeight="bold">عدد الصغير:</Typography>
+                <Typography variant="body2" fontWeight="900">{formatQuantity(basicConsumptionCounts.small)} قطعة</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Typography variant="body2" fontWeight="bold">عدد الفراخ:</Typography>
+                <Typography variant="body2" fontWeight="900">{formatQuantity(basicConsumptionCounts.chicken)} قطعة</Typography>
+              </Box>
+              <Divider sx={{ my: 0.3 }} />
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', color: '#B45309' }}>
+                <Typography variant="body1" fontWeight="900">الإجمالي العدد:</Typography>
+                <Typography variant="body1" fontWeight="900">{formatQuantity(basicConsumptionCounts.all)} قطعة</Typography>
               </Box>
             </Stack>
           </Paper>

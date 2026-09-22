@@ -570,6 +570,103 @@ export function printThermalReceipt(orderData) {
   }, 300);
 }
 
+export function printShiftConsumptionReceipt({ branchName = 'الفرع الرئيسي', cashierName = 'الكاشير', shiftStart, shiftEnd, items = [] } = {}) {
+  if (typeof window === 'undefined') return false;
+
+  const rows = items.map((item, index) => `
+    <tr>
+      <td>${index + 1}</td>
+      <td style="text-align:right;font-weight:800;">${String(item.name || 'صنف')}</td>
+      <td>${item.quantity}</td>
+      <td>${item.unit || 'قطعة'}</td>
+    </tr>
+  `).join('');
+  const consumptionTotals = (items || []).reduce((totals, item) => {
+    const itemName = `${item.name || ''} ${item.size || ''}`.toLowerCase().trim();
+    const quantity = parseFloat(item.quantity) || 0;
+    const isLarge = itemName.includes('كبير') || itemName.includes('large') || /(?:^|\s|\()l(?:arge)?(?:\s|\)|$)/i.test(itemName);
+    const isSmall = itemName.includes('صغير') || itemName.includes('small') || /(?:^|\s|\()s(?:mall)?(?:\s|\)|$)/i.test(itemName);
+    if (isLarge) totals.large += quantity;
+    if (isSmall) totals.small += quantity;
+    if (itemName.includes('فراخ') || itemName.includes('دجاج')) totals.chicken += quantity;
+    totals.all += quantity;
+    return totals;
+  }, { large: 0, small: 0, chicken: 0, all: 0 });
+  const formatQuantity = (quantity) => Number.isInteger(quantity) ? quantity : quantity.toFixed(2);
+  const categorySummaryHtml = `
+    <div class="summary">
+      <div><span>عدد الكبير</span><strong>${formatQuantity(consumptionTotals.large)}</strong></div>
+      <div><span>عدد الصغير</span><strong>${formatQuantity(consumptionTotals.small)}</strong></div>
+      <div><span>عدد الفراخ</span><strong>${formatQuantity(consumptionTotals.chicken)}</strong></div>
+    </div>
+  `;
+
+  const html = `<!DOCTYPE html>
+    <html lang="ar" dir="rtl">
+      <head>
+        <meta charset="UTF-8" />
+        <title>مصروفات الشيفت - ${branchName}</title>
+        <style>
+          @page { size: 80mm auto; margin: 0; }
+          * { box-sizing: border-box; }
+          html, body { margin: 0; padding: 0 2mm; width: 100%; font-family: Tahoma, Arial, sans-serif; color: #000; direction: rtl; }
+          .receipt { width: 100%; padding: 2mm 0; }
+          .center { text-align: center; }
+          h1 { font-size: 17px; margin: 0 0 3px; }
+          p { font-size: 10px; margin: 2px 0; font-weight: 700; }
+          .separator { border-top: 1px dashed #000; margin: 5px 0; }
+          table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 11px; }
+          th, td { border-bottom: 1px dashed #777; padding: 4px 2px; text-align: center; }
+          th { border-bottom: 1px solid #000; font-weight: 900; }
+          .total { border-top: 2px solid #000; margin-top: 6px; padding-top: 5px; font-size: 11px; font-weight: 900; }
+          .summary { border-top: 1px dashed #000; border-bottom: 1px dashed #000; margin-top: 6px; padding: 4px 0; font-size: 11px; font-weight: 900; }
+          .summary div { display: flex; justify-content: space-between; padding: 2px 8px; }
+          .summary strong { font-size: 13px; }
+        </style>
+      </head>
+      <body><main class="receipt">
+        <div class="center">
+          <h1>بيان المصروفات الأساسية</h1>
+          <p>مطعم البرادعي للحواوشي</p>
+          <p>الفرع: ${branchName}</p>
+          <p>مسؤول الشيفت: ${cashierName}</p>
+          <p>من: ${shiftStart || '-'} إلى: ${shiftEnd || '-'}</p>
+        </div>
+        <div class="separator"></div>
+        <table>
+          <thead><tr><th>#</th><th>الصنف</th><th>الكمية</th><th>الوحدة</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="4">لا توجد أصناف أساسية مصروفة</td></tr>'}</tbody>
+        </table>
+        ${categorySummaryHtml}
+        <div class="total">الإجمالي العدد: ${formatQuantity(consumptionTotals.all)}</div>
+        <p class="center" style="margin-top:8px;">تمت الطباعة عند تقفيل الشيفت</p>
+      </main></body>
+    </html>`;
+
+  if (window.electronAPI && typeof window.electronAPI.printThermalReceipt === 'function') {
+    window.electronAPI.printThermalReceipt(html).catch((error) => console.error('Shift consumption print error:', error));
+    return true;
+  }
+
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.style.visibility = 'hidden';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+  iframe.onload = () => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => iframe.remove(), 1000);
+  };
+  return true;
+}
+
 export function playOrderNotificationSound() {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
