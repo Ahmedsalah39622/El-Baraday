@@ -132,7 +132,6 @@ export async function GET(req) {
 
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get('branch_id');
-    const showAll = searchParams.get('all') === '1';
 
     let ordersWhere = '';
     let tablesWhere = '';
@@ -180,11 +179,11 @@ export async function GET(req) {
         SELECT o.*, b.name as branch_name
         FROM orders o
         LEFT JOIN branches b ON o.branch_id = b.id
-        WHERE ${showAll ? '1 = 1' : `(
+        WHERE (
           DATE(o.created_at) = CURDATE()
           OR o.shift_id IN (SELECT id FROM shifts WHERE status = 'active')
           OR o.created_at >= (SELECT COALESCE(MIN(start_time), CURDATE()) FROM shifts WHERE status = 'active')
-        )`}
+        )
         ${branchId && branchId !== 'all' ? `AND o.branch_id = $1` : ''}
         ORDER BY o.created_at DESC
         LIMIT 500

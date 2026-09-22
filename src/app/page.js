@@ -174,8 +174,8 @@ export default function POSPage() {
       try {
         setIsSystemLoading(true);
         const url = isAdmin && selectedBranchId && selectedBranchId !== 'all'
-          ? `/api/init?branch_id=${selectedBranchId}&all=1`
-          : `/api/init?branch_id=${effectiveBranchId}&all=1`;
+          ? `/api/init?branch_id=${selectedBranchId}`
+          : `/api/init?branch_id=${effectiveBranchId}`;
         const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
@@ -315,7 +315,7 @@ export default function POSPage() {
           ? selectedBranchId
           : effectiveBranchId;
           
-        const ordersUrl = `/api/orders?branch_id=${branchParam}&all=1`;
+        const ordersUrl = `/api/orders?branch_id=${branchParam}`;
         const shiftsUrl = branchParam && branchParam !== 'all'
           ? `/api/shifts?branch_id=${branchParam}`
           : '/api/shifts';
@@ -532,23 +532,9 @@ export default function POSPage() {
     return true;
   };
 
-  // The operating day starts at 10:00 AM and can continue past midnight.
-  const isInvInOperatingDay = (inv, targetBranchId, activeShiftObj) => {
-    if (!activeShiftObj || inv.status === 'cancelled') return false;
-    const invBranch = inv.branchId || inv.branch_id || 'b1';
-    if (invBranch !== targetBranchId) return false;
-
-    const shiftStart = parseTimestamp(activeShiftObj.rawStartTime || activeShiftObj.start_time);
-    const operatingStart = new Date(shiftStart || 0);
-    if (operatingStart.getHours() < 10) operatingStart.setDate(operatingStart.getDate() - 1);
-    operatingStart.setHours(10, 0, 0, 0);
-    const invoiceTime = parseTimestamp(inv.createdAt || inv.created_at);
-    return invoiceTime >= operatingStart.getTime();
-  };
-
   // Calculate Branch 1 cash drawer amount: Returns 0.00 if Branch 1 shift is CLOSED
   const b1CashSales = !b1ActiveShift ? 0 : b1ActiveShift.startAmount + (invoices || []).reduce((sum, inv) => {
-    if (!isInvInOperatingDay(inv, 'b1', b1ActiveShift)) return sum;
+    if (!isInvInShift(inv, 'b1', b1ActiveShift)) return sum;
 
     const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
     if (isDelivery) {
@@ -582,11 +568,9 @@ export default function POSPage() {
   const b1DeliverySales = useMemo(() => {
     if (!b1ActiveShift) return 0;
     return (invoices || []).reduce((sum, inv) => {
-      if (!isInvInOperatingDay(inv, 'b1', b1ActiveShift)) return sum;
+      if (!isInvInShift(inv, 'b1', b1ActiveShift)) return sum;
       const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
       if (!isDelivery) return sum;
-      const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
-      if (isCashCollected) return sum;
       return sum + (parseFloat(inv.total) || 0);
     }, 0);
   }, [invoices, b1ActiveShift]);
@@ -595,11 +579,9 @@ export default function POSPage() {
   const b1DeliveryFees = useMemo(() => {
     if (!b1ActiveShift) return 0;
     return (invoices || []).reduce((sum, inv) => {
-      if (!isInvInOperatingDay(inv, 'b1', b1ActiveShift)) return sum;
+      if (!isInvInShift(inv, 'b1', b1ActiveShift)) return sum;
       const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
       if (!isDelivery) return sum;
-      const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
-      if (isCashCollected) return sum;
       return sum + (parseFloat(inv.deliveryFee || inv.delivery_fee) || 0);
     }, 0);
   }, [invoices, b1ActiveShift]);
@@ -607,7 +589,7 @@ export default function POSPage() {
   const b1PaymentSales = useMemo(() => {
     if (!b1ActiveShift) return { card: 0, vodafone_cash: 0, instapay: 0 };
     return (invoices || []).reduce((totals, inv) => {
-      if (!isInvInOperatingDay(inv, 'b1', b1ActiveShift)) return totals;
+      if (!isInvInShift(inv, 'b1', b1ActiveShift)) return totals;
       if (inv.orderType === 'delivery' || inv.order_type === 'delivery') return totals;
       const rawPaymentMethod = inv.paymentMethod || inv.payment_method || 'cash';
       const paymentMethod = rawPaymentMethod === 'visa' ? 'card' : rawPaymentMethod;
@@ -625,11 +607,9 @@ export default function POSPage() {
   const b2DeliverySales = useMemo(() => {
     if (!b2ActiveShift) return 0;
     return (invoices || []).reduce((sum, inv) => {
-      if (!isInvInOperatingDay(inv, 'b2', b2ActiveShift)) return sum;
+      if (!isInvInShift(inv, 'b2', b2ActiveShift)) return sum;
       const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
       if (!isDelivery) return sum;
-      const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
-      if (isCashCollected) return sum;
       return sum + (parseFloat(inv.total) || 0);
     }, 0);
   }, [invoices, b2ActiveShift]);
@@ -638,11 +618,9 @@ export default function POSPage() {
   const b2DeliveryFees = useMemo(() => {
     if (!b2ActiveShift) return 0;
     return (invoices || []).reduce((sum, inv) => {
-      if (!isInvInOperatingDay(inv, 'b2', b2ActiveShift)) return sum;
+      if (!isInvInShift(inv, 'b2', b2ActiveShift)) return sum;
       const isDelivery = inv.orderType === 'delivery' || inv.order_type === 'delivery';
       if (!isDelivery) return sum;
-      const isCashCollected = inv.is_cash_collected === true || inv.isCashCollected === true || inv.status === 'cash_collected';
-      if (isCashCollected) return sum;
       return sum + (parseFloat(inv.deliveryFee || inv.delivery_fee) || 0);
     }, 0);
   }, [invoices, b2ActiveShift]);
@@ -650,7 +628,7 @@ export default function POSPage() {
   const b2PaymentSales = useMemo(() => {
     if (!b2ActiveShift) return { card: 0, vodafone_cash: 0, instapay: 0 };
     return (invoices || []).reduce((totals, inv) => {
-      if (!isInvInOperatingDay(inv, 'b2', b2ActiveShift)) return totals;
+      if (!isInvInShift(inv, 'b2', b2ActiveShift)) return totals;
       if (inv.orderType === 'delivery' || inv.order_type === 'delivery') return totals;
       const rawPaymentMethod = inv.paymentMethod || inv.payment_method || 'cash';
       const paymentMethod = rawPaymentMethod === 'visa' ? 'card' : rawPaymentMethod;
