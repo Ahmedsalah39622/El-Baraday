@@ -53,16 +53,8 @@ async function normalizeBranchOrderNumbers() {
   }
 }
 
-async function getBranchNextOrderNumber(branchId, activeShiftRecord = null) {
+async function getBranchNextOrderNumber(branchId) {
   const normalizedBranch = (!branchId || branchId === 'all') ? 'b1' : branchId;
-
-  if (activeShiftRecord) {
-    const sql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 AS next FROM orders WHERE branch_id = ? AND (shift_id = ? OR (shift_id IS NULL AND created_at >= ?))";
-    const params = [normalizedBranch, activeShiftRecord.id, activeShiftRecord.start_time];
-    const res = await query(sql, params);
-    const nextValue = parseInt(res?.rows?.[0]?.next || '1', 10);
-    if (!Number.isNaN(nextValue) && nextValue > 0) return nextValue;
-  }
 
   const fallbackRes = await query('SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 AS next FROM orders WHERE branch_id = ?', [normalizedBranch]);
   const fallbackValue = parseInt(fallbackRes?.rows?.[0]?.next || '1', 10);
@@ -155,7 +147,6 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     await ensureOrderColumns();
-    await normalizeBranchOrderNumbers();
     const body = await request.json();
     const {
       order_type, payment_method, customer_name, customer_phone, customer_area,
@@ -176,7 +167,7 @@ export async function POST(request) {
     const cashCollectedVal = cashCollectedBool ? 1 : 0;
     const cashCollectedAtVal = cashCollectedBool ? new Date().toISOString() : null;
 
-    // Get next sequential order number scoped to this branch and active shift.
+    // Keep order numbers sequential per branch across shifts and calendar days.
     let nextNum = 1;
     let activeShiftRecord = null;
     try {
@@ -190,7 +181,7 @@ export async function POST(request) {
 
       const shiftRes = await query(shiftSql, shiftParams);
       activeShiftRecord = shiftRes.rows && shiftRes.rows[0];
-      nextNum = await getBranchNextOrderNumber(targetBranch, activeShiftRecord);
+      nextNum = await getBranchNextOrderNumber(targetBranch);
     } catch (err) {
       console.warn('⚠️ Standard nextNum query failed:', err.message);
       nextNum = 1;

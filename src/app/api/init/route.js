@@ -132,6 +132,7 @@ export async function GET(req) {
 
     const { searchParams } = new URL(req.url);
     const branchId = searchParams.get('branch_id');
+    const showAll = searchParams.get('all') === '1';
 
     let ordersWhere = '';
     let tablesWhere = '';
@@ -147,37 +148,12 @@ export async function GET(req) {
       shiftsWhere = `WHERE branch_id = $1`;
     }
 
-    // Active shift check for order_number resetting
-    let activeShiftStartTime = null;
-    let activeShiftId = null;
-    let shiftCheckSql = "SELECT id, start_time FROM shifts WHERE status = 'active'";
-    const shiftCheckParams = [];
-    if (branchId && branchId !== 'all') {
-      shiftCheckSql += " AND (branch_id = $1 OR branch_id IS NULL OR branch_id = '' OR branch_id = 'all')";
-      shiftCheckParams.push(branchId);
-    }
-    shiftCheckSql += " ORDER BY start_time DESC LIMIT 1";
-
-    const sRes = await safeQuery(shiftCheckSql, shiftCheckParams);
-    if (sRes.rows && sRes.rows[0]) {
-      activeShiftId = sRes.rows[0].id;
-      activeShiftStartTime = sRes.rows[0].start_time;
-    }
-
-    let nextOrderSql = "";
+    // Order numbers continue per branch across shifts and calendar days.
+    let nextOrderSql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders";
     let nextOrderParams = [];
-
-    if (activeShiftId) {
-      if (branchId && branchId !== 'all') {
-        nextOrderSql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE branch_id = $1 AND (shift_id = $2 OR (shift_id IS NULL AND created_at >= $3))";
-        nextOrderParams = [branchId, activeShiftId, activeShiftStartTime];
-      } else {
-        nextOrderSql = "SELECT COALESCE(MAX(CAST(order_number AS SIGNED)), 0) + 1 as next FROM orders WHERE (shift_id = $1 OR (shift_id IS NULL AND created_at >= $2))";
-        nextOrderParams = [activeShiftId, activeShiftStartTime];
-      }
-    } else {
-      nextOrderSql = "SELECT 1 as next";
-      nextOrderParams = [];
+    if (branchId && branchId !== 'all') {
+      nextOrderSql += " WHERE branch_id = $1";
+      nextOrderParams = [branchId];
     }
 
     const [
@@ -204,11 +180,11 @@ export async function GET(req) {
         SELECT o.*, b.name as branch_name
         FROM orders o
         LEFT JOIN branches b ON o.branch_id = b.id
-        WHERE (
+        WHERE ${showAll ? '1 = 1' : `(
           DATE(o.created_at) = CURDATE()
           OR o.shift_id IN (SELECT id FROM shifts WHERE status = 'active')
           OR o.created_at >= (SELECT COALESCE(MIN(start_time), CURDATE()) FROM shifts WHERE status = 'active')
-        )
+        )`}
         ${branchId && branchId !== 'all' ? `AND o.branch_id = $1` : ''}
         ORDER BY o.created_at DESC
         LIMIT 500
