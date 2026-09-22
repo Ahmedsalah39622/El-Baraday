@@ -160,7 +160,7 @@ export default function ShiftSummaryPage() {
   };
 
   useEffect(() => {
-    fetchInvoices(500, effectiveBranchId);
+    fetchInvoices(1000, effectiveBranchId);
     fetchShifts(effectiveBranchId);
     fetchPastShifts();
     fetchReturns(effectiveBranchId);
@@ -169,7 +169,7 @@ export default function ShiftSummaryPage() {
     // Auto-refresh every 10 seconds for real-time data (only when tab is visible)
     const refreshInterval = setInterval(() => {
       if (document.visibilityState === 'visible') {
-        fetchInvoices(500, effectiveBranchId, true);
+        fetchInvoices(1000, effectiveBranchId, true);
         fetchShifts(effectiveBranchId);
         fetchReturns(effectiveBranchId);
         fetchShiftInventory();

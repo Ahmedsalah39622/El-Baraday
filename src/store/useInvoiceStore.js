@@ -28,8 +28,8 @@ export const useInvoiceStore = create((set, get) => ({
   },
 
   // Fetch POS order invoices from DB
-  fetchInvoices: async (limitOrBranch = 500, branchIdArg = 'all', isSilent = false) => {
-    let limit = 500;
+  fetchInvoices: async (limitOrBranch = 1000, branchIdArg = 'all', isSilent = false) => {
+    let limit = 1000;
     let branchId = 'all';
 
     if (typeof limitOrBranch === 'string') {
@@ -400,7 +400,7 @@ export const useInvoiceStore = create((set, get) => ({
           ),
         }));
         get().fetchNextOrderNumber(targetBranch);
-        get().fetchInvoices(500, targetBranch);
+        get().fetchInvoices(1000, targetBranch);
 
         // Immediate sync of driver attendance queue
         if (invoice.orderType === 'delivery' || invoice.driverName || invoice.driver_name) {

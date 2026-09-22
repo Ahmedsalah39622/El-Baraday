@@ -138,7 +138,7 @@ export const useShiftStore = create(
             body: JSON.stringify({ branch_id: targetBranch })
           }).then(() => {
             // Re-fetch invoices after cleanup to show only today's orders
-            useInvoiceStore.getState().fetchInvoices(500, targetBranch);
+            useInvoiceStore.getState().fetchInvoices(1000, targetBranch);
           }).catch(e => console.warn('⚠️ Daily close cleanup error:', e.message));
         } catch (e) {
           console.warn('⚠️ Daily close error:', e.message);

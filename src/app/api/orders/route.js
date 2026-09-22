@@ -68,7 +68,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const rawLimit = searchParams.get('limit');
     const parsedLimit = parseInt(rawLimit, 10);
-    const limit = !isNaN(parsedLimit) && parsedLimit > 0 ? parsedLimit : 500;
+    const limit = !isNaN(parsedLimit) && parsedLimit > 0 ? parsedLimit : 1000;
     const status = searchParams.get('status');
     const date = searchParams.get('date');
     const branchId = searchParams.get('branch_id');
