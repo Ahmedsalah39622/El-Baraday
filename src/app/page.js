@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { Box, Typography, Button, Drawer, Badge, Dialog, DialogTitle, DialogContent, DialogActions, Chip, Paper, IconButton, FormControl, Select, MenuItem, CircularProgress, Tabs, Tab, Snackbar, Alert } from '@mui/material';
 import { ShoppingBagOutlined, AccountBalanceWallet, Store } from '@mui/icons-material';
 import SearchBar from '@/components/pos/SearchBar';
@@ -19,6 +19,17 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { printThermalReceipt, playOrderNotificationSound, isOrderPrinted, markOrderAsPrinted } from '@/lib/printReceipt';
 import OperationsDashboard from '@/components/dashboard/OperationsDashboard';
 import { AssessmentOutlined } from '@mui/icons-material';
+
+const areOrderListsEqual = (current = [], next = []) => (
+  current.length === next.length && current.every((currentOrder, index) => {
+    const nextOrder = next[index];
+    return Object.keys(nextOrder).every((key) => (
+      key === 'items'
+        ? JSON.stringify(currentOrder.items || []) === JSON.stringify(nextOrder.items || [])
+        : currentOrder[key] === nextOrder[key]
+    ));
+  })
+);
 
 export default function POSPage() {
   const { products, fetchProducts } = useProductStore();
@@ -417,7 +428,9 @@ export default function POSPage() {
                   localInv.createdAt &&
                   Date.now() - new Date(localInv.createdAt).getTime() < 60000
               );
-              return { invoices: [...localPending, ...mappedOrders] };
+              const nextInvoices = [...localPending, ...mappedOrders];
+              if (areOrderListsEqual(state.invoices || [], nextInvoices)) return state;
+              return { invoices: nextInvoices };
             });
           }
         }
@@ -437,20 +450,30 @@ export default function POSPage() {
               const rawStart = active.start_time || active.created_at || new Date().toISOString();
               let formattedTime = '08:00 AM';
               try { formattedTime = new Date(rawStart).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }); } catch (e) {}
-              useShiftStore.setState({
-                shifts: shiftsData,
-                activeShift: {
-                  id: active.id,
-                  cashierName: active.cashier_name || 'administrator',
-                  rawStartTime: rawStart,
-                  startTime: formattedTime,
-                  startAmount: parseFloat(active.start_amount || 0),
-                  status: 'active',
-                  branch_id: active.branch_id
-                }
-              });
+              const nextActiveShift = {
+                id: active.id,
+                cashierName: active.cashier_name || 'administrator',
+                rawStartTime: rawStart,
+                startTime: formattedTime,
+                startAmount: parseFloat(active.start_amount || 0),
+                status: 'active',
+                branch_id: active.branch_id
+              };
+              const currentShiftState = useShiftStore.getState();
+              if (
+                JSON.stringify(currentShiftState.shifts || []) !== JSON.stringify(shiftsData) ||
+                JSON.stringify(currentShiftState.activeShift) !== JSON.stringify(nextActiveShift)
+              ) {
+                useShiftStore.setState({ shifts: shiftsData, activeShift: nextActiveShift });
+              }
             } else {
-              useShiftStore.setState({ activeShift: null, shifts: shiftsData });
+              const currentShiftState = useShiftStore.getState();
+              if (
+                currentShiftState.activeShift !== null ||
+                JSON.stringify(currentShiftState.shifts || []) !== JSON.stringify(shiftsData)
+              ) {
+                useShiftStore.setState({ activeShift: null, shifts: shiftsData });
+              }
             }
           }
         }
@@ -476,7 +499,7 @@ export default function POSPage() {
         isPolling = true;
         pollRealtimeData().finally(() => { isPolling = false; });
       }
-    }, 3000);
+    }, 10000);
 
     return () => {
       clearInterval(interval);
@@ -667,19 +690,19 @@ export default function POSPage() {
       : (effectiveBranchId === 'b2' ? b2DrawerCash : b1DrawerCash);
 
   // Filter products by category & search, explicitly sorted by sortOrder
-  const filteredProducts = (products || [])
+  const filteredProducts = useMemo(() => (products || [])
     .filter((product) => {
       const matchesCategory = selectedCategory === 'all' || product.categoryId === selectedCategory;
       const matchesSearch = !searchQuery || product.name.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     })
-    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)), [products, selectedCategory, searchQuery]);
 
   // Calculate totals
   const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const total = subtotal;
 
-  const handleSelectProduct = (product) => {
+  const handleSelectProduct = useCallback((product) => {
     if (product.hasMultipleSizes && !product.isOffer) {
       setSelectedProductForSize(product);
       setQtySmall(1);
@@ -696,7 +719,7 @@ export default function POSPage() {
         quantity: 1,
       });
     }
-  };
+  }, [addItem]);
 
   if (!hasPosPermission || (isAdmin && adminViewMode === 'dashboard')) {
     return (
